@@ -1,0 +1,103 @@
+export const MAX_SELECTED_MATERIALS = 4
+export const MIN_CLUSTER_SIZE = 1
+export const MAX_CLUSTER_SIZE = 8
+export const MIN_OVERLAY_FONT_SCALE = 0.8
+export const MAX_OVERLAY_FONT_SCALE = 1.6
+export const DEFAULT_OVERLAY_FONT_SCALE = 1
+export const OVERLAY_FONT_SCALE_STEP = 0.05
+
+export type ShortcutId = 'toggle-overlay' | 'next-target' | 'show-all' | 'toggle-compact'
+
+export const SHORTCUT_IDS: ShortcutId[] = [
+  'toggle-overlay',
+  'next-target',
+  'show-all',
+  'toggle-compact'
+]
+
+export const DEFAULT_SHORTCUTS: Record<ShortcutId, string> = {
+  'toggle-overlay': 'CommandOrControl+Shift+M',
+  'next-target': 'CommandOrControl+Shift+N',
+  'show-all': 'CommandOrControl+Shift+A',
+  'toggle-compact': 'CommandOrControl+Shift+C'
+}
+
+export type MiningMethod = 'Ship' | 'Ground Vehicle' | 'FPS' | 'Unclassified'
+
+export interface MiningMaterial {
+  id: string
+  name: string
+  displayName: string
+  signature: number
+  methods: MiningMethod[]
+  sourceUrl: string
+}
+
+export type OverlayPlacement = 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right'
+
+export interface OverlayPosition {
+  x: number
+  y: number
+}
+
+export interface OverlayContentMetrics {
+  layoutKey: string
+  height: number
+  headerHeight: number
+}
+
+export interface OverlaySettings {
+  selectedMaterialIds: string[]
+  clusterMax: number
+  visible: boolean
+  compact: boolean
+  opacity: number
+  fontScale: number
+  placement: OverlayPlacement
+  customPosition: OverlayPosition | null
+  spotlightMaterialId: string | null
+  shortcuts: Record<ShortcutId, string>
+}
+
+export type DataSourceState = 'loading' | 'live' | 'cached' | 'fallback'
+
+export interface MiningDataStatus {
+  state: DataSourceState
+  message: string
+  updatedAt: string | null
+}
+
+export interface ShortcutStatus {
+  id: ShortcutId
+  label: string
+  accelerator: string
+  registered: boolean
+}
+
+export interface AppSnapshot {
+  materials: MiningMaterial[]
+  settings: OverlaySettings
+  dataStatus: MiningDataStatus
+  shortcuts: ShortcutStatus[]
+  warning: string | null
+}
+
+export type OverlaySettingsPatch = Partial<OverlaySettings>
+
+export interface RockfallApi {
+  getSnapshot: () => Promise<AppSnapshot>
+  updateSettings: (patch: OverlaySettingsPatch) => Promise<AppSnapshot>
+  reportOverlayMetrics: (metrics: OverlayContentMetrics) => Promise<void>
+  refreshMaterials: () => Promise<AppSnapshot>
+  setShortcutCapture: (active: boolean) => Promise<AppSnapshot>
+  onSnapshot: (listener: (snapshot: AppSnapshot) => void) => () => void
+}
+
+export const IPC_CHANNELS = {
+  getSnapshot: 'rockfall:snapshot:get',
+  updateSettings: 'rockfall:settings:update',
+  reportOverlayMetrics: 'rockfall:overlay:metrics',
+  refreshMaterials: 'rockfall:materials:refresh',
+  setShortcutCapture: 'rockfall:shortcuts:capture',
+  snapshotChanged: 'rockfall:snapshot:changed'
+} as const

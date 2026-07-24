@@ -66,6 +66,11 @@ update is also installed when the app exits normally.
 
 ## Windows behavior
 
+Closing the control window hides Rockfall in the Windows notification area
+instead of exiting. Click the tray icon to reopen the console, or choose
+**Quit Rockfall** from its context menu to exit. The overlay and global
+shortcuts remain active while the console is hidden.
+
 The overlay window is:
 
 - transparent and frameless;
@@ -131,8 +136,8 @@ certificate through electron-builder's standard `CSC_*` environment variables.
 
 Rockfall uses Electron, React, TypeScript, and electron-vite.
 
-- `src\main` owns native windows, global shortcuts, settings persistence, API
-  access, caching, overlay placement, and application updates.
+- `src\main` owns native windows, tray lifecycle, global shortcuts, settings
+  persistence, API access, caching, overlay placement, and application updates.
 - `src\preload` exposes a narrow typed IPC bridge; renderer code has no Node.js
   access.
 - `src\renderer` renders both the control console and overlay from the same

@@ -3,9 +3,11 @@ import {
   BrowserWindow,
   globalShortcut,
   ipcMain,
+  Menu,
   nativeTheme,
   screen,
   shell,
+  Tray,
   type IpcMainInvokeEvent
 } from 'electron'
 import { join } from 'node:path'
@@ -78,6 +80,7 @@ const SHORTCUT_DEFINITIONS: Array<
 let controlWindow: BrowserWindow | null = null
 let overlayWindow: BrowserWindow | null = null
 let dragHandleWindow: BrowserWindow | null = null
+let tray: Tray | null = null
 let settings: OverlaySettings = {
   ...DEFAULT_SETTINGS,
   selectedMaterialIds: [...DEFAULT_SETTINGS.selectedMaterialIds]
@@ -100,6 +103,7 @@ let warning: string | null = null
 let settingsPath = ''
 let cachePath = ''
 let appUpdater: AppUpdaterController | null = null
+let isQuitting = false
 let shortcutCaptureActive = false
 let expectedOverlayPosition: OverlayPosition | null = null
 let overlayPositionTimer: NodeJS.Timeout | null = null
@@ -379,6 +383,40 @@ function secureExternalNavigation(window: BrowserWindow): void {
   })
 }
 
+function showControlWindow(): void {
+  if (!controlWindow || controlWindow.isDestroyed()) {
+    controlWindow = createControlWindow()
+    return
+  }
+  if (controlWindow.isMinimized()) controlWindow.restore()
+  controlWindow.show()
+  controlWindow.focus()
+}
+
+function runWithQuitIntent(action: () => void): void {
+  isQuitting = true
+  try {
+    action()
+  } catch (error) {
+    isQuitting = false
+    throw error
+  }
+}
+
+function createAppTray(): Tray {
+  const appTray = new Tray(icon)
+  appTray.setToolTip('Rockfall Mining Overlay')
+  appTray.setContextMenu(
+    Menu.buildFromTemplate([
+      { label: 'Open Rockfall', click: showControlWindow },
+      { type: 'separator' },
+      { label: 'Quit Rockfall', click: () => runWithQuitIntent(() => app.quit()) }
+    ])
+  )
+  appTray.on('click', showControlWindow)
+  return appTray
+}
+
 function createControlWindow(): BrowserWindow {
   const window = new BrowserWindow({
     title: 'Rockfall Mining Overlay',
@@ -399,9 +437,13 @@ function createControlWindow(): BrowserWindow {
   })
 
   window.on('ready-to-show', () => window.show())
+  window.on('close', (event) => {
+    if (isQuitting) return
+    event.preventDefault()
+    window.hide()
+  })
   window.on('closed', () => {
     controlWindow = null
-    if (process.platform !== 'darwin') app.quit()
   })
   secureExternalNavigation(window)
   loadRenderer(window, 'control')
@@ -546,8 +588,9 @@ function registerIpcHandlers(): void {
   })
   ipcMain.handle(IPC_CHANNELS.restartToUpdate, (event) => {
     assertControlWindowSender(event)
-    if (!appUpdater) throw new Error('The application updater is not initialized.')
-    appUpdater.restartToUpdate()
+    const updater = appUpdater
+    if (!updater) throw new Error('The application updater is not initialized.')
+    runWithQuitIntent(() => updater.restartToUpdate())
   })
 }
 
@@ -575,6 +618,7 @@ app.whenReady().then(async () => {
   })
 
   registerIpcHandlers()
+  tray = createAppTray()
   controlWindow = createControlWindow()
   overlayWindow = createOverlayWindow()
   dragHandleWindow = createDragHandleWindow()
@@ -590,16 +634,18 @@ app.whenReady().then(async () => {
   runInBackground('Mining signatures could not be refreshed', refreshMaterials())
 
   app.on('activate', () => {
-    if (!controlWindow) controlWindow = createControlWindow()
+    showControlWindow()
   })
+})
+
+app.on('before-quit', () => {
+  isQuitting = true
 })
 
 app.on('will-quit', () => {
   appUpdater?.stop()
   globalShortcut.unregisterAll()
   if (overlayPositionTimer) clearTimeout(overlayPositionTimer)
-})
-
-app.on('window-all-closed', () => {
-  if (process.platform !== 'darwin') app.quit()
+  tray?.destroy()
+  tray = null
 })

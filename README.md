@@ -38,7 +38,8 @@ The control window supports material search and mining-method filters, overlay
 position, opacity, font size, cluster range, compact mode, visibility, and data
 refresh. Font size ranges from 80% to 160%; the native overlay resizes with the
 readout so larger text remains fully visible. Changes are persisted in
-Electron's per-user application data directory.
+Electron's per-user application data directory. Selected ores stay pinned above
+filtered results, and **Clear overlay** removes every target at once.
 
 Drag the overlay's cyan header to place it anywhere on screen. The header
 captures the mouse for dragging; the remaining overlay area stays click-through.

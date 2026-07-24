@@ -12,6 +12,7 @@ import {
   Search,
   SlidersHorizontal,
   Target,
+  X,
   Zap
 } from 'lucide-react'
 
@@ -29,6 +30,7 @@ import {
 } from '../../../shared/contracts'
 import { useRockfall } from '../hooks/useRockfall'
 import { getAccelerator } from '../lib/shortcut-accelerator'
+import { pinSelectedMaterials } from '../lib/material-order'
 import SignatureBoard from './SignatureBoard'
 
 type MaterialFilter = 'All' | Exclude<MiningMethod, 'Unclassified'>
@@ -49,18 +51,22 @@ export default function ControlApp(): React.JSX.Element {
   const [filter, setFilter] = useState<MaterialFilter>('All')
   const [recordingShortcut, setRecordingShortcut] = useState<ShortcutId | null>(null)
 
-  const filteredMaterials = useMemo(() => {
+  const visibleMaterials = useMemo(() => {
     if (!snapshot) return []
     const normalizedQuery = query.trim().toLocaleLowerCase()
 
-    return snapshot.materials.filter((material) => {
-      const matchesQuery =
-        !normalizedQuery ||
-        material.name.toLocaleLowerCase().includes(normalizedQuery) ||
-        material.signature.toString().includes(normalizedQuery)
-      const matchesFilter = filter === 'All' || material.methods.includes(filter)
-      return matchesQuery && matchesFilter
-    })
+    return pinSelectedMaterials(
+      snapshot.materials,
+      snapshot.settings.selectedMaterialIds,
+      (material) => {
+        const matchesQuery =
+          !normalizedQuery ||
+          material.name.toLocaleLowerCase().includes(normalizedQuery) ||
+          material.signature.toString().includes(normalizedQuery)
+        const matchesFilter = filter === 'All' || material.methods.includes(filter)
+        return matchesQuery && matchesFilter
+      }
+    )
   }, [filter, query, snapshot])
 
   if (!snapshot) {
@@ -87,6 +93,13 @@ export default function ControlApp(): React.JSX.Element {
     if (selectedMaterialIds.length <= MAX_SELECTED_MATERIALS) {
       void updateSettings({ selectedMaterialIds })
     }
+  }
+
+  const clearOverlay = (): void => {
+    void updateSettings({
+      selectedMaterialIds: [],
+      spotlightMaterialId: null
+    })
   }
 
   const beginShortcutCapture = (id: ShortcutId): void => {
@@ -178,9 +191,20 @@ export default function ControlApp(): React.JSX.Element {
                 <p>Choose the signatures that belong in your scan reference.</p>
               </div>
             </div>
-            <span className="selection-counter">
-              <strong>{selectedCount}</strong> / {MAX_SELECTED_MATERIALS} armed
-            </span>
+            <div className="selection-actions">
+              <span className="selection-counter">
+                <strong>{selectedCount}</strong> / {MAX_SELECTED_MATERIALS} armed
+              </span>
+              <button
+                className="reset-button"
+                type="button"
+                disabled={selectedCount === 0}
+                onClick={clearOverlay}
+              >
+                <X size={12} />
+                Clear overlay
+              </button>
+            </div>
           </div>
 
           <div className="target-tools">
@@ -230,7 +254,7 @@ export default function ControlApp(): React.JSX.Element {
               <span />
             </div>
             <div className="material-table__body">
-              {filteredMaterials.map((material) => {
+              {visibleMaterials.map((material) => {
                 const isSelected = settings.selectedMaterialIds.includes(material.id)
                 const atLimit = selectedCount >= MAX_SELECTED_MATERIALS && !isSelected
 
@@ -261,7 +285,7 @@ export default function ControlApp(): React.JSX.Element {
                   </button>
                 )
               })}
-              {filteredMaterials.length === 0 && (
+              {visibleMaterials.length === 0 && (
                 <div className="table-empty">
                   <Search size={20} />
                   <strong>No matching signatures</strong>

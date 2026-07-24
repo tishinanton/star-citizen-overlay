@@ -244,11 +244,18 @@
   margin-bottom: 14px;
 }
 
+.selection-actions {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding-top: 3px;
+}
+
 .selection-counter {
-  padding-top: 6px;
   color: var(--muted);
   font-size: 11px;
   font-variant-numeric: tabular-nums;
+  white-space: nowrap;
 }
 
 .selection-counter strong {
@@ -663,9 +670,13 @@
   font-size: 8px;
 }
 
-.reset-button:hover {
+.reset-button:hover:not(:disabled) {
   border-color: var(--edge-strong);
   color: var(--ink);
+}
+
+.reset-button:disabled {
+  opacity: 0.42;
 }
 
 .shortcut-list {

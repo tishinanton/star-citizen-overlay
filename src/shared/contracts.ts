@@ -74,11 +74,23 @@ export interface ShortcutStatus {
   registered: boolean
 }
 
+export type AppUpdateStatus =
+  'unavailable' | 'idle' | 'checking' | 'downloading' | 'ready' | 'up-to-date' | 'error'
+
+export interface AppUpdateState {
+  status: AppUpdateStatus
+  currentVersion: string
+  availableVersion: string | null
+  downloadProgress: number | null
+  message: string
+}
+
 export interface AppSnapshot {
   materials: MiningMaterial[]
   settings: OverlaySettings
   dataStatus: MiningDataStatus
   shortcuts: ShortcutStatus[]
+  appUpdate: AppUpdateState
   warning: string | null
 }
 
@@ -90,6 +102,8 @@ export interface RockfallApi {
   reportOverlayMetrics: (metrics: OverlayContentMetrics) => Promise<void>
   refreshMaterials: () => Promise<AppSnapshot>
   setShortcutCapture: (active: boolean) => Promise<AppSnapshot>
+  checkForUpdates: () => Promise<AppSnapshot>
+  restartToUpdate: () => Promise<void>
   onSnapshot: (listener: (snapshot: AppSnapshot) => void) => () => void
 }
 
@@ -99,5 +113,7 @@ export const IPC_CHANNELS = {
   reportOverlayMetrics: 'rockfall:overlay:metrics',
   refreshMaterials: 'rockfall:materials:refresh',
   setShortcutCapture: 'rockfall:shortcuts:capture',
+  checkForUpdates: 'rockfall:updates:check',
+  restartToUpdate: 'rockfall:updates:restart',
   snapshotChanged: 'rockfall:snapshot:changed'
 } as const

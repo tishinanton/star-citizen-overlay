@@ -8,6 +8,8 @@ interface RockfallState {
   updateSettings: (patch: OverlaySettingsPatch) => Promise<void>
   refreshMaterials: () => Promise<void>
   setShortcutCapture: (active: boolean) => Promise<void>
+  checkForUpdates: () => Promise<void>
+  restartToUpdate: () => Promise<void>
 }
 
 export function useRockfall(): RockfallState {
@@ -65,12 +67,32 @@ export function useRockfall(): RockfallState {
     }
   }, [])
 
+  const checkForUpdates = useCallback(async (): Promise<void> => {
+    try {
+      setError(null)
+      setSnapshot(await window.rockfall.checkForUpdates())
+    } catch (reason) {
+      setError(getErrorMessage(reason))
+    }
+  }, [])
+
+  const restartToUpdate = useCallback(async (): Promise<void> => {
+    try {
+      setError(null)
+      await window.rockfall.restartToUpdate()
+    } catch (reason) {
+      setError(getErrorMessage(reason))
+    }
+  }, [])
+
   return {
     snapshot,
     error,
     updateSettings,
     refreshMaterials,
-    setShortcutCapture
+    setShortcutCapture,
+    checkForUpdates,
+    restartToUpdate
   }
 }
 

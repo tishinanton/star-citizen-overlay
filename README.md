@@ -59,6 +59,11 @@ Click any binding in **Global controls** and press a replacement key
 combination. Function keys can be used alone; regular keys require Ctrl, Alt,
 or Shift. The app reports when another program has already claimed a shortcut.
 
+Installed builds check GitHub Releases for updates at startup and every four
+hours. New versions download in the background; the control window reports
+progress and offers a restart action when installation is ready. A downloaded
+update is also installed when the app exits normally.
+
 ## Windows behavior
 
 The overlay window is:
@@ -105,6 +110,19 @@ npm run build:win
 
 Installer output is written below `dist\`.
 
+Publish a new version and its auto-update metadata to GitHub Releases:
+
+```powershell
+npm version patch
+git push --follow-tags
+$env:GH_TOKEN = (gh auth token)
+npm run release:win
+```
+
+Use `minor` or `major` instead of `patch` when appropriate. The publish command
+uploads the NSIS installer, its blockmap, and `latest.yml`; all three release
+assets must remain available for automatic updates.
+
 Local builds are not publisher-signed, so Windows SmartScreen can warn when the
 installer is shared. A public release should configure an Authenticode
 certificate through electron-builder's standard `CSC_*` environment variables.
@@ -114,7 +132,7 @@ certificate through electron-builder's standard `CSC_*` environment variables.
 Rockfall uses Electron, React, TypeScript, and electron-vite.
 
 - `src\main` owns native windows, global shortcuts, settings persistence, API
-  access, caching, and overlay placement.
+  access, caching, overlay placement, and application updates.
 - `src\preload` exposes a narrow typed IPC bridge; renderer code has no Node.js
   access.
 - `src\renderer` renders both the control console and overlay from the same

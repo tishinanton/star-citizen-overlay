@@ -2,6 +2,7 @@ import { useMemo, useState, type KeyboardEvent as ReactKeyboardEvent } from 'rea
 import {
   Crosshair,
   Database,
+  Download,
   Eye,
   EyeOff,
   Keyboard,
@@ -23,6 +24,7 @@ import {
   MAX_SELECTED_MATERIALS,
   MIN_OVERLAY_FONT_SCALE,
   OVERLAY_FONT_SCALE_STEP,
+  type AppUpdateState,
   type MiningMaterial,
   type MiningMethod,
   type OverlayPlacement,
@@ -46,7 +48,15 @@ const PLACEMENTS: Array<{ value: OverlayPlacement; label: string }> = [
 const numberFormatter = new Intl.NumberFormat('en-US')
 
 export default function ControlApp(): React.JSX.Element {
-  const { snapshot, error, updateSettings, refreshMaterials, setShortcutCapture } = useRockfall()
+  const {
+    snapshot,
+    error,
+    updateSettings,
+    refreshMaterials,
+    setShortcutCapture,
+    checkForUpdates,
+    restartToUpdate
+  } = useRockfall()
   const [query, setQuery] = useState('')
   const [filter, setFilter] = useState<MaterialFilter>('All')
   const [recordingShortcut, setRecordingShortcut] = useState<ShortcutId | null>(null)
@@ -81,7 +91,7 @@ export default function ControlApp(): React.JSX.Element {
     )
   }
 
-  const { settings, dataStatus, shortcuts } = snapshot
+  const { settings, dataStatus, shortcuts, appUpdate } = snapshot
   const selectedCount = settings.selectedMaterialIds.length
 
   const toggleMaterial = (material: MiningMaterial): void => {
@@ -160,6 +170,11 @@ export default function ControlApp(): React.JSX.Element {
 
         <div className="app-header__actions">
           <DataStatus state={dataStatus.state} message={dataStatus.message} />
+          <AppUpdateControl
+            state={appUpdate}
+            onCheck={() => void checkForUpdates()}
+            onRestart={() => void restartToUpdate()}
+          />
           <button
             className={`overlay-toggle ${settings.visible ? 'overlay-toggle--active' : ''}`}
             type="button"
@@ -482,6 +497,48 @@ export default function ControlApp(): React.JSX.Element {
         </a>
       </footer>
     </div>
+  )
+}
+
+function AppUpdateControl({
+  state,
+  onCheck,
+  onRestart
+}: {
+  state: AppUpdateState
+  onCheck: () => void
+  onRestart: () => void
+}): React.JSX.Element {
+  const busy = state.status === 'checking' || state.status === 'downloading'
+  const disabled = busy || state.status === 'unavailable'
+  const targetVersion = state.availableVersion ? `v${state.availableVersion}` : 'update'
+  const label = {
+    unavailable: `v${state.currentVersion}`,
+    idle: `v${state.currentVersion} · Check updates`,
+    checking: 'Checking updates…',
+    downloading: `Downloading ${targetVersion} · ${state.downloadProgress ?? 0}%`,
+    ready: `Restart for ${targetVersion}`,
+    'up-to-date': `v${state.currentVersion} · Up to date`,
+    error: 'Update failed · Retry'
+  }[state.status]
+
+  return (
+    <button
+      className={`icon-text-button update-control update-control--${state.status}`}
+      type="button"
+      disabled={disabled}
+      aria-busy={busy}
+      aria-label={`${label}. ${state.message}`}
+      title={state.message}
+      onClick={state.status === 'ready' ? onRestart : onCheck}
+    >
+      {state.status === 'ready' ? (
+        <Download size={14} />
+      ) : (
+        <RefreshCw size={14} className={busy ? 'is-spinning' : ''} />
+      )}
+      {label}
+    </button>
   )
 }
 

@@ -41,5 +41,7 @@ appImage:
   artifactName: ${name}-${version}.${ext}
 npmRebuild: false
 publish:
-  provider: generic
-  url: https://github.com/tishinanton/star-citizen-overlay/releases
+  provider: github
+  owner: tishinanton
+  repo: star-citizen-overlay
+  releaseType: release

@@ -1,12 +1,23 @@
-import { app, BrowserWindow, globalShortcut, ipcMain, nativeTheme, screen, shell } from 'electron'
+import {
+  app,
+  BrowserWindow,
+  globalShortcut,
+  ipcMain,
+  nativeTheme,
+  screen,
+  shell,
+  type IpcMainInvokeEvent
+} from 'electron'
 import { join } from 'node:path'
 
 import { electronApp, is, optimizer } from '@electron-toolkit/utils'
+import { autoUpdater } from 'electron-updater'
 import icon from '../../resources/icon.png?asset'
 
 import {
   IPC_CHANNELS,
   type AppSnapshot,
+  type AppUpdateState,
   type MiningDataStatus,
   type MiningMaterial,
   type OverlayContentMetrics,
@@ -21,6 +32,7 @@ import {
   getOverlayLayoutKey,
   type OverlayLayout
 } from '../shared/overlay-layout'
+import { AppUpdaterController, createUpdaterClient } from './app-updater'
 import { loadMiningData } from './mining-data'
 import { DEFAULT_SETTINGS, loadSettings, mergeSettings, saveSettings } from './settings-store'
 
@@ -76,10 +88,18 @@ let dataStatus: MiningDataStatus = {
   message: 'Loading mining signatures…',
   updatedAt: null
 }
+let appUpdate: AppUpdateState = {
+  status: 'unavailable',
+  currentVersion: app.getVersion(),
+  availableVersion: null,
+  downloadProgress: null,
+  message: 'Update checks are available in installed builds.'
+}
 let shortcutStatuses: ShortcutStatus[] = []
 let warning: string | null = null
 let settingsPath = ''
 let cachePath = ''
+let appUpdater: AppUpdaterController | null = null
 let shortcutCaptureActive = false
 let expectedOverlayPosition: OverlayPosition | null = null
 let overlayPositionTimer: NodeJS.Timeout | null = null
@@ -91,13 +111,16 @@ function getSnapshot(): AppSnapshot {
     settings,
     dataStatus,
     shortcuts: shortcutStatuses,
+    appUpdate,
     warning
   }
 }
 
-function broadcastSnapshot(): void {
+function broadcastSnapshot(
+  targetWindows: ReadonlyArray<BrowserWindow | null> = [controlWindow, overlayWindow]
+): void {
   const snapshot = getSnapshot()
-  for (const window of [controlWindow, overlayWindow]) {
+  for (const window of targetWindows) {
     if (window && !window.isDestroyed()) {
       window.webContents.send(IPC_CHANNELS.snapshotChanged, snapshot)
     }
@@ -487,6 +510,12 @@ function setShortcutCapture(active: boolean): AppSnapshot {
   return getSnapshot()
 }
 
+function assertControlWindowSender(event: IpcMainInvokeEvent): void {
+  if (!controlWindow || controlWindow.isDestroyed() || event.sender !== controlWindow.webContents) {
+    throw new Error('Application updates can only be controlled from the Rockfall window.')
+  }
+}
+
 function registerIpcHandlers(): void {
   ipcMain.handle(IPC_CHANNELS.getSnapshot, () => getSnapshot())
   ipcMain.handle(IPC_CHANNELS.updateSettings, (_event, patch: OverlaySettingsPatch) =>
@@ -509,6 +538,17 @@ function registerIpcHandlers(): void {
     }
     return setShortcutCapture(active)
   })
+  ipcMain.handle(IPC_CHANNELS.checkForUpdates, async (event) => {
+    assertControlWindowSender(event)
+    if (!appUpdater) throw new Error('The application updater is not initialized.')
+    await appUpdater.checkForUpdates()
+    return getSnapshot()
+  })
+  ipcMain.handle(IPC_CHANNELS.restartToUpdate, (event) => {
+    assertControlWindowSender(event)
+    if (!appUpdater) throw new Error('The application updater is not initialized.')
+    appUpdater.restartToUpdate()
+  })
 }
 
 app.whenReady().then(async () => {
@@ -520,6 +560,15 @@ app.whenReady().then(async () => {
   const loaded = await loadSettings(settingsPath)
   settings = loaded.settings
   warning = loaded.warning
+  appUpdater = new AppUpdaterController(createUpdaterClient(autoUpdater), {
+    enabled: app.isPackaged,
+    currentVersion: app.getVersion(),
+    onStateChange: (state) => {
+      appUpdate = state
+      broadcastSnapshot([controlWindow])
+    }
+  })
+  appUpdate = appUpdater.getState()
 
   app.on('browser-window-created', (_, window) => {
     optimizer.watchWindowShortcuts(window)
@@ -537,6 +586,7 @@ app.whenReady().then(async () => {
   }
   shortcutStatuses = registerShortcuts()
   broadcastSnapshot()
+  appUpdater.start()
   runInBackground('Mining signatures could not be refreshed', refreshMaterials())
 
   app.on('activate', () => {
@@ -545,6 +595,7 @@ app.whenReady().then(async () => {
 })
 
 app.on('will-quit', () => {
+  appUpdater?.stop()
   globalShortcut.unregisterAll()
   if (overlayPositionTimer) clearTimeout(overlayPositionTimer)
 })

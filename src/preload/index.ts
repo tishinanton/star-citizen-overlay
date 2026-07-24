@@ -17,6 +17,8 @@ const rockfallApi: RockfallApi = {
   refreshMaterials: () => ipcRenderer.invoke(IPC_CHANNELS.refreshMaterials),
   setShortcutCapture: (active: boolean) =>
     ipcRenderer.invoke(IPC_CHANNELS.setShortcutCapture, active),
+  checkForUpdates: () => ipcRenderer.invoke(IPC_CHANNELS.checkForUpdates),
+  restartToUpdate: () => ipcRenderer.invoke(IPC_CHANNELS.restartToUpdate),
   onSnapshot: (listener: (snapshot: AppSnapshot) => void) => {
     const handler = (_event: Electron.IpcRendererEvent, snapshot: AppSnapshot): void => {
       listener(snapshot)

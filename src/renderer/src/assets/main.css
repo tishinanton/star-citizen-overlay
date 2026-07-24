@@ -316,6 +316,52 @@
   opacity: 0.56;
 }
 
+.update-control {
+  min-width: 118px;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.update-control:disabled {
+  opacity: 1;
+}
+
+.icon-text-button.update-control--unavailable {
+  color: var(--muted);
+  opacity: 0.7;
+}
+
+.icon-text-button.update-control--checking,
+.icon-text-button.update-control--downloading {
+  border-color: color-mix(in oklch, var(--accent) 45%, var(--edge));
+  background: var(--accent-soft);
+  color: var(--accent-bright);
+}
+
+.icon-text-button.update-control--ready {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: var(--bg);
+}
+
+.icon-text-button.update-control--ready:hover {
+  border-color: var(--accent-bright);
+  background: var(--accent-bright);
+  color: var(--bg);
+}
+
+.icon-text-button.update-control--error {
+  border-color: color-mix(in oklch, var(--danger) 70%, var(--edge));
+  background: var(--danger-surface);
+  color: var(--danger-ink);
+}
+
+.icon-text-button.update-control--error:hover {
+  border-color: var(--danger);
+  background: color-mix(in oklch, var(--danger-surface) 72%, var(--surface-high));
+  color: var(--danger-ink);
+}
+
 .filter-strip {
   display: flex;
   gap: 3px;

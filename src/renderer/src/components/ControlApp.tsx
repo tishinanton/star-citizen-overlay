@@ -5,6 +5,7 @@ import {
   Download,
   Eye,
   EyeOff,
+  FolderOpen,
   Keyboard,
   MapPin,
   PencilLine,
@@ -26,6 +27,7 @@ import {
   MIN_OVERLAY_FONT_SCALE,
   OVERLAY_FONT_SCALE_STEP,
   type AppUpdateState,
+  type DataSourceState,
   type MiningLocationResult,
   type MiningMaterial,
   type MiningMethod,
@@ -69,6 +71,7 @@ export default function ControlApp(): React.JSX.Element {
     error,
     updateSettings,
     refreshMaterials,
+    chooseGameData,
     getMiningLocations,
     setShortcutCapture,
     checkForUpdates,
@@ -346,6 +349,22 @@ export default function ControlApp(): React.JSX.Element {
                 className={dataStatus.state === 'loading' ? 'is-spinning' : ''}
               />
               Sync
+            </button>
+            <button
+              className="icon-text-button"
+              type="button"
+              title="Choose a Star Citizen Data.p4k archive"
+              onClick={() => {
+                locationGeneration.current += 1
+                setLocationStates({})
+                setLocationFlyout(null)
+                setEditingSignatureId(null)
+                void chooseGameData()
+              }}
+              disabled={dataStatus.state === 'loading'}
+            >
+              <FolderOpen size={15} />
+              Game files
             </button>
           </div>
 
@@ -667,10 +686,10 @@ export default function ControlApp(): React.JSX.Element {
       <footer className="app-footer">
         <span>
           <Database size={13} />
-          Star Citizen Wiki provides signatures and mining-quality distributions.
+          Installed game files provide signatures; Star Citizen Wiki provides mining metadata.
         </span>
         <a href="https://api.star-citizen.wiki/" target="_blank" rel="noreferrer">
-          Data source
+          Wiki metadata
         </a>
       </footer>
 
@@ -735,12 +754,13 @@ function DataStatus({
   state,
   message
 }: {
-  state: 'loading' | 'live' | 'cached' | 'fallback'
+  state: DataSourceState
   message: string
 }): React.JSX.Element {
   const label = {
     loading: 'Syncing',
-    live: 'Live data',
+    game: 'Game data',
+    live: 'Wiki data',
     cached: 'Cached data',
     fallback: 'Bundled data'
   }[state]

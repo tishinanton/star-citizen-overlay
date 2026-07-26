@@ -19,8 +19,9 @@ API is strongest for:
 - community data submission.
 
 UEX does **not** publish rock scanner signatures or cluster signatures. Rockfall
-uses the Star Citizen Wiki commodity API for signature values and calculates a
-cluster signature locally as `base signature × rock count`.
+reads base signatures from installed Star Citizen game resources, uses the
+Star Citizen Wiki commodity API as a fallback, and calculates a cluster
+signature locally as `base signature × rock count`.
 
 ## Connection and access
 

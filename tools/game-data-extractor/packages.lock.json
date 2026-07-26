@@ -1,0 +1,28 @@
+{
+  "version": 1,
+  "dependencies": {
+    "net8.0": {
+      "Microsoft.NET.ILLink.Tasks": {
+        "type": "Direct",
+        "requested": "[8.0.28, )",
+        "resolved": "8.0.28",
+        "contentHash": "XMqgVjlLxLqWmEh3c49haXLQwsMNtvo6YscUaqfvEGfg1iA8hnYgkUVq3i9Zu9gKeNKMWiiZKVwZExc/qyEAsQ=="
+      },
+      "SharpZipLibP4k": {
+        "type": "Direct",
+        "requested": "[1.4.2, )",
+        "resolved": "1.4.2",
+        "contentHash": "emvI28Tb0dGeI1A8+ABcUC4L9co68eM77HqrwSE30hjHw6sqs3v6DbMD0MX7psD2lJO6o/10ax27vlWP8wuofw==",
+        "dependencies": {
+          "ZstdSharp.Port": "0.8.1"
+        }
+      },
+      "ZstdSharp.Port": {
+        "type": "Transitive",
+        "resolved": "0.8.1",
+        "contentHash": "19tNz33kn2EkyViFXuxfVn338UJaRmkwBphVqP2dVJIYQUQgFrgG5h061mxkRRg1Ax6r+6WOj1FxaFZ5qaWqqg=="
+      }
+    },
+    "net8.0/win-x64": {}
+  }
+}

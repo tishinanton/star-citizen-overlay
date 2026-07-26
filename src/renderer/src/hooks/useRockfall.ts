@@ -11,6 +11,7 @@ interface RockfallState {
   error: string | null
   updateSettings: (patch: OverlaySettingsPatch) => Promise<void>
   refreshMaterials: () => Promise<void>
+  chooseGameData: () => Promise<void>
   getMiningLocations: (materialId: string) => Promise<MiningLocationResult>
   setShortcutCapture: (active: boolean) => Promise<void>
   checkForUpdates: () => Promise<void>
@@ -63,6 +64,15 @@ export function useRockfall(): RockfallState {
     }
   }, [])
 
+  const chooseGameData = useCallback(async (): Promise<void> => {
+    try {
+      setError(null)
+      setSnapshot(await window.rockfall.chooseGameData())
+    } catch (reason) {
+      setError(getErrorMessage(reason))
+    }
+  }, [])
+
   const getMiningLocations = useCallback(
     (materialId: string): Promise<MiningLocationResult> =>
       window.rockfall.getMiningLocations(materialId),
@@ -101,6 +111,7 @@ export function useRockfall(): RockfallState {
     error,
     updateSettings,
     refreshMaterials,
+    chooseGameData,
     getMiningLocations,
     setShortcutCapture,
     checkForUpdates,

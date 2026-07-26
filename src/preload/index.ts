@@ -15,6 +15,7 @@ const rockfallApi: RockfallApi = {
   reportOverlayMetrics: (metrics: OverlayContentMetrics) =>
     ipcRenderer.invoke(IPC_CHANNELS.reportOverlayMetrics, metrics),
   refreshMaterials: () => ipcRenderer.invoke(IPC_CHANNELS.refreshMaterials),
+  chooseGameData: () => ipcRenderer.invoke(IPC_CHANNELS.chooseGameData),
   getMiningLocations: (materialId: string) =>
     ipcRenderer.invoke(IPC_CHANNELS.getMiningLocations, materialId),
   setShortcutCapture: (active: boolean) =>

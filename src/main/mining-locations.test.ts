@@ -79,6 +79,7 @@ test('caches successful recommendations for offline use', async () => {
   const originalFetch = globalThis.fetch
   const material: MiningMaterial = {
     id: 'target-ore',
+    commodityId: 'target-ore',
     name: 'Target Ore',
     displayName: 'Target Ore',
     signature: 4_000,

@@ -5,6 +5,7 @@ directories:
 files:
   - '!**/.vscode/*'
   - '!src/*'
+  - '!tools/**'
   - '!electron.vite.config.{js,ts,mjs,cjs}'
   - '!{.eslintcache,eslint.config.mjs,.prettierignore,.prettierrc.yaml,dev-app-update.yml,CHANGELOG.md,README.md}'
   - '!{.env,.env.*,.npmrc,pnpm-lock.yaml}'
@@ -13,6 +14,11 @@ asarUnpack:
   - resources/**
 win:
   executableName: Rockfall
+  extraResources:
+    - from: tools/game-data-extractor/bin/Release/net8.0/win-x64/publish
+      to: game-data-extractor
+      filter:
+        - '**/*'
   target:
     - nsis
 nsis:

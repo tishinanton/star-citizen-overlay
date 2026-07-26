@@ -97,7 +97,9 @@
   background: var(--muted);
 }
 
+.data-status--game > span,
 .data-status--live > span,
+.live-state__dot--game,
 .live-state__dot--live,
 .shortcut-health.is-registered {
   background: var(--success);
@@ -265,7 +267,7 @@
 
 .target-tools {
   display: grid;
-  grid-template-columns: 1fr auto;
+  grid-template-columns: minmax(0, 1fr) auto auto;
   gap: 9px;
   margin-bottom: 11px;
 }

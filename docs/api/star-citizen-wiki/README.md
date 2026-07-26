@@ -17,9 +17,10 @@ The API exposes structured data assembled by the Star Citizen Wiki project:
   change history;
 - unified search and a small authenticated user/image-similarity surface.
 
-For Rockfall, this is the authoritative configured source for mineable
-commodity signature values. It is not a live game scanner and cannot report
-rocks currently near a player.
+For Rockfall, this API supplies commodity metadata, locations, and a fallback
+signature source. Primary base signatures come from the user's installed game
+resources. Neither source is a live game scanner or can report rocks currently
+near a player.
 
 ## Connection and conventions
 
@@ -76,15 +77,16 @@ The commodity resources expose:
   `min_proximity`, `max_proximity`, `probability`,
   `probability_percent`, and variation parameters.
 
-Rockfall requests:
+Rockfall requests this list for commodity metadata and API fallback values:
 
 ```text
 GET /api/commodities?filter[mineable]=true&filter[kind]=mineable&page[size]=200
 ```
 
-It keeps records with a positive numeric `signature`, caches the mapped result,
-and calculates `signature × rock count` locally. The API does not observe or
-count a player's nearby cluster.
+When installed game extraction is unavailable, Rockfall keeps records with a
+positive numeric `signature`. It caches mapped results and calculates
+`signature × rock count` locally. The API does not observe or count a player's
+nearby cluster.
 
 ### Factions
 
@@ -262,8 +264,8 @@ Each detail route accepts an identifier, `locale`, `include`, and `version`.
    change with the game-data version.
 4. Cache public data conservatively and preserve explicit `429`, validation,
    network, and schema errors.
-5. Keep mining signatures version-aware. A signature value can change when the
-   default game-data version changes.
+5. Keep API fallback signatures version-aware. A value can differ from the
+   user's installed game channel when the default API game-data version changes.
 
 ## Primary sources
 

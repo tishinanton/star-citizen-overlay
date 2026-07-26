@@ -28,6 +28,7 @@ export type MiningMethod = 'Ship' | 'Ground Vehicle' | 'FPS' | 'Unclassified'
 
 export interface MiningMaterial {
   id: string
+  commodityId: string
   name: string
   displayName: string
   signature: number
@@ -111,7 +112,7 @@ export interface OverlaySettings {
   shortcuts: Record<ShortcutId, string>
 }
 
-export type DataSourceState = 'loading' | 'live' | 'cached' | 'fallback'
+export type DataSourceState = 'loading' | 'game' | 'live' | 'cached' | 'fallback'
 
 export interface MiningDataStatus {
   state: DataSourceState
@@ -154,6 +155,7 @@ export interface RockfallApi {
   updateSettings: (patch: OverlaySettingsPatch) => Promise<AppSnapshot>
   reportOverlayMetrics: (metrics: OverlayContentMetrics) => Promise<void>
   refreshMaterials: () => Promise<AppSnapshot>
+  chooseGameData: () => Promise<AppSnapshot>
   getMiningLocations: (materialId: string) => Promise<MiningLocationResult>
   setShortcutCapture: (active: boolean) => Promise<AppSnapshot>
   checkForUpdates: () => Promise<AppSnapshot>
@@ -166,6 +168,7 @@ export const IPC_CHANNELS = {
   updateSettings: 'rockfall:settings:update',
   reportOverlayMetrics: 'rockfall:overlay:metrics',
   refreshMaterials: 'rockfall:materials:refresh',
+  chooseGameData: 'rockfall:game-data:choose',
   getMiningLocations: 'rockfall:mining-locations:get',
   setShortcutCapture: 'rockfall:shortcuts:capture',
   checkForUpdates: 'rockfall:updates:check',

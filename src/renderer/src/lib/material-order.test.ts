@@ -6,6 +6,7 @@ import { pinSelectedMaterials } from './material-order'
 
 const materials: MiningMaterial[] = ['a', 'b', 'c', 'd'].map((id, index) => ({
   id,
+  commodityId: id,
   name: `Material ${id.toUpperCase()}`,
   displayName: `Material ${id.toUpperCase()}`,
   signature: 100 + index,

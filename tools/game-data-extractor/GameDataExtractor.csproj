@@ -1,0 +1,28 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <OutputType>Exe</OutputType>
+    <AssemblyName>Rockfall.GameDataExtractor</AssemblyName>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <PublishSingleFile>true</PublishSingleFile>
+    <PublishTrimmed>true</PublishTrimmed>
+    <SelfContained>true</SelfContained>
+    <DebugType>none</DebugType>
+    <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
+    <RestoreLockedMode Condition="'$(ContinuousIntegrationBuild)' == 'true'">true</RestoreLockedMode>
+    <NoWarn>$(NoWarn);CS0162</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="SharpZipLibP4k" Version="1.4.2" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Update="LICENSE.SharpZipLibP4k.txt" CopyToPublishDirectory="PreserveNewest" />
+    <None Update="LICENSE.unp4k.txt" CopyToPublishDirectory="PreserveNewest" />
+    <None Update="LICENSE.ZstdSharp.txt" CopyToPublishDirectory="PreserveNewest" />
+    <None Update="README.txt" CopyToPublishDirectory="PreserveNewest" />
+  </ItemGroup>
+</Project>

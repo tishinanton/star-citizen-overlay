@@ -1,6 +1,7 @@
 import {
   app,
   BrowserWindow,
+  dialog,
   globalShortcut,
   ipcMain,
   Menu,
@@ -37,6 +38,13 @@ import {
   type OverlayLayout
 } from '../shared/overlay-layout'
 import { AppUpdaterController, createUpdaterClient } from './app-updater'
+import {
+  loadGameDataPreference,
+  resolveGameDataArchive,
+  saveGameDataPreference,
+  validateGameDataArchive,
+  type GameDataArchive
+} from './game-data'
 import { loadMiningData } from './mining-data'
 import { loadMiningLocations } from './mining-locations'
 import { DEFAULT_SETTINGS, loadSettings, mergeSettings, saveSettings } from './settings-store'
@@ -109,6 +117,9 @@ let warning: string | null = null
 let settingsPath = ''
 let cachePath = ''
 let locationCachePath = ''
+let gameDataPreferencePath = ''
+let gameDataArchive: GameDataArchive | null = null
+let extractorPath = ''
 let appUpdater: AppUpdaterController | null = null
 let isQuitting = false
 let shortcutCaptureActive = false
@@ -348,12 +359,18 @@ async function refreshMaterials(): Promise<AppSnapshot> {
   bestMiningLocations = {}
   dataStatus = {
     state: 'loading',
-    message: 'Refreshing mining signatures…',
+    message: gameDataArchive
+      ? `Reading installed ${gameDataArchive.channel} game signatures…`
+      : 'Refreshing mining signatures…',
     updatedAt: dataStatus.updatedAt
   }
   broadcastSnapshot()
 
-  const result = await loadMiningData(cachePath)
+  const result = await loadMiningData({
+    cachePath,
+    extractorPath,
+    gameDataArchive
+  })
   materials = result.materials
   dataStatus = result.status
 
@@ -369,6 +386,26 @@ async function refreshMaterials(): Promise<AppSnapshot> {
   broadcastSnapshot()
   queueSelectedMiningLocations()
   return getSnapshot()
+}
+
+async function chooseGameData(): Promise<AppSnapshot> {
+  if (!controlWindow || controlWindow.isDestroyed()) {
+    throw new Error('The Rockfall control window is unavailable.')
+  }
+
+  const result = await dialog.showOpenDialog(controlWindow, {
+    title: 'Choose Star Citizen game data',
+    defaultPath: gameDataArchive?.path,
+    buttonLabel: 'Use game data',
+    properties: ['openFile'],
+    filters: [{ name: 'Star Citizen data archive', extensions: ['p4k'] }]
+  })
+  if (result.canceled || result.filePaths.length === 0) return getSnapshot()
+
+  const archive = await validateGameDataArchive(result.filePaths[0])
+  await saveGameDataPreference(gameDataPreferencePath, archive.path)
+  gameDataArchive = archive
+  return refreshMaterials()
 }
 
 async function getMiningLocations(materialId: unknown): Promise<MiningLocationResult> {
@@ -690,6 +727,10 @@ function registerIpcHandlers(): void {
     applyMeasuredOverlayMetrics(metrics)
   })
   ipcMain.handle(IPC_CHANNELS.refreshMaterials, () => refreshMaterials())
+  ipcMain.handle(IPC_CHANNELS.chooseGameData, (event) => {
+    assertControlWindowSender(event)
+    return chooseGameData()
+  })
   ipcMain.handle(IPC_CHANNELS.getMiningLocations, (event, materialId: unknown) => {
     assertControlWindowSender(event)
     return getMiningLocations(materialId)
@@ -720,10 +761,37 @@ app.whenReady().then(async () => {
   settingsPath = join(app.getPath('userData'), 'settings.json')
   cachePath = join(app.getPath('userData'), 'mining-signatures.json')
   locationCachePath = join(app.getPath('userData'), 'mining-locations.json')
+  gameDataPreferencePath = join(app.getPath('userData'), 'game-data.json')
+  extractorPath = app.isPackaged
+    ? join(process.resourcesPath, 'game-data-extractor', 'Rockfall.GameDataExtractor.exe')
+    : join(
+        app.getAppPath(),
+        'tools',
+        'game-data-extractor',
+        'bin',
+        'Release',
+        'net8.0',
+        'win-x64',
+        'publish',
+        'Rockfall.GameDataExtractor.exe'
+      )
 
-  const loaded = await loadSettings(settingsPath)
+  const [loaded, gameDataPreference] = await Promise.all([
+    loadSettings(settingsPath),
+    loadGameDataPreference(gameDataPreferencePath)
+  ])
+  let gameDataResolutionWarning: string | null = null
+  try {
+    gameDataArchive = await resolveGameDataArchive(gameDataPreference.preferredPath)
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error)
+    gameDataResolutionWarning = `The configured game data location is unavailable: ${message}`
+  }
   settings = loaded.settings
-  warning = loaded.warning
+  warning =
+    [loaded.warning, gameDataPreference.warning, gameDataResolutionWarning]
+      .filter(Boolean)
+      .join(' ') || null
   appUpdater = new AppUpdaterController(createUpdaterClient(autoUpdater), {
     enabled: app.isPackaged,
     currentVersion: app.getVersion(),

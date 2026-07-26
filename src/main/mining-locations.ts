@@ -308,7 +308,7 @@ export function parseMiningLocationRecommendations(
 async function fetchLiveMiningLocations(
   material: MiningMaterial
 ): Promise<MiningLocationRecommendation[]> {
-  const response = await fetch(`${COMMODITY_URL}/${encodeURIComponent(material.id)}`, {
+  const response = await fetch(`${COMMODITY_URL}/${encodeURIComponent(material.commodityId)}`, {
     headers: {
       Accept: 'application/json',
       'User-Agent': 'Rockfall/0.1 (Star Citizen mining overlay)'
@@ -320,7 +320,7 @@ async function fetchLiveMiningLocations(
     throw new Error(`Star Citizen Wiki API returned HTTP ${response.status}.`)
   }
 
-  return parseMiningLocationRecommendations(await response.json(), material.id)
+  return parseMiningLocationRecommendations(await response.json(), material.commodityId)
 }
 
 function parseCachedRecommendation(value: unknown): MiningLocationRecommendation | null {

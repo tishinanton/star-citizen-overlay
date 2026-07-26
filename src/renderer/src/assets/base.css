@@ -37,6 +37,7 @@
   --duration-fast: 150ms;
   --z-sticky: 10;
   --z-overlay: 20;
+  --z-flyout: 30;
 }
 
 *,

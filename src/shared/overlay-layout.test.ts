@@ -23,21 +23,21 @@ function createSettings(overrides: OverlaySettingsPatch = {}): OverlaySettings {
 test('scales the overlay window with its font size', () => {
   assert.deepEqual(getOverlayFallbackLayout(createSettings()), {
     width: 420,
-    height: 292,
+    height: 340,
     headerHeight: 42
   })
   assert.deepEqual(getOverlayFallbackLayout(createSettings({ fontScale: 1.5 })), {
     width: 630,
-    height: 436,
+    height: 508,
     headerHeight: 63
   })
 })
 
 test('sizes fallback layouts for compact, spotlight, and empty states', () => {
-  assert.equal(getOverlayFallbackLayout(createSettings({ compact: true })).height, 270)
+  assert.equal(getOverlayFallbackLayout(createSettings({ compact: true })).height, 318)
   assert.equal(
     getOverlayFallbackLayout(createSettings({ spotlightMaterialId: 'agricium-ore' })).height,
-    128
+    144
   )
   assert.equal(getOverlayFallbackLayout(createSettings({ selectedMaterialIds: [] })).height, 160)
 })

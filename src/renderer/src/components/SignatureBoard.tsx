@@ -1,8 +1,13 @@
 import type { CSSProperties } from 'react'
-import { Crosshair, Move } from 'lucide-react'
+import { Crosshair, MapPin, Move } from 'lucide-react'
 
-import type { AppSnapshot, MiningMaterial } from '../../../shared/contracts'
+import type {
+  AppSnapshot,
+  BestMiningLocationState,
+  MiningMaterial
+} from '../../../shared/contracts'
 import { buildClusterSignatures } from '../../../shared/signatures'
+import { formatMiningProbability, formatMiningSiteName } from '../lib/mining-location-format'
 
 const numberFormatter = new Intl.NumberFormat('en-US')
 
@@ -15,7 +20,7 @@ export default function SignatureBoard({
   snapshot,
   preview = false
 }: SignatureBoardProps): React.JSX.Element {
-  const { materials, settings, dataStatus } = snapshot
+  const { materials, bestMiningLocations, settings, dataStatus } = snapshot
   const selected = settings.selectedMaterialIds
     .map((id) => materials.find((material) => material.id === id))
     .filter((material): material is MiningMaterial => material !== undefined)
@@ -69,6 +74,7 @@ export default function SignatureBoard({
             <SignatureRow
               key={material.id}
               material={material}
+              bestLocation={bestMiningLocations[material.id]}
               clusterMax={settings.clusterMax}
               compact={settings.compact}
             />
@@ -87,11 +93,17 @@ export default function SignatureBoard({
 
 interface SignatureRowProps {
   material: MiningMaterial
+  bestLocation?: BestMiningLocationState
   clusterMax: number
   compact: boolean
 }
 
-function SignatureRow({ material, clusterMax, compact }: SignatureRowProps): React.JSX.Element {
+function SignatureRow({
+  material,
+  bestLocation,
+  clusterMax,
+  compact
+}: SignatureRowProps): React.JSX.Element {
   const signatures = buildClusterSignatures(material.signature, clusterMax)
   const base = signatures[0]
   const clusters = signatures.slice(1)
@@ -108,6 +120,7 @@ function SignatureRow({ material, clusterMax, compact }: SignatureRowProps): Rea
           <strong>{numberFormatter.format(base.signature)}</strong>
         </div>
       </div>
+      <BestSite state={bestLocation} />
       <div className="cluster-strip" aria-label={`${material.name} cluster signatures`}>
         {clusters.map((cluster) => (
           <div className="cluster-value" key={cluster.count}>
@@ -117,5 +130,33 @@ function SignatureRow({ material, clusterMax, compact }: SignatureRowProps): Rea
         ))}
       </div>
     </article>
+  )
+}
+
+function BestSite({ state }: { state?: BestMiningLocationState }): React.JSX.Element {
+  const status = state?.status ?? 'loading'
+  let site = 'Finding best site…'
+  let probability = ''
+
+  if (state?.status === 'ready') {
+    site = formatMiningSiteName(state.location)
+    probability = formatMiningProbability(state.location.highQualityProbability)
+    if (state.source === 'cached') probability += ' · cached'
+  } else if (state?.status === 'empty') {
+    site = 'No 50%+ site reported'
+  } else if (state?.status === 'error') {
+    site = 'Site data unavailable'
+  }
+
+  return (
+    <div
+      className={`signature-row__site signature-row__site--${status}`}
+      title={state?.message ?? 'Finding the best mining site'}
+    >
+      <MapPin aria-hidden="true" />
+      <span className="signature-row__site-label">Best site</span>
+      <strong>{site}</strong>
+      {probability && <span className="signature-row__site-probability">{probability}</span>}
+    </div>
   )
 }

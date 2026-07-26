@@ -5,6 +5,8 @@ export const MIN_OVERLAY_FONT_SCALE = 0.8
 export const MAX_OVERLAY_FONT_SCALE = 1.6
 export const DEFAULT_OVERLAY_FONT_SCALE = 1
 export const OVERLAY_FONT_SCALE_STEP = 0.05
+export const HIGH_QUALITY_THRESHOLD = 500
+export const MAX_RECOMMENDED_MINING_LOCATIONS = 5
 
 export type ShortcutId = 'toggle-overlay' | 'next-target' | 'show-all' | 'toggle-compact'
 
@@ -32,6 +34,53 @@ export interface MiningMaterial {
   methods: MiningMethod[]
   sourceUrl: string
 }
+
+export interface MiningLocationRecommendation {
+  id: string
+  name: string
+  area: string | null
+  system: string
+  type: string
+  parentName: string | null
+  highQualityProbability: number
+  maxQuality: number
+  maxComposition: number | null
+  sourceUrl: string
+}
+
+export interface MiningLocationResult {
+  materialId: string
+  locations: MiningLocationRecommendation[]
+  state: 'live' | 'cached'
+  message: string
+  updatedAt: string
+}
+
+export type BestMiningLocationState =
+  | {
+      status: 'loading'
+      location: null
+      source: null
+      message: string
+    }
+  | {
+      status: 'ready'
+      location: MiningLocationRecommendation
+      source: 'live' | 'cached'
+      message: string
+    }
+  | {
+      status: 'empty'
+      location: null
+      source: 'live' | 'cached'
+      message: string
+    }
+  | {
+      status: 'error'
+      location: null
+      source: null
+      message: string
+    }
 
 export type OverlayPlacement = 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right'
 
@@ -87,6 +136,7 @@ export interface AppUpdateState {
 
 export interface AppSnapshot {
   materials: MiningMaterial[]
+  bestMiningLocations: Record<string, BestMiningLocationState>
   settings: OverlaySettings
   dataStatus: MiningDataStatus
   shortcuts: ShortcutStatus[]
@@ -101,6 +151,7 @@ export interface RockfallApi {
   updateSettings: (patch: OverlaySettingsPatch) => Promise<AppSnapshot>
   reportOverlayMetrics: (metrics: OverlayContentMetrics) => Promise<void>
   refreshMaterials: () => Promise<AppSnapshot>
+  getMiningLocations: (materialId: string) => Promise<MiningLocationResult>
   setShortcutCapture: (active: boolean) => Promise<AppSnapshot>
   checkForUpdates: () => Promise<AppSnapshot>
   restartToUpdate: () => Promise<void>
@@ -112,6 +163,7 @@ export const IPC_CHANNELS = {
   updateSettings: 'rockfall:settings:update',
   reportOverlayMetrics: 'rockfall:overlay:metrics',
   refreshMaterials: 'rockfall:materials:refresh',
+  getMiningLocations: 'rockfall:mining-locations:get',
   setShortcutCapture: 'rockfall:shortcuts:capture',
   checkForUpdates: 'rockfall:updates:check',
   restartToUpdate: 'rockfall:updates:restart',

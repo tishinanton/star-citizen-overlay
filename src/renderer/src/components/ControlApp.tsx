@@ -1,4 +1,4 @@
-import { useMemo, useState, type KeyboardEvent as ReactKeyboardEvent } from 'react'
+import { useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from 'react'
 import {
   Crosshair,
   Database,
@@ -25,6 +25,7 @@ import {
   MIN_OVERLAY_FONT_SCALE,
   OVERLAY_FONT_SCALE_STEP,
   type AppUpdateState,
+  type MiningLocationResult,
   type MiningMaterial,
   type MiningMethod,
   type OverlayPlacement,
@@ -33,9 +34,21 @@ import {
 import { useRockfall } from '../hooks/useRockfall'
 import { getAccelerator } from '../lib/shortcut-accelerator'
 import { pinSelectedMaterials } from '../lib/material-order'
+import MiningLocationFlyout from './MiningLocationFlyout'
 import SignatureBoard from './SignatureBoard'
 
 type MaterialFilter = 'All' | Exclude<MiningMethod, 'Unclassified'>
+
+interface LocationLoadState {
+  loading: boolean
+  result: MiningLocationResult | null
+  error: string | null
+}
+
+interface LocationFlyoutTarget {
+  material: MiningMaterial
+  anchor: HTMLButtonElement
+}
 
 const FILTERS: MaterialFilter[] = ['All', 'Ship', 'Ground Vehicle', 'FPS']
 const PLACEMENTS: Array<{ value: OverlayPlacement; label: string }> = [
@@ -53,6 +66,7 @@ export default function ControlApp(): React.JSX.Element {
     error,
     updateSettings,
     refreshMaterials,
+    getMiningLocations,
     setShortcutCapture,
     checkForUpdates,
     restartToUpdate
@@ -60,6 +74,9 @@ export default function ControlApp(): React.JSX.Element {
   const [query, setQuery] = useState('')
   const [filter, setFilter] = useState<MaterialFilter>('All')
   const [recordingShortcut, setRecordingShortcut] = useState<ShortcutId | null>(null)
+  const [locationStates, setLocationStates] = useState<Record<string, LocationLoadState>>({})
+  const [locationFlyout, setLocationFlyout] = useState<LocationFlyoutTarget | null>(null)
+  const locationGeneration = useRef(0)
 
   const visibleMaterials = useMemo(() => {
     if (!snapshot) return []
@@ -110,6 +127,51 @@ export default function ControlApp(): React.JSX.Element {
       selectedMaterialIds: [],
       spotlightMaterialId: null
     })
+  }
+
+  const loadLocations = async (material: MiningMaterial): Promise<void> => {
+    const generation = locationGeneration.current
+    setLocationStates((current) => ({
+      ...current,
+      [material.id]: { loading: true, result: null, error: null }
+    }))
+    try {
+      const result = await getMiningLocations(material.id)
+      if (generation !== locationGeneration.current) return
+      setLocationStates((current) => ({
+        ...current,
+        [material.id]: { loading: false, result, error: null }
+      }))
+    } catch (reason) {
+      if (generation !== locationGeneration.current) return
+      setLocationStates((current) => ({
+        ...current,
+        [material.id]: {
+          loading: false,
+          result: null,
+          error: reason instanceof Error ? reason.message : String(reason)
+        }
+      }))
+    }
+  }
+
+  const closeLocations = (restoreFocus: boolean): void => {
+    const anchor = locationFlyout?.anchor
+    setLocationFlyout(null)
+    if (restoreFocus && anchor?.isConnected) {
+      requestAnimationFrame(() => anchor.focus())
+    }
+  }
+
+  const openLocations = (material: MiningMaterial, anchor: HTMLButtonElement): void => {
+    if (locationFlyout?.material.id === material.id) {
+      closeLocations(false)
+      return
+    }
+
+    setLocationFlyout({ material, anchor })
+    const state = locationStates[material.id]
+    if (!state || state.error) void loadLocations(material)
   }
 
   const beginShortcutCapture = (id: ShortcutId): void => {
@@ -236,7 +298,12 @@ export default function ControlApp(): React.JSX.Element {
             <button
               className="icon-text-button"
               type="button"
-              onClick={() => void refreshMaterials()}
+              onClick={() => {
+                locationGeneration.current += 1
+                setLocationStates({})
+                setLocationFlyout(null)
+                void refreshMaterials()
+              }}
               disabled={dataStatus.state === 'loading'}
             >
               <RefreshCw
@@ -263,10 +330,13 @@ export default function ControlApp(): React.JSX.Element {
 
           <div className="material-table" role="list">
             <div className="material-table__header" aria-hidden="true">
-              <span>Target</span>
-              <span>Method</span>
-              <span>Base signature</span>
-              <span />
+              <span className="material-table__selection-columns">
+                <span>Target</span>
+                <span>Method</span>
+                <span>Base signature</span>
+                <span />
+              </span>
+              <span>Places</span>
             </div>
             <div className="material-table__body">
               {visibleMaterials.map((material) => {
@@ -274,30 +344,52 @@ export default function ControlApp(): React.JSX.Element {
                 const atLimit = selectedCount >= MAX_SELECTED_MATERIALS && !isSelected
 
                 return (
-                  <button
+                  <div
                     className={`material-row ${isSelected ? 'material-row--selected' : ''}`}
-                    type="button"
                     role="listitem"
                     key={material.id}
-                    aria-pressed={isSelected}
-                    disabled={atLimit}
-                    onClick={() => toggleMaterial(material)}
                   >
-                    <span className="material-row__target">
-                      <span className="target-checkbox" aria-hidden="true">
-                        {isSelected && <span />}
+                    <button
+                      className="material-row__select"
+                      type="button"
+                      aria-pressed={isSelected}
+                      disabled={atLimit}
+                      onClick={() => toggleMaterial(material)}
+                    >
+                      <span className="material-row__target">
+                        <span className="target-checkbox" aria-hidden="true">
+                          {isSelected && <span />}
+                        </span>
+                        <span>
+                          <strong>{material.name}</strong>
+                          <small>{material.id}</small>
+                        </span>
                       </span>
-                      <span>
-                        <strong>{material.name}</strong>
-                        <small>{material.id}</small>
-                      </span>
-                    </span>
-                    <span className="method-label">{material.methods.join(' / ')}</span>
-                    <strong className="material-signature">
-                      {numberFormatter.format(material.signature)}
-                    </strong>
-                    <span className="row-action">{isSelected ? 'Remove' : 'Arm'}</span>
-                  </button>
+                      <span className="method-label">{material.methods.join(' / ')}</span>
+                      <strong className="material-signature">
+                        {numberFormatter.format(material.signature)}
+                      </strong>
+                      <span className="row-action">{isSelected ? 'Remove' : 'Arm'}</span>
+                    </button>
+                    <button
+                      className={`material-row__locations ${
+                        locationFlyout?.material.id === material.id ? 'is-active' : ''
+                      }`}
+                      type="button"
+                      aria-label={`Show best mining locations for ${material.name}`}
+                      aria-expanded={locationFlyout?.material.id === material.id}
+                      aria-controls={
+                        locationFlyout?.material.id === material.id
+                          ? 'mining-location-flyout'
+                          : undefined
+                      }
+                      title={`Best mining locations for ${material.name}`}
+                      onClick={(event) => openLocations(material, event.currentTarget)}
+                    >
+                      <MapPin size={13} />
+                      Sites
+                    </button>
+                  </div>
                 )
               })}
               {visibleMaterials.length === 0 && (
@@ -490,12 +582,24 @@ export default function ControlApp(): React.JSX.Element {
       <footer className="app-footer">
         <span>
           <Database size={13} />
-          Star Citizen Wiki provides signature values; UEX has no rock-signature endpoint.
+          Star Citizen Wiki provides signatures and mining-quality distributions.
         </span>
         <a href="https://api.star-citizen.wiki/" target="_blank" rel="noreferrer">
           Data source
         </a>
       </footer>
+
+      {locationFlyout && (
+        <MiningLocationFlyout
+          anchor={locationFlyout.anchor}
+          material={locationFlyout.material}
+          loading={locationStates[locationFlyout.material.id]?.loading ?? true}
+          result={locationStates[locationFlyout.material.id]?.result ?? null}
+          error={locationStates[locationFlyout.material.id]?.error ?? null}
+          onClose={closeLocations}
+          onRetry={() => void loadLocations(locationFlyout.material)}
+        />
+      )}
     </div>
   )
 }

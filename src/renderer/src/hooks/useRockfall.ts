@@ -1,12 +1,17 @@
 import { useCallback, useEffect, useState } from 'react'
 
-import type { AppSnapshot, OverlaySettingsPatch } from '../../../shared/contracts'
+import type {
+  AppSnapshot,
+  MiningLocationResult,
+  OverlaySettingsPatch
+} from '../../../shared/contracts'
 
 interface RockfallState {
   snapshot: AppSnapshot | null
   error: string | null
   updateSettings: (patch: OverlaySettingsPatch) => Promise<void>
   refreshMaterials: () => Promise<void>
+  getMiningLocations: (materialId: string) => Promise<MiningLocationResult>
   setShortcutCapture: (active: boolean) => Promise<void>
   checkForUpdates: () => Promise<void>
   restartToUpdate: () => Promise<void>
@@ -58,6 +63,12 @@ export function useRockfall(): RockfallState {
     }
   }, [])
 
+  const getMiningLocations = useCallback(
+    (materialId: string): Promise<MiningLocationResult> =>
+      window.rockfall.getMiningLocations(materialId),
+    []
+  )
+
   const setShortcutCapture = useCallback(async (active: boolean): Promise<void> => {
     try {
       setError(null)
@@ -90,6 +101,7 @@ export function useRockfall(): RockfallState {
     error,
     updateSettings,
     refreshMaterials,
+    getMiningLocations,
     setShortcutCapture,
     checkForUpdates,
     restartToUpdate

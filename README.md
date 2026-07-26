@@ -9,6 +9,8 @@ The first workflow lets a player select up to four mining targets and see:
 - each target's base electromagnetic scanner signature;
 - cluster signatures from one through eight rocks;
 - the mining method reported for the material;
+- the five best reported mining sites for a high-quality find;
+- each selected target's highest-ranked site directly in the game overlay;
 - a compact or full readout that stays out of game input.
 
 Cluster values are deterministic:
@@ -23,6 +25,13 @@ Rockfall loads live signature values from the community-maintained
 [Star Citizen Wiki API](https://api.star-citizen.wiki/). A successful response
 is cached locally. If both the API and cache are unavailable, the app clearly
 labels and uses a small bundled fallback set so the overlay remains usable.
+
+The **Sites** action loads the selected material's detailed deposit data and
+ranks up to five distinct locations by the estimated chance of a 50% or higher
+quality roll. The estimate combines the reported spawn-group probability,
+relative deposit probability, quality distribution, and any boosted area
+modifier. Location results are cached separately and identify when cached data
+is being shown.
 
 The UEX API is useful for prices, routes, locations, and refinery planning, but
 it does not expose scanner signatures.
@@ -39,7 +48,8 @@ position, opacity, font size, cluster range, compact mode, visibility, and data
 refresh. Font size ranges from 80% to 160%; the native overlay resizes with the
 readout so larger text remains fully visible. Changes are persisted in
 Electron's per-user application data directory. Selected ores stay pinned above
-filtered results, and **Clear overlay** removes every target at once.
+filtered results, **Sites** opens the ranked mining-location flyout, and **Clear
+overlay** removes every target at once.
 
 Drag the overlay's cyan header to place it anywhere on screen. The header
 captures the mouse for dragging; the remaining overlay area stays click-through.

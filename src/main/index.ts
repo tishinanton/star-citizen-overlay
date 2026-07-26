@@ -20,7 +20,9 @@ import {
   IPC_CHANNELS,
   type AppSnapshot,
   type AppUpdateState,
+  type BestMiningLocationState,
   type MiningDataStatus,
+  type MiningLocationResult,
   type MiningMaterial,
   type OverlayContentMetrics,
   type OverlayPosition,
@@ -36,6 +38,7 @@ import {
 } from '../shared/overlay-layout'
 import { AppUpdaterController, createUpdaterClient } from './app-updater'
 import { loadMiningData } from './mining-data'
+import { loadMiningLocations } from './mining-locations'
 import { DEFAULT_SETTINGS, loadSettings, mergeSettings, saveSettings } from './settings-store'
 
 const SCREEN_MARGIN = 24
@@ -86,6 +89,7 @@ let settings: OverlaySettings = {
   selectedMaterialIds: [...DEFAULT_SETTINGS.selectedMaterialIds]
 }
 let materials: MiningMaterial[] = []
+let bestMiningLocations: Record<string, BestMiningLocationState> = {}
 let dataStatus: MiningDataStatus = {
   state: 'loading',
   message: 'Loading mining signatures…',
@@ -102,16 +106,21 @@ let shortcutStatuses: ShortcutStatus[] = []
 let warning: string | null = null
 let settingsPath = ''
 let cachePath = ''
+let locationCachePath = ''
 let appUpdater: AppUpdaterController | null = null
 let isQuitting = false
 let shortcutCaptureActive = false
 let expectedOverlayPosition: OverlayPosition | null = null
 let overlayPositionTimer: NodeJS.Timeout | null = null
 let measuredOverlayMetrics: OverlayContentMetrics | null = null
+let miningLocationGeneration = 0
+const miningLocationResults = new Map<string, MiningLocationResult>()
+const pendingLocationRequests = new Map<string, Promise<MiningLocationResult>>()
 
 function getSnapshot(): AppSnapshot {
   return {
     materials,
+    bestMiningLocations,
     settings,
     dataStatus,
     shortcuts: shortcutStatuses,
@@ -312,6 +321,7 @@ async function updateSettings(patch: OverlaySettingsPatch): Promise<AppSnapshot>
   }
   applyOverlayState()
   broadcastSnapshot()
+  queueSelectedMiningLocations()
   return getSnapshot()
 }
 
@@ -330,6 +340,10 @@ async function cycleSpotlight(): Promise<void> {
 }
 
 async function refreshMaterials(): Promise<AppSnapshot> {
+  miningLocationGeneration += 1
+  miningLocationResults.clear()
+  pendingLocationRequests.clear()
+  bestMiningLocations = {}
   dataStatus = {
     state: 'loading',
     message: 'Refreshing mining signatures…',
@@ -351,7 +365,107 @@ async function refreshMaterials(): Promise<AppSnapshot> {
   }
 
   broadcastSnapshot()
+  queueSelectedMiningLocations()
   return getSnapshot()
+}
+
+async function getMiningLocations(materialId: unknown): Promise<MiningLocationResult> {
+  if (typeof materialId !== 'string' || materialId.length === 0 || materialId.length > 200) {
+    throw new TypeError('A valid mining material is required.')
+  }
+
+  const material = materials.find((candidate) => candidate.id === materialId)
+  if (!material) throw new Error('That mining material is no longer available.')
+
+  const existing = miningLocationResults.get(materialId)
+  if (existing) return existing
+
+  const pending = pendingLocationRequests.get(materialId)
+  if (pending) return pending
+
+  const generation = miningLocationGeneration
+  bestMiningLocations = {
+    ...bestMiningLocations,
+    [materialId]: {
+      status: 'loading',
+      location: null,
+      source: null,
+      message: 'Finding the best mining site…'
+    }
+  }
+  broadcastSnapshot()
+
+  const request = loadAndStoreMiningLocations(material, generation)
+  pendingLocationRequests.set(materialId, request)
+  try {
+    return await request
+  } finally {
+    if (pendingLocationRequests.get(materialId) === request) {
+      pendingLocationRequests.delete(materialId)
+    }
+  }
+}
+
+async function loadAndStoreMiningLocations(
+  material: MiningMaterial,
+  generation: number
+): Promise<MiningLocationResult> {
+  try {
+    const result = await loadMiningLocations(locationCachePath, material)
+    if (generation === miningLocationGeneration) {
+      miningLocationResults.set(material.id, result)
+      bestMiningLocations = {
+        ...bestMiningLocations,
+        [material.id]: result.locations[0]
+          ? {
+              status: 'ready',
+              location: result.locations[0],
+              source: result.state,
+              message: result.message
+            }
+          : {
+              status: 'empty',
+              location: null,
+              source: result.state,
+              message: 'No 50%+ quality mining site is reported for this material.'
+            }
+      }
+      broadcastSnapshot()
+    }
+    return result
+  } catch (error) {
+    if (generation === miningLocationGeneration) {
+      const message = error instanceof Error ? error.message : String(error)
+      bestMiningLocations = {
+        ...bestMiningLocations,
+        [material.id]: {
+          status: 'error',
+          location: null,
+          source: null,
+          message
+        }
+      }
+      broadcastSnapshot()
+    }
+    throw error
+  }
+}
+
+function queueSelectedMiningLocations(): void {
+  for (const materialId of settings.selectedMaterialIds) {
+    if (
+      miningLocationResults.has(materialId) ||
+      pendingLocationRequests.has(materialId) ||
+      bestMiningLocations[materialId]?.status === 'error'
+    ) {
+      continue
+    }
+
+    void getMiningLocations(materialId).catch((error: unknown) => {
+      const message = error instanceof Error ? error.message : String(error)
+      console.error(`Best mining site for "${materialId}" could not be loaded: ${message}`)
+    })
+  }
 }
 
 function loadRenderer(window: BrowserWindow, view: 'control' | 'overlay' | 'drag-handle'): void {
@@ -554,7 +668,7 @@ function setShortcutCapture(active: boolean): AppSnapshot {
 
 function assertControlWindowSender(event: IpcMainInvokeEvent): void {
   if (!controlWindow || controlWindow.isDestroyed() || event.sender !== controlWindow.webContents) {
-    throw new Error('Application updates can only be controlled from the Rockfall window.')
+    throw new Error('This action is only available from the Rockfall control window.')
   }
 }
 
@@ -574,6 +688,10 @@ function registerIpcHandlers(): void {
     applyMeasuredOverlayMetrics(metrics)
   })
   ipcMain.handle(IPC_CHANNELS.refreshMaterials, () => refreshMaterials())
+  ipcMain.handle(IPC_CHANNELS.getMiningLocations, (event, materialId: unknown) => {
+    assertControlWindowSender(event)
+    return getMiningLocations(materialId)
+  })
   ipcMain.handle(IPC_CHANNELS.setShortcutCapture, (_event, active: unknown) => {
     if (typeof active !== 'boolean') {
       throw new TypeError('Shortcut capture state must be a boolean.')
@@ -599,6 +717,7 @@ app.whenReady().then(async () => {
   nativeTheme.themeSource = 'dark'
   settingsPath = join(app.getPath('userData'), 'settings.json')
   cachePath = join(app.getPath('userData'), 'mining-signatures.json')
+  locationCachePath = join(app.getPath('userData'), 'mining-locations.json')
 
   const loaded = await loadSettings(settingsPath)
   settings = loaded.settings

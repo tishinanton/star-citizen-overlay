@@ -47,6 +47,7 @@ it does not expose scanner signatures.
 
 Complete endpoint inventories:
 
+- [Installed Star Citizen game-data inventory](docs/game-data/README.md)
 - [UEX Corp API 2.0](docs/api/uex/README.md)
 - [Star Citizen Wiki API](docs/api/star-citizen-wiki/README.md)
 

@@ -23,6 +23,7 @@ test('normalizes persisted settings and clamps opacity', () => {
     }),
     {
       selectedMaterialIds: ['agricium-ore', 'riccite-ore'],
+      signatureOverrides: {},
       clusterMax: 7,
       visible: false,
       compact: true,
@@ -40,6 +41,31 @@ test('normalizes overlay font scale to supported steps', () => {
   assert.equal(normalizeSettings({ ...DEFAULT_SETTINGS, fontScale: 0.1 }).fontScale, 0.8)
   assert.equal(normalizeSettings({ ...DEFAULT_SETTINGS, fontScale: 1.234 }).fontScale, 1.25)
   assert.equal(normalizeSettings({ ...DEFAULT_SETTINGS, fontScale: 3 }).fontScale, 1.6)
+})
+
+test('normalizes valid signature overrides and rejects invalid values', () => {
+  assert.deepEqual(
+    normalizeSettings({
+      ...DEFAULT_SETTINGS,
+      signatureOverrides: {
+        'agricium-ore': 4_150,
+        'riccite-ore': 4_850
+      }
+    }).signatureOverrides,
+    {
+      'agricium-ore': 4_150,
+      'riccite-ore': 4_850
+    }
+  )
+
+  assert.throws(
+    () =>
+      normalizeSettings({
+        ...DEFAULT_SETTINGS,
+        signatureOverrides: { 'agricium-ore': 4_150.5 }
+      }),
+    /positive whole numbers/
+  )
 })
 
 test('migrates previous backdrop defaults without changing target selection', () => {
@@ -71,6 +97,18 @@ test('preserves a current user opacity setting', () => {
 
   assert.equal(loaded.settings.opacity, 0.84)
   assert.equal(loaded.needsSave, false)
+})
+
+test('preserves newer-version opacity while adding signature override settings', () => {
+  const loaded = parsePersistedSettings({
+    ...DEFAULT_SETTINGS,
+    settingsVersion: SETTINGS_VERSION - 1,
+    opacity: 0.72
+  })
+
+  assert.equal(loaded.settings.opacity, 0.72)
+  assert.deepEqual(loaded.settings.signatureOverrides, {})
+  assert.equal(loaded.needsSave, true)
 })
 
 test('clears a spotlight that is no longer selected', () => {

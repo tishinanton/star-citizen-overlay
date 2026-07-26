@@ -1,8 +1,25 @@
-import { MAX_CLUSTER_SIZE, MIN_CLUSTER_SIZE } from './contracts'
+import { MAX_CLUSTER_SIZE, MIN_CLUSTER_SIZE, type MiningMaterial } from './contracts'
 
 export interface ClusterSignature {
   count: number
   signature: number
+}
+
+export interface ResolvedMaterialSignature {
+  signature: number
+  isOverridden: boolean
+}
+
+export function resolveMaterialSignature(
+  material: Pick<MiningMaterial, 'id' | 'signature'>,
+  signatureOverrides: Readonly<Record<string, number>>
+): ResolvedMaterialSignature {
+  if (!Object.hasOwn(signatureOverrides, material.id)) {
+    return { signature: material.signature, isOverridden: false }
+  }
+
+  const signatureOverride = signatureOverrides[material.id]
+  return { signature: signatureOverride, isOverridden: true }
 }
 
 export function buildClusterSignatures(

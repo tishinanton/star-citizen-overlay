@@ -95,8 +95,11 @@ export interface OverlayContentMetrics {
   headerHeight: number
 }
 
+export type SignatureOverrides = Record<string, number>
+
 export interface OverlaySettings {
   selectedMaterialIds: string[]
+  signatureOverrides: SignatureOverrides
   clusterMax: number
   visible: boolean
   compact: boolean

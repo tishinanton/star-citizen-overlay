@@ -7,6 +7,7 @@ import {
   EyeOff,
   Keyboard,
   MapPin,
+  PencilLine,
   Pickaxe,
   RefreshCw,
   RotateCcw,
@@ -31,11 +32,13 @@ import {
   type OverlayPlacement,
   type ShortcutId
 } from '../../../shared/contracts'
+import { resolveMaterialSignature } from '../../../shared/signatures'
 import { useRockfall } from '../hooks/useRockfall'
 import { getAccelerator } from '../lib/shortcut-accelerator'
 import { pinSelectedMaterials } from '../lib/material-order'
 import MiningLocationFlyout from './MiningLocationFlyout'
 import SignatureBoard from './SignatureBoard'
+import SignatureOverrideEditor from './SignatureOverrideEditor'
 
 type MaterialFilter = 'All' | Exclude<MiningMethod, 'Unclassified'>
 
@@ -76,6 +79,7 @@ export default function ControlApp(): React.JSX.Element {
   const [recordingShortcut, setRecordingShortcut] = useState<ShortcutId | null>(null)
   const [locationStates, setLocationStates] = useState<Record<string, LocationLoadState>>({})
   const [locationFlyout, setLocationFlyout] = useState<LocationFlyoutTarget | null>(null)
+  const [editingSignatureId, setEditingSignatureId] = useState<string | null>(null)
   const locationGeneration = useRef(0)
 
   const visibleMaterials = useMemo(() => {
@@ -86,9 +90,14 @@ export default function ControlApp(): React.JSX.Element {
       snapshot.materials,
       snapshot.settings.selectedMaterialIds,
       (material) => {
+        const resolvedSignature = resolveMaterialSignature(
+          material,
+          snapshot.settings.signatureOverrides
+        ).signature
         const matchesQuery =
           !normalizedQuery ||
           material.name.toLocaleLowerCase().includes(normalizedQuery) ||
+          resolvedSignature.toString().includes(normalizedQuery) ||
           material.signature.toString().includes(normalizedQuery)
         const matchesFilter = filter === 'All' || material.methods.includes(filter)
         return matchesQuery && matchesFilter
@@ -169,9 +178,34 @@ export default function ControlApp(): React.JSX.Element {
       return
     }
 
+    setEditingSignatureId(null)
     setLocationFlyout({ material, anchor })
     const state = locationStates[material.id]
     if (!state || state.error) void loadLocations(material)
+  }
+
+  const openSignatureEditor = (materialId: string): void => {
+    setLocationFlyout(null)
+    setEditingSignatureId((current) => (current === materialId ? null : materialId))
+  }
+
+  const saveSignatureOverride = (material: MiningMaterial, signature: number): void => {
+    const signatureOverrides = { ...settings.signatureOverrides }
+    if (signature === material.signature) {
+      delete signatureOverrides[material.id]
+    } else {
+      signatureOverrides[material.id] = signature
+    }
+
+    setEditingSignatureId(null)
+    void updateSettings({ signatureOverrides })
+  }
+
+  const resetSignatureOverride = (materialId: string): void => {
+    const signatureOverrides = { ...settings.signatureOverrides }
+    delete signatureOverrides[materialId]
+    setEditingSignatureId(null)
+    void updateSettings({ signatureOverrides })
   }
 
   const beginShortcutCapture = (id: ShortcutId): void => {
@@ -302,6 +336,7 @@ export default function ControlApp(): React.JSX.Element {
                 locationGeneration.current += 1
                 setLocationStates({})
                 setLocationFlyout(null)
+                setEditingSignatureId(null)
                 void refreshMaterials()
               }}
               disabled={dataStatus.state === 'loading'}
@@ -334,18 +369,25 @@ export default function ControlApp(): React.JSX.Element {
                 <span>Target</span>
                 <span>Method</span>
                 <span>Base signature</span>
-                <span />
               </span>
+              <span>Correct</span>
               <span>Places</span>
             </div>
             <div className="material-table__body">
               {visibleMaterials.map((material) => {
                 const isSelected = settings.selectedMaterialIds.includes(material.id)
                 const atLimit = selectedCount >= MAX_SELECTED_MATERIALS && !isSelected
+                const resolvedSignature = resolveMaterialSignature(
+                  material,
+                  settings.signatureOverrides
+                )
+                const isEditingSignature = editingSignatureId === material.id
 
                 return (
                   <div
-                    className={`material-row ${isSelected ? 'material-row--selected' : ''}`}
+                    className={['material-row', isSelected ? 'material-row--selected' : '']
+                      .filter(Boolean)
+                      .join(' ')}
                     role="listitem"
                     key={material.id}
                   >
@@ -366,10 +408,43 @@ export default function ControlApp(): React.JSX.Element {
                         </span>
                       </span>
                       <span className="method-label">{material.methods.join(' / ')}</span>
-                      <strong className="material-signature">
-                        {numberFormatter.format(material.signature)}
+                      <strong
+                        className={`material-signature ${
+                          resolvedSignature.isOverridden ? 'material-signature--overridden' : ''
+                        }`}
+                        title={
+                          resolvedSignature.isOverridden
+                            ? `Manual override; source value ${numberFormatter.format(material.signature)}`
+                            : 'Source signature'
+                        }
+                      >
+                        {numberFormatter.format(resolvedSignature.signature)}
+                        {resolvedSignature.isOverridden && (
+                          <>
+                            <span className="signature-override-marker" aria-hidden="true">
+                              *
+                            </span>
+                            <span className="sr-only">
+                              {' '}
+                              manual override from {numberFormatter.format(material.signature)}
+                            </span>
+                          </>
+                        )}
                       </strong>
-                      <span className="row-action">{isSelected ? 'Remove' : 'Arm'}</span>
+                    </button>
+                    <button
+                      className={`material-row__override ${isEditingSignature ? 'is-active' : ''}`}
+                      type="button"
+                      aria-label={`Correct signature for ${material.name}`}
+                      aria-expanded={isEditingSignature}
+                      aria-controls={
+                        isEditingSignature ? `signature-override-editor-${material.id}` : undefined
+                      }
+                      title={`Correct signature for ${material.name}`}
+                      onClick={() => openSignatureEditor(material.id)}
+                    >
+                      <PencilLine size={13} />
+                      {resolvedSignature.isOverridden ? 'Edit' : 'Set'}
                     </button>
                     <button
                       className={`material-row__locations ${
@@ -389,6 +464,16 @@ export default function ControlApp(): React.JSX.Element {
                       <MapPin size={13} />
                       Sites
                     </button>
+                    {isEditingSignature && (
+                      <SignatureOverrideEditor
+                        material={material}
+                        signature={resolvedSignature.signature}
+                        isOverridden={resolvedSignature.isOverridden}
+                        onApply={(signature) => saveSignatureOverride(material, signature)}
+                        onCancel={() => setEditingSignatureId(null)}
+                        onReset={() => resetSignatureOverride(material.id)}
+                      />
+                    )}
                   </div>
                 )
               })}

@@ -25,6 +25,9 @@ Rockfall loads live signature values from the community-maintained
 [Star Citizen Wiki API](https://api.star-citizen.wiki/). A successful response
 is cached locally. If both the API and cache are unavailable, the app clearly
 labels and uses a small bundled fallback set so the overlay remains usable.
+Any material can also use a locally persisted manual signature correction.
+Corrected values are marked with `*` in the control window and overlay, and can
+be reset to the current source value at any time.
 
 The **Sites** action loads the selected material's detailed deposit data and
 ranks up to five distinct locations by the estimated chance of a 50% or higher
@@ -45,9 +48,11 @@ Complete endpoint inventories:
 
 The control window supports material search and mining-method filters, overlay
 position, opacity, font size, cluster range, compact mode, visibility, and data
-refresh. Font size ranges from 80% to 160%; the native overlay resizes with the
-readout so larger text remains fully visible. Changes are persisted in
-Electron's per-user application data directory. Selected ores stay pinned above
+refresh. Each material row also exposes a contextual signature correction
+editor; cluster values recalculate from the corrected base immediately. Font
+size ranges from 80% to 160%; the native overlay resizes with the readout so
+larger text remains fully visible. Changes are persisted in Electron's per-user
+application data directory. Selected ores stay pinned above
 filtered results, **Sites** opens the ranked mining-location flyout, and **Clear
 overlay** removes every target at once.
 

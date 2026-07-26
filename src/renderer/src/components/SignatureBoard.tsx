@@ -4,9 +4,10 @@ import { Crosshair, MapPin, Move } from 'lucide-react'
 import type {
   AppSnapshot,
   BestMiningLocationState,
-  MiningMaterial
+  MiningMaterial,
+  SignatureOverrides
 } from '../../../shared/contracts'
-import { buildClusterSignatures } from '../../../shared/signatures'
+import { buildClusterSignatures, resolveMaterialSignature } from '../../../shared/signatures'
 import { formatMiningProbability, formatMiningSiteName } from '../lib/mining-location-format'
 
 const numberFormatter = new Intl.NumberFormat('en-US')
@@ -27,6 +28,9 @@ export default function SignatureBoard({
   const visibleMaterials = settings.spotlightMaterialId
     ? selected.filter((material) => material.id === settings.spotlightMaterialId)
     : selected
+  const hasVisibleOverrides = visibleMaterials.some(
+    (material) => settings.signatureOverrides[material.id] !== undefined
+  )
 
   const boardStyle = {
     '--overlay-opacity': settings.opacity,
@@ -56,7 +60,7 @@ export default function SignatureBoard({
           </span>
           <div>
             <strong>Signature index</strong>
-            <span>Mining scan reference</span>
+            <span>Mining scan reference{hasVisibleOverrides ? ' · * manual' : ''}</span>
           </div>
         </div>
         <div className="live-state">
@@ -77,6 +81,7 @@ export default function SignatureBoard({
               bestLocation={bestMiningLocations[material.id]}
               clusterMax={settings.clusterMax}
               compact={settings.compact}
+              signatureOverrides={settings.signatureOverrides}
             />
           ))}
         </div>
@@ -96,15 +101,18 @@ interface SignatureRowProps {
   bestLocation?: BestMiningLocationState
   clusterMax: number
   compact: boolean
+  signatureOverrides: SignatureOverrides
 }
 
 function SignatureRow({
   material,
   bestLocation,
   clusterMax,
-  compact
+  compact,
+  signatureOverrides
 }: SignatureRowProps): React.JSX.Element {
-  const signatures = buildClusterSignatures(material.signature, clusterMax)
+  const resolvedSignature = resolveMaterialSignature(material, signatureOverrides)
+  const signatures = buildClusterSignatures(resolvedSignature.signature, clusterMax)
   const base = signatures[0]
   const clusters = signatures.slice(1)
 
@@ -117,7 +125,26 @@ function SignatureRow({
         </div>
         <div className="base-signature">
           <span>Base</span>
-          <strong>{numberFormatter.format(base.signature)}</strong>
+          <strong
+            title={
+              resolvedSignature.isOverridden
+                ? `Manual override; source value ${numberFormatter.format(material.signature)}`
+                : undefined
+            }
+          >
+            {numberFormatter.format(base.signature)}
+            {resolvedSignature.isOverridden && (
+              <>
+                <span className="signature-override-marker" aria-hidden="true">
+                  *
+                </span>
+                <span className="sr-only">
+                  {' '}
+                  manual override from {numberFormatter.format(material.signature)}
+                </span>
+              </>
+            )}
+          </strong>
         </div>
       </div>
       <BestSite state={bestLocation} />

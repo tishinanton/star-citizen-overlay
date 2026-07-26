@@ -15,13 +15,15 @@ import {
   type OverlayPlacement,
   type OverlaySettings,
   type OverlaySettingsPatch,
+  type SignatureOverrides,
   type ShortcutId
 } from '../shared/contracts'
 
-export const SETTINGS_VERSION = 5
+export const SETTINGS_VERSION = 6
 
 export const DEFAULT_SETTINGS: OverlaySettings = {
   selectedMaterialIds: ['agricium-ore', 'laranite-raw', 'riccite-ore'],
+  signatureOverrides: {},
   clusterMax: 5,
   visible: true,
   compact: false,
@@ -66,6 +68,33 @@ function normalizePosition(value: unknown): OverlayPosition | null {
   }
 }
 
+function normalizeSignatureOverrides(
+  value: unknown,
+  fallback: SignatureOverrides
+): SignatureOverrides {
+  if (value === undefined) return { ...fallback }
+  if (!isRecord(value) || Array.isArray(value)) {
+    throw new TypeError('Signature overrides must be keyed by mining material.')
+  }
+
+  const entries = Object.entries(value)
+  if (entries.length > 500) {
+    throw new RangeError('No more than 500 signature overrides can be saved.')
+  }
+
+  const normalizedEntries = entries.map(([materialId, signature]): [string, number] => {
+    if (materialId.trim().length === 0 || materialId.length > 200) {
+      throw new TypeError('Signature overrides require a valid mining material.')
+    }
+    if (typeof signature !== 'number' || !Number.isSafeInteger(signature) || signature <= 0) {
+      throw new RangeError('Signature overrides must be positive whole numbers.')
+    }
+    return [materialId, signature]
+  })
+
+  return Object.fromEntries(normalizedEntries)
+}
+
 function normalizeShortcuts(
   value: unknown,
   fallback: Record<ShortcutId, string>
@@ -96,7 +125,12 @@ export function normalizeSettings(
   fallback: OverlaySettings = DEFAULT_SETTINGS
 ): OverlaySettings {
   if (!isRecord(value)) {
-    return { ...fallback, selectedMaterialIds: [...fallback.selectedMaterialIds] }
+    return {
+      ...fallback,
+      selectedMaterialIds: [...fallback.selectedMaterialIds],
+      signatureOverrides: { ...fallback.signatureOverrides },
+      shortcuts: { ...fallback.shortcuts }
+    }
   }
 
   const selectedMaterialIds = Array.isArray(value.selectedMaterialIds)
@@ -140,10 +174,15 @@ export function normalizeSettings(
     value.customPosition === null
       ? null
       : (normalizePosition(value.customPosition) ?? fallback.customPosition)
+  const signatureOverrides = normalizeSignatureOverrides(
+    value.signatureOverrides,
+    fallback.signatureOverrides
+  )
   const shortcuts = normalizeShortcuts(value.shortcuts, fallback.shortcuts)
 
   return {
     selectedMaterialIds,
+    signatureOverrides,
     clusterMax,
     visible: typeof value.visible === 'boolean' ? value.visible : fallback.visible,
     compact: typeof value.compact === 'boolean' ? value.compact : fallback.compact,
@@ -158,11 +197,17 @@ export function normalizeSettings(
 
 export function parsePersistedSettings(value: unknown): LoadedSettings {
   const settings = normalizeSettings(value)
-  const isCurrentVersion = isRecord(value) && value.settingsVersion === SETTINGS_VERSION
+  const persistedVersion =
+    isRecord(value) &&
+    typeof value.settingsVersion === 'number' &&
+    Number.isInteger(value.settingsVersion)
+      ? value.settingsVersion
+      : null
+  const isCurrentVersion = persistedVersion === SETTINGS_VERSION
   const persistedOpacity =
     isRecord(value) && typeof value.opacity === 'number' ? value.opacity : null
   const usesPreviousDefaultOpacity =
-    !isCurrentVersion &&
+    (persistedVersion === null || persistedVersion <= 2) &&
     persistedOpacity !== null &&
     [0.94, 0.72].some((defaultOpacity) => Math.abs(persistedOpacity - defaultOpacity) < 0.001)
 
@@ -191,7 +236,9 @@ export async function loadSettings(path: string): Promise<LoadedSettings> {
       return {
         settings: {
           ...DEFAULT_SETTINGS,
-          selectedMaterialIds: [...DEFAULT_SETTINGS.selectedMaterialIds]
+          selectedMaterialIds: [...DEFAULT_SETTINGS.selectedMaterialIds],
+          signatureOverrides: { ...DEFAULT_SETTINGS.signatureOverrides },
+          shortcuts: { ...DEFAULT_SETTINGS.shortcuts }
         },
         warning: null,
         needsSave: false
@@ -202,7 +249,9 @@ export async function loadSettings(path: string): Promise<LoadedSettings> {
     return {
       settings: {
         ...DEFAULT_SETTINGS,
-        selectedMaterialIds: [...DEFAULT_SETTINGS.selectedMaterialIds]
+        selectedMaterialIds: [...DEFAULT_SETTINGS.selectedMaterialIds],
+        signatureOverrides: { ...DEFAULT_SETTINGS.signatureOverrides },
+        shortcuts: { ...DEFAULT_SETTINGS.shortcuts }
       },
       warning: `Saved settings could not be loaded: ${message}`,
       needsSave: false

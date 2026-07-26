@@ -7,6 +7,7 @@ import { getOverlayFallbackLayout, getOverlayLayoutKey } from './overlay-layout'
 function createSettings(overrides: OverlaySettingsPatch = {}): OverlaySettings {
   return {
     selectedMaterialIds: ['agricium-ore', 'laranite-raw', 'riccite-ore'],
+    signatureOverrides: {},
     clusterMax: 5,
     visible: true,
     compact: false,

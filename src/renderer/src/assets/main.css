@@ -405,7 +405,7 @@
 .material-table__header,
 .material-row {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 58px;
+  grid-template-columns: minmax(0, 1fr) 62px 58px;
   gap: 8px;
   align-items: center;
 }
@@ -413,7 +413,7 @@
 .material-table__selection-columns,
 .material-row__select {
   display: grid;
-  grid-template-columns: minmax(170px, 1.35fr) minmax(100px, 0.75fr) 104px 46px;
+  grid-template-columns: minmax(170px, 1.35fr) minmax(100px, 0.75fr) 104px;
   align-items: center;
   gap: 12px;
 }
@@ -431,7 +431,7 @@
   text-align: right;
 }
 
-.material-table__header > span:last-child {
+.material-table__header > span:not(:first-child) {
   text-align: center;
 }
 
@@ -480,11 +480,13 @@
 }
 
 .material-row__select:focus-visible,
+.material-row__override:focus-visible,
 .material-row__locations:focus-visible {
   position: relative;
   z-index: 1;
 }
 
+.material-row__override,
 .material-row__locations {
   display: inline-flex;
   align-items: center;
@@ -505,6 +507,12 @@
     color var(--duration-fast) var(--ease-out);
 }
 
+.material-row__override {
+  margin-right: 0;
+}
+
+.material-row__override:hover,
+.material-row__override.is-active,
 .material-row__locations:hover,
 .material-row__locations.is-active {
   border-color: var(--edge-strong);
@@ -573,12 +581,145 @@
   font-size: 13px;
   font-variant-numeric: tabular-nums;
   text-align: right;
+  white-space: nowrap;
 }
 
-.row-action {
+.material-signature--overridden {
   color: var(--accent-bright);
+}
+
+.signature-override-marker {
+  margin-left: 1px;
+  color: var(--accent-bright);
+  font-size: 0.64em;
+  line-height: 0;
+  vertical-align: super;
+}
+
+.signature-override-editor {
+  display: grid;
+  grid-column: 1 / -1;
+  grid-template-columns: minmax(120px, 1fr) 144px auto;
+  align-items: start;
+  width: 100%;
+  padding: 10px 12px 11px;
+  gap: 12px;
+  border-top: 1px solid var(--edge);
+  background: var(--surface);
+}
+
+.signature-override-editor__heading,
+.signature-override-editor__field {
+  display: flex;
+  align-items: flex-start;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.signature-override-editor__heading strong {
+  color: var(--ink);
+  font-size: 11px;
+}
+
+.signature-override-editor__heading span,
+.signature-override-editor__field > span,
+.signature-override-editor__field small {
+  color: var(--muted);
   font-size: 9px;
-  text-align: right;
+}
+
+.signature-override-editor__heading span {
+  overflow: hidden;
+  width: 100%;
+  margin-top: 4px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.signature-override-editor__field {
+  gap: 5px;
+}
+
+.signature-override-editor__field input {
+  width: 100%;
+  height: 31px;
+  padding: 0 8px;
+  border: 1px solid var(--edge);
+  border-radius: var(--radius-sm);
+  background: var(--surface-low);
+  color: var(--ink);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+.signature-override-editor__field input:focus {
+  border-color: var(--accent);
+}
+
+.signature-override-editor__field input[aria-invalid='true'] {
+  border-color: var(--danger);
+}
+
+.signature-override-editor__field small {
+  line-height: 1.3;
+}
+
+.signature-override-editor__field small.is-error {
+  color: var(--danger-ink);
+}
+
+.signature-override-editor__actions {
+  display: flex;
+  align-items: center;
+  align-self: center;
+  gap: 5px;
+  padding-top: 13px;
+}
+
+.signature-override-editor__button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 48px;
+  height: 30px;
+  padding: 0 8px;
+  border: 1px solid var(--edge);
+  border-radius: var(--radius-sm);
+  background: var(--surface-low);
+  color: var(--ink-soft);
+  font-size: 9px;
+  transition:
+    border-color var(--duration-fast) var(--ease-out),
+    background-color var(--duration-fast) var(--ease-out),
+    color var(--duration-fast) var(--ease-out);
+}
+
+.signature-override-editor__button:hover:not(:disabled) {
+  border-color: var(--edge-strong);
+  background: var(--surface-high);
+  color: var(--ink);
+}
+
+.signature-override-editor__button--reset {
+  min-width: 30px;
+  width: 30px;
+  padding: 0;
+}
+
+.signature-override-editor__button--primary {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: var(--bg);
+}
+
+.signature-override-editor__button--primary:hover:not(:disabled) {
+  border-color: var(--accent-bright);
+  background: var(--accent-bright);
+  color: var(--bg);
+}
+
+.signature-override-editor__button:disabled {
+  opacity: 0.45;
 }
 
 .mining-location-flyout {
@@ -1319,6 +1460,7 @@
   font-size: calc(21px * var(--overlay-font-scale));
   font-variant-numeric: tabular-nums;
   letter-spacing: 0.015em;
+  white-space: nowrap;
 }
 
 .signature-row__site {
@@ -1565,7 +1707,7 @@
 
   .material-table__selection-columns,
   .material-row__select {
-    grid-template-columns: minmax(150px, 1fr) 90px 90px 40px;
+    grid-template-columns: minmax(130px, 1fr) 78px 84px;
     gap: 8px;
   }
 }

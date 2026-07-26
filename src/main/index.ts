@@ -86,7 +86,9 @@ let dragHandleWindow: BrowserWindow | null = null
 let tray: Tray | null = null
 let settings: OverlaySettings = {
   ...DEFAULT_SETTINGS,
-  selectedMaterialIds: [...DEFAULT_SETTINGS.selectedMaterialIds]
+  selectedMaterialIds: [...DEFAULT_SETTINGS.selectedMaterialIds],
+  signatureOverrides: { ...DEFAULT_SETTINGS.signatureOverrides },
+  shortcuts: { ...DEFAULT_SETTINGS.shortcuts }
 }
 let materials: MiningMaterial[] = []
 let bestMiningLocations: Record<string, BestMiningLocationState> = {}

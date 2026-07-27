@@ -2,11 +2,15 @@ import { promises as fs } from 'node:fs'
 import { dirname } from 'node:path'
 
 import {
+  APP_FONT_SIZE_STEP,
+  DEFAULT_APP_FONT_SIZE,
   DEFAULT_OVERLAY_FONT_SCALE,
   DEFAULT_SHORTCUTS,
+  MAX_APP_FONT_SIZE,
   MAX_OVERLAY_FONT_SCALE,
   MAX_CLUSTER_SIZE,
   MAX_SELECTED_MATERIALS,
+  MIN_APP_FONT_SIZE,
   MIN_CLUSTER_SIZE,
   MIN_OVERLAY_FONT_SCALE,
   OVERLAY_FONT_SCALE_STEP,
@@ -19,7 +23,7 @@ import {
   type ShortcutId
 } from '../shared/contracts'
 
-export const SETTINGS_VERSION = 6
+export const SETTINGS_VERSION = 7
 
 export const DEFAULT_SETTINGS: OverlaySettings = {
   selectedMaterialIds: ['agricium-ore', 'laranite-raw', 'riccite-ore'],
@@ -28,6 +32,7 @@ export const DEFAULT_SETTINGS: OverlaySettings = {
   visible: true,
   compact: false,
   opacity: 0.58,
+  appFontSize: DEFAULT_APP_FONT_SIZE,
   fontScale: DEFAULT_OVERLAY_FONT_SCALE,
   placement: 'top-right',
   customPosition: null,
@@ -153,6 +158,13 @@ export function normalizeSettings(
     typeof value.opacity === 'number' && Number.isFinite(value.opacity)
       ? Math.min(0.9, Math.max(0.3, value.opacity))
       : fallback.opacity
+  const appFontSize =
+    typeof value.appFontSize === 'number' && Number.isFinite(value.appFontSize)
+      ? Math.round(
+          Math.min(MAX_APP_FONT_SIZE, Math.max(MIN_APP_FONT_SIZE, value.appFontSize)) /
+            APP_FONT_SIZE_STEP
+        ) * APP_FONT_SIZE_STEP
+      : fallback.appFontSize
   const fontScale =
     typeof value.fontScale === 'number' && Number.isFinite(value.fontScale)
       ? Number(
@@ -187,6 +199,7 @@ export function normalizeSettings(
     visible: typeof value.visible === 'boolean' ? value.visible : fallback.visible,
     compact: typeof value.compact === 'boolean' ? value.compact : fallback.compact,
     opacity,
+    appFontSize,
     fontScale,
     placement: isPlacement(value.placement) ? value.placement : fallback.placement,
     customPosition,

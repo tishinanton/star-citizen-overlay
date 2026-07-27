@@ -36,13 +36,13 @@ typography:
     letterSpacing: '-0.01em'
   body:
     fontFamily: 'Bahnschrift, "Segoe UI Variable", "Segoe UI", sans-serif'
-    fontSize: '12px'
+    fontSize: '14px'
     fontWeight: 400
     lineHeight: 1.45
     letterSpacing: 'normal'
   label:
     fontFamily: 'Bahnschrift, "Segoe UI Variable", "Segoe UI", sans-serif'
-    fontSize: '10px'
+    fontSize: '14px'
     fontWeight: 400
     lineHeight: 1.2
     letterSpacing: '0.015em'
@@ -163,14 +163,16 @@ terminal.
 
 ### Hierarchy
 
-- **Headline** (650, 17px, 1.15): Pane titles and the application identity.
-- **Title** (600–650, 12–14px, 1.2): Materials, control groups, and overlay
-  targets.
-- **Body** (400, 12px, 1.45): Functional supporting copy, capped near 65
+- **Headline** (650, 17px at default, 1.15): Pane titles and the application
+  identity.
+- **Title** (600–650, 14–17px at default, 1.2): Materials, control groups, and
+  overlay targets.
+- **Body** (400, 14px at default, 1.45): Functional supporting copy, capped near 65
   characters where prose appears.
-- **Label** (400, 9–10px, 0.015em): Metadata, filters, methods, and shortcuts.
-- **Signature** (650, 21px, tabular): Base scan values.
-- **Cluster Value** (600, 13px, tabular): Multi-rock signatures.
+- **Label** (400, 14px minimum, 0.015em): Metadata, filters, methods, and
+  shortcuts.
+- **Signature** (650, 21px at default, tabular): Base scan values.
+- **Cluster Value** (600, 14px minimum, tabular): Multi-rock signatures.
 
 ### Named Rules
 
@@ -179,6 +181,10 @@ numerals. Numeric changes never shift adjacent content.
 
 **The Labels Stay Familiar Rule.** Compact text is allowed; invented
 abbreviations and stylized sci-fi glyph alphabets are forbidden.
+
+**The Readable Floor Rule.** No rendered text drops below the saved application
+font size. The default is 14px, and the Settings workspace scales the hierarchy
+up to 20px while preserving relative emphasis.
 
 ## 4. Elevation
 
@@ -254,8 +260,9 @@ where those states apply.
 - **Behavior:** Compact mode removes secondary metadata. Spotlight mode displays
   one selected target while preserving all selections. A shaped transparent
   native drag-handle window tracks the visible header; the rest of the overlay
-  remains genuinely click-through. Text scales from 80% to 160%, with the native
-  overlay and drag target resized from measured content so no readout is clipped.
+  remains genuinely click-through. Overlay emphasis scales from 80% to 160%
+  without dropping labels below the saved application font size. The native
+  overlay and drag target resize from measured content so no readout is clipped.
   Dragged coordinates persist until the user selects a named screen corner.
 - **Surface:** Content-fit translucent Overlay Field at a 58% default backdrop
   opacity. Header and value cells honor the same control; text stays fully

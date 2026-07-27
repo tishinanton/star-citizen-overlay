@@ -12,6 +12,7 @@ function createSettings(overrides: OverlaySettingsPatch = {}): OverlaySettings {
     visible: true,
     compact: false,
     opacity: 0.58,
+    appFontSize: 14,
     fontScale: 1,
     placement: 'top-right',
     customPosition: null,
@@ -32,6 +33,16 @@ test('scales the overlay window with its font size', () => {
     height: 508,
     headerHeight: 63
   })
+  assert.deepEqual(getOverlayFallbackLayout(createSettings({ appFontSize: 18 })), {
+    width: 540,
+    height: 436,
+    headerHeight: 54
+  })
+  assert.deepEqual(getOverlayFallbackLayout(createSettings({ fontScale: 0.8 })), {
+    width: 420,
+    height: 340,
+    headerHeight: 42
+  })
 })
 
 test('sizes fallback layouts for compact, spotlight, and empty states', () => {
@@ -50,6 +61,10 @@ test('changes the layout key only for settings that affect rendered dimensions',
   assert.notEqual(
     getOverlayLayoutKey(settings),
     getOverlayLayoutKey({ ...settings, fontScale: 1.25 })
+  )
+  assert.notEqual(
+    getOverlayLayoutKey(settings),
+    getOverlayLayoutKey({ ...settings, appFontSize: 18 })
   )
   assert.notEqual(
     getOverlayLayoutKey(settings),

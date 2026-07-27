@@ -1,6 +1,10 @@
 export const MAX_SELECTED_MATERIALS = 4
 export const MIN_CLUSTER_SIZE = 1
 export const MAX_CLUSTER_SIZE = 8
+export const MIN_APP_FONT_SIZE = 14
+export const MAX_APP_FONT_SIZE = 20
+export const DEFAULT_APP_FONT_SIZE = 14
+export const APP_FONT_SIZE_STEP = 1
 export const MIN_OVERLAY_FONT_SCALE = 0.8
 export const MAX_OVERLAY_FONT_SCALE = 1.6
 export const DEFAULT_OVERLAY_FONT_SCALE = 1
@@ -201,6 +205,7 @@ export interface OverlaySettings {
   visible: boolean
   compact: boolean
   opacity: number
+  appFontSize: number
   fontScale: number
   placement: OverlayPlacement
   customPosition: OverlayPosition | null

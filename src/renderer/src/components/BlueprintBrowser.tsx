@@ -148,7 +148,12 @@ export default function BlueprintBrowser(): React.JSX.Element {
   }
 
   return (
-    <main className="blueprint-workspace" id="panel-blueprints" aria-labelledby="tab-blueprints">
+    <main
+      className="blueprint-workspace"
+      id="panel-blueprints"
+      role="tabpanel"
+      aria-labelledby="tab-blueprints"
+    >
       <section className="blueprint-catalog" aria-labelledby="blueprint-catalog-title">
         <div className="section-heading blueprint-catalog__heading">
           <div>

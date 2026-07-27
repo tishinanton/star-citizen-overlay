@@ -1,4 +1,4 @@
-import type { OverlaySettings } from './contracts'
+import { DEFAULT_APP_FONT_SIZE, type OverlaySettings } from './contracts'
 
 export const OVERLAY_BASE_WIDTH = 420
 
@@ -17,6 +17,7 @@ export interface OverlayLayout {
 
 export function getOverlayLayoutKey(settings: OverlaySettings): string {
   return JSON.stringify([
+    settings.appFontSize,
     settings.fontScale,
     settings.compact,
     settings.clusterMax,
@@ -26,22 +27,24 @@ export function getOverlayLayoutKey(settings: OverlaySettings): string {
 }
 
 export function getOverlayFallbackLayout(settings: OverlaySettings): OverlayLayout {
-  const scale = settings.fontScale
+  const effectiveOverlayScale = Math.max(1, settings.fontScale)
+  const scaleDimension = (value: number): number =>
+    Math.ceil((value * effectiveOverlayScale * settings.appFontSize) / DEFAULT_APP_FONT_SIZE)
   const selectedCount = settings.spotlightMaterialId ? 1 : settings.selectedMaterialIds.length
   const headerHeight = settings.compact ? OVERLAY_COMPACT_HEADER_HEIGHT : OVERLAY_HEADER_HEIGHT
 
   if (selectedCount === 0) {
     return {
-      width: Math.ceil(OVERLAY_BASE_WIDTH * scale),
-      height: Math.ceil(OVERLAY_EMPTY_HEIGHT * scale),
-      headerHeight: Math.ceil(headerHeight * scale)
+      width: scaleDimension(OVERLAY_BASE_WIDTH),
+      height: scaleDimension(OVERLAY_EMPTY_HEIGHT),
+      headerHeight: scaleDimension(headerHeight)
     }
   }
 
   const rowHeight = settings.compact ? OVERLAY_COMPACT_ROW_HEIGHT : OVERLAY_ROW_HEIGHT
   return {
-    width: Math.ceil(OVERLAY_BASE_WIDTH * scale),
-    height: Math.ceil((headerHeight + selectedCount * rowHeight) * scale) + OVERLAY_CHROME_HEIGHT,
-    headerHeight: Math.ceil(headerHeight * scale)
+    width: scaleDimension(OVERLAY_BASE_WIDTH),
+    height: scaleDimension(headerHeight + selectedCount * rowHeight) + OVERLAY_CHROME_HEIGHT,
+    headerHeight: scaleDimension(headerHeight)
   }
 }

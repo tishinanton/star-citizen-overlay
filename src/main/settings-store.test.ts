@@ -17,6 +17,7 @@ test('normalizes persisted settings and clamps opacity', () => {
       visible: false,
       compact: true,
       opacity: 2,
+      appFontSize: 99,
       fontScale: 4,
       placement: 'bottom-left',
       spotlightMaterialId: 'riccite-ore'
@@ -28,6 +29,7 @@ test('normalizes persisted settings and clamps opacity', () => {
       visible: false,
       compact: true,
       opacity: 0.9,
+      appFontSize: 20,
       fontScale: 1.6,
       placement: 'bottom-left',
       customPosition: null,
@@ -41,6 +43,12 @@ test('normalizes overlay font scale to supported steps', () => {
   assert.equal(normalizeSettings({ ...DEFAULT_SETTINGS, fontScale: 0.1 }).fontScale, 0.8)
   assert.equal(normalizeSettings({ ...DEFAULT_SETTINGS, fontScale: 1.234 }).fontScale, 1.25)
   assert.equal(normalizeSettings({ ...DEFAULT_SETTINGS, fontScale: 3 }).fontScale, 1.6)
+})
+
+test('normalizes application font size to the supported range', () => {
+  assert.equal(normalizeSettings({ ...DEFAULT_SETTINGS, appFontSize: 10 }).appFontSize, 14)
+  assert.equal(normalizeSettings({ ...DEFAULT_SETTINGS, appFontSize: 16.6 }).appFontSize, 17)
+  assert.equal(normalizeSettings({ ...DEFAULT_SETTINGS, appFontSize: 24 }).appFontSize, 20)
 })
 
 test('normalizes valid signature overrides and rejects invalid values', () => {

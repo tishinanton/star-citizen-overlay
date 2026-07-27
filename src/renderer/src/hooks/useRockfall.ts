@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useState } from 'react'
 
-import type {
-  AppSnapshot,
-  MiningLocationResult,
-  OverlaySettingsPatch
+import {
+  DEFAULT_APP_FONT_SIZE,
+  type AppSnapshot,
+  type MiningLocationResult,
+  type OverlaySettingsPatch
 } from '../../../shared/contracts'
 
 interface RockfallState {
@@ -21,6 +22,12 @@ interface RockfallState {
 export function useRockfall(): RockfallState {
   const [snapshot, setSnapshot] = useState<AppSnapshot | null>(null)
   const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    document.documentElement.style.fontSize = `${
+      snapshot?.settings.appFontSize ?? DEFAULT_APP_FONT_SIZE
+    }px`
+  }, [snapshot?.settings.appFontSize])
 
   useEffect(() => {
     let active = true

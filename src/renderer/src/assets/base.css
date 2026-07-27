@@ -1,5 +1,6 @@
 :root {
   color-scheme: dark;
+  font-size: 14px;
   font-family: Bahnschrift, 'Segoe UI Variable', 'Segoe UI', sans-serif;
   font-synthesis: none;
   text-rendering: geometricPrecision;
@@ -60,6 +61,7 @@ body {
   overflow: hidden;
   background: var(--bg);
   color: var(--ink);
+  font-size: 1rem;
 }
 
 button,

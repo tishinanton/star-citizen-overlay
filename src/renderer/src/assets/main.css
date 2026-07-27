@@ -2,7 +2,7 @@
 
 .app-shell {
   display: grid;
-  grid-template-rows: 64px auto minmax(0, 1fr) 34px;
+  grid-template-rows: minmax(64px, auto) auto minmax(0, 1fr) minmax(34px, auto);
   height: 100vh;
   background: var(--bg);
 }
@@ -14,7 +14,7 @@
   align-items: center;
   justify-content: space-between;
   gap: 24px;
-  padding: 0 22px;
+  padding: 9px 22px;
   border-bottom: 1px solid var(--edge);
   background: var(--surface-low);
 }
@@ -45,7 +45,7 @@
 }
 
 .brand-lockup strong {
-  font-size: 17px;
+  font-size: 1.214rem;
   line-height: 1;
   letter-spacing: 0.02em;
 }
@@ -53,7 +53,7 @@
 .brand-lockup span:not(.brand-mark) {
   margin-top: 5px;
   color: var(--muted);
-  font-size: 11px;
+  font-size: 1rem;
 }
 
 .brand-mark,
@@ -85,7 +85,7 @@
 .app-tabs {
   display: flex;
   align-items: stretch;
-  height: 42px;
+  min-height: 42px;
   padding: 0 22px;
   gap: 4px;
   border-bottom: 1px solid var(--edge);
@@ -96,11 +96,11 @@
   display: inline-flex;
   align-items: center;
   min-width: 108px;
-  padding: 0 13px;
+  padding: 9px 13px;
   gap: 7px;
   background: transparent;
   color: var(--muted);
-  font-size: 11px;
+  font-size: 1rem;
   font-weight: 600;
   transition:
     background-color var(--duration-fast) var(--ease-out),
@@ -135,7 +135,7 @@
 .data-status {
   gap: 7px;
   color: var(--ink-soft);
-  font-size: 11px;
+  font-size: 1rem;
 }
 
 .data-status > span,
@@ -194,7 +194,7 @@
 
 .overlay-toggle {
   padding: 0 8px 0 11px;
-  font-size: 12px;
+  font-size: 1rem;
 }
 
 .overlay-toggle:hover,
@@ -216,7 +216,7 @@
   border-radius: var(--radius-xs);
   background: color-mix(in oklch, var(--kbd-bg) 55%, transparent);
   color: var(--ink-soft);
-  font-size: 9px;
+  font-size: 1rem;
 }
 
 .system-warning {
@@ -228,7 +228,7 @@
   border-bottom: 1px solid color-mix(in oklch, var(--danger) 42%, transparent);
   background: var(--danger-surface);
   color: var(--danger-ink);
-  font-size: 12px;
+  font-size: 1rem;
 }
 
 .workspace {
@@ -285,7 +285,7 @@
 .section-heading h1,
 .section-heading h2 {
   margin: 0;
-  font-size: 17px;
+  font-size: 1.214rem;
   font-weight: 650;
   line-height: 1.15;
   letter-spacing: -0.01em;
@@ -303,7 +303,7 @@
   max-width: 52ch;
   margin-top: 5px;
   color: var(--muted);
-  font-size: 11px;
+  font-size: 1rem;
   line-height: 1.45;
   text-wrap: pretty;
 }
@@ -321,14 +321,14 @@
 
 .selection-counter {
   color: var(--muted);
-  font-size: 11px;
+  font-size: 1rem;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
 
 .selection-counter strong {
   color: var(--accent-bright);
-  font-size: 13px;
+  font-size: 1rem;
 }
 
 .target-tools {
@@ -366,7 +366,7 @@
   border: 0;
   background: transparent;
   color: var(--ink);
-  font-size: 12px;
+  font-size: 1rem;
 }
 
 .search-field input::placeholder {
@@ -377,7 +377,7 @@
 .icon-text-button {
   min-width: 74px;
   padding: 0 11px;
-  font-size: 11px;
+  font-size: 1rem;
 }
 
 .icon-text-button:disabled {
@@ -447,7 +447,7 @@
   border-radius: var(--radius-xs);
   background: transparent;
   color: var(--muted);
-  font-size: 10px;
+  font-size: 1rem;
   transition:
     background-color var(--duration-fast) var(--ease-out),
     color var(--duration-fast) var(--ease-out);
@@ -463,6 +463,8 @@
 }
 
 .material-table {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
   min-height: 0;
   overflow: hidden;
   border: 1px solid var(--edge);
@@ -487,12 +489,12 @@
 }
 
 .material-table__header {
-  height: 33px;
-  padding: 0 8px 0 13px;
+  min-height: 33px;
+  padding: 8px 8px 8px 13px;
   border-bottom: 1px solid var(--edge);
   background: var(--surface);
   color: var(--muted);
-  font-size: 9px;
+  font-size: 1rem;
 }
 
 .material-table__selection-columns > span:nth-child(3) {
@@ -504,7 +506,7 @@
 }
 
 .material-table__body {
-  height: calc(100% - 33px);
+  min-height: 0;
   overflow-y: auto;
 }
 
@@ -568,7 +570,7 @@
   border-radius: var(--radius-sm);
   background: var(--surface);
   color: var(--muted);
-  font-size: 9px;
+  font-size: 1rem;
   transition:
     border-color var(--duration-fast) var(--ease-out),
     background-color var(--duration-fast) var(--ease-out),
@@ -626,27 +628,27 @@
 }
 
 .material-row__target strong {
-  font-size: 12px;
+  font-size: 1rem;
   font-weight: 600;
 }
 
 .material-row__target small {
   margin-top: 3px;
   color: var(--muted);
-  font-size: 9px;
+  font-size: 1rem;
 }
 
 .method-label {
   overflow: hidden;
   color: var(--muted);
-  font-size: 9px;
+  font-size: 1rem;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .material-signature {
   color: var(--ink);
-  font-size: 13px;
+  font-size: 1rem;
   font-variant-numeric: tabular-nums;
   text-align: right;
   white-space: nowrap;
@@ -659,7 +661,7 @@
 .signature-override-marker {
   margin-left: 1px;
   color: var(--accent-bright);
-  font-size: 0.64em;
+  font-size: 1rem;
   line-height: 0;
   vertical-align: super;
 }
@@ -686,14 +688,14 @@
 
 .signature-override-editor__heading strong {
   color: var(--ink);
-  font-size: 11px;
+  font-size: 1rem;
 }
 
 .signature-override-editor__heading span,
 .signature-override-editor__field > span,
 .signature-override-editor__field small {
   color: var(--muted);
-  font-size: 9px;
+  font-size: 1rem;
 }
 
 .signature-override-editor__heading span {
@@ -716,7 +718,7 @@
   border-radius: var(--radius-sm);
   background: var(--surface-low);
   color: var(--ink);
-  font-size: 11px;
+  font-size: 1rem;
   font-variant-numeric: tabular-nums;
 }
 
@@ -755,7 +757,7 @@
   border-radius: var(--radius-sm);
   background: var(--surface-low);
   color: var(--ink-soft);
-  font-size: 9px;
+  font-size: 1rem;
   transition:
     border-color var(--duration-fast) var(--ease-out),
     background-color var(--duration-fast) var(--ease-out),
@@ -831,7 +833,7 @@
 
 .mining-location-flyout__header h2 {
   color: var(--ink);
-  font-size: 13px;
+  font-size: 1rem;
   font-weight: 650;
 }
 
@@ -839,7 +841,7 @@
   overflow: hidden;
   margin-top: 3px;
   color: var(--muted);
-  font-size: 9px;
+  font-size: 1rem;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -897,7 +899,7 @@
   border-radius: var(--radius-xs);
   background: var(--bg);
   color: var(--muted);
-  font-size: 10px;
+  font-size: 1rem;
   font-variant-numeric: tabular-nums;
 }
 
@@ -914,7 +916,7 @@
 .mining-location-list__site > strong {
   display: inline;
   color: var(--ink);
-  font-size: 11px;
+  font-size: 1rem;
   font-weight: 600;
 }
 
@@ -924,7 +926,7 @@
   margin-left: 7px;
   gap: 3px;
   color: var(--warning);
-  font-size: 9px;
+  font-size: 1rem;
 }
 
 .mining-location-list__site > small,
@@ -932,7 +934,7 @@
   display: block;
   overflow: hidden;
   color: var(--muted);
-  font-size: 9px;
+  font-size: 1rem;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -970,7 +972,7 @@
 
 .mining-location-list__probability strong {
   color: var(--accent-bright);
-  font-size: 14px;
+  font-size: 1rem;
   font-variant-numeric: tabular-nums;
   font-weight: 650;
 }
@@ -978,7 +980,7 @@
 .mining-location-list__probability small {
   margin-top: 2px;
   color: var(--muted);
-  font-size: 8px;
+  font-size: 1rem;
 }
 
 .mining-location-flyout__state {
@@ -995,13 +997,13 @@
 .mining-location-flyout__state > strong {
   margin-top: 10px;
   color: var(--ink-soft);
-  font-size: 12px;
+  font-size: 1rem;
 }
 
 .mining-location-flyout__state > span {
   max-width: 38ch;
   margin-top: 5px;
-  font-size: 10px;
+  font-size: 1rem;
   line-height: 1.45;
 }
 
@@ -1016,7 +1018,7 @@
   border-radius: var(--radius-sm);
   background: var(--surface);
   color: var(--ink-soft);
-  font-size: 9px;
+  font-size: 1rem;
 }
 
 .mining-location-flyout__state > button:hover {
@@ -1064,7 +1066,7 @@
   border-top: 1px solid var(--edge);
   background: var(--surface);
   color: var(--muted);
-  font-size: 8px;
+  font-size: 1rem;
 }
 
 .mining-location-source {
@@ -1098,13 +1100,13 @@
 .table-empty strong {
   margin-top: 10px;
   color: var(--ink-soft);
-  font-size: 12px;
+  font-size: 1rem;
 }
 
 .table-empty span {
   max-width: 36ch;
   margin-top: 5px;
-  font-size: 10px;
+  font-size: 1rem;
   line-height: 1.4;
 }
 
@@ -1120,7 +1122,7 @@
   justify-content: space-between;
   margin-bottom: 8px;
   color: var(--muted);
-  font-size: 8px;
+  font-size: 1rem;
   text-transform: uppercase;
   letter-spacing: 0.08em;
 }
@@ -1170,13 +1172,13 @@
 
 .control-group__heading strong {
   color: var(--ink);
-  font-size: 11px;
+  font-size: 1rem;
 }
 
 .control-group__heading span {
   margin-top: 3px;
   color: var(--muted);
-  font-size: 9px;
+  font-size: 1rem;
 }
 
 .range-control {
@@ -1189,7 +1191,7 @@
   justify-content: space-between;
   margin-bottom: 8px;
   color: var(--ink-soft);
-  font-size: 10px;
+  font-size: 1rem;
 }
 
 .range-control > span strong {
@@ -1234,12 +1236,12 @@
   align-items: center;
   gap: 5px;
   color: var(--muted);
-  font-size: 9px;
+  font-size: 1rem;
 }
 
 .select-control small {
   color: var(--muted);
-  font-size: 8px;
+  font-size: 1rem;
   line-height: 1.3;
 }
 
@@ -1250,13 +1252,13 @@
   border-radius: var(--radius-sm);
   background: var(--surface-low);
   color: var(--ink-soft);
-  font-size: 10px;
+  font-size: 1rem;
 }
 
 .mode-toggle {
   height: 32px;
   padding: 0 11px;
-  font-size: 10px;
+  font-size: 1rem;
 }
 
 .mode-toggle.is-active {
@@ -1274,7 +1276,7 @@
   border-radius: var(--radius-sm);
   background: transparent;
   color: var(--muted);
-  font-size: 8px;
+  font-size: 1rem;
 }
 
 .reset-button:hover:not(:disabled) {
@@ -1297,7 +1299,7 @@
   align-items: center;
   gap: 8px;
   color: var(--ink-soft);
-  font-size: 9px;
+  font-size: 1rem;
 }
 
 .shortcut-health {
@@ -1315,7 +1317,7 @@
   border-radius: var(--radius-xs);
   background: var(--surface-low);
   color: var(--muted);
-  font-size: 8px;
+  font-size: 1rem;
 }
 
 .shortcut-binding {
@@ -1325,7 +1327,7 @@
   border-radius: var(--radius-xs);
   background: var(--surface-low);
   color: var(--muted);
-  font-size: 8px;
+  font-size: 1rem;
   text-align: center;
   transition:
     border-color var(--duration-fast) var(--ease-out),
@@ -1354,12 +1356,13 @@
 
 .app-footer {
   justify-content: space-between;
+  min-height: 34px;
   gap: 16px;
-  padding: 0 22px;
+  padding: 7px 22px;
   border-top: 1px solid var(--edge);
   background: var(--surface-low);
   color: var(--muted);
-  font-size: 9px;
+  font-size: 1rem;
 }
 
 .app-footer > span {
@@ -1383,6 +1386,241 @@
 .app-footer__source {
   flex: 0 0 auto;
   color: var(--ink-soft);
+}
+
+.settings-workspace {
+  min-width: 0;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 28px 32px 40px;
+  background: var(--bg);
+}
+
+.settings-page {
+  width: min(100%, 860px);
+  margin: 0 auto;
+}
+
+.settings-heading {
+  display: flex;
+  align-items: flex-start;
+  padding-bottom: 22px;
+  gap: 12px;
+  border-bottom: 1px solid var(--edge);
+}
+
+.settings-heading h1,
+.settings-section__heading h2 {
+  margin: 0;
+  color: var(--ink);
+  font-size: 1.214rem;
+  font-weight: 650;
+  line-height: 1.15;
+  letter-spacing: -0.01em;
+  text-wrap: balance;
+}
+
+.settings-heading p,
+.settings-section__heading p {
+  max-width: 65ch;
+  margin: 6px 0 0;
+  color: var(--muted);
+  font-size: 1rem;
+  line-height: 1.45;
+  text-wrap: pretty;
+}
+
+.settings-section {
+  display: grid;
+  grid-template-columns: minmax(210px, 0.36fr) minmax(0, 1fr);
+  margin-top: 24px;
+  overflow: hidden;
+  border: 1px solid var(--edge);
+  border-radius: var(--radius-md);
+  background: var(--surface-low);
+}
+
+.settings-section__heading {
+  display: flex;
+  align-items: flex-start;
+  padding: 24px 22px;
+  gap: 11px;
+  border-right: 1px solid var(--edge);
+  background: var(--surface);
+  color: var(--accent-bright);
+}
+
+.settings-section__heading > svg {
+  flex: 0 0 auto;
+}
+
+.settings-section__heading p {
+  max-width: 28ch;
+}
+
+.font-size-setting {
+  min-width: 0;
+  padding: 24px;
+}
+
+.font-size-setting__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20px;
+}
+
+.font-size-setting__header label,
+.font-size-setting__header > div > span {
+  display: block;
+}
+
+.font-size-setting__header label {
+  color: var(--ink);
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.font-size-setting__header > div > span {
+  max-width: 52ch;
+  margin-top: 5px;
+  color: var(--muted);
+  font-size: 1rem;
+  line-height: 1.4;
+}
+
+.font-size-setting__header output {
+  display: flex;
+  align-items: baseline;
+  flex: 0 0 auto;
+  gap: 8px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.font-size-setting__header output strong {
+  color: var(--accent-bright);
+  font-size: 1.214rem;
+}
+
+.font-size-setting__header output span {
+  color: var(--muted);
+  font-size: 1rem;
+}
+
+.font-size-setting > input[type='range'] {
+  width: 100%;
+  height: 4px;
+  margin: 24px 0 0;
+  border-radius: var(--radius-xs);
+  appearance: none;
+  background: var(--edge-strong);
+}
+
+.font-size-setting > input[type='range']::-webkit-slider-thumb {
+  width: 18px;
+  height: 18px;
+  border: 3px solid var(--surface-low);
+  border-radius: 50%;
+  appearance: none;
+  background: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent);
+}
+
+.font-size-setting__bounds {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 10px;
+  color: var(--muted);
+  font-size: 1rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.font-size-preview {
+  display: grid;
+  margin-top: 22px;
+  padding: 17px 18px;
+  gap: 6px;
+  border: 1px solid var(--edge);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+}
+
+.font-size-preview > span:first-child {
+  color: var(--accent-bright);
+  font-size: 1rem;
+}
+
+.font-size-preview strong {
+  color: var(--ink);
+  font-size: 1.214rem;
+}
+
+.font-size-preview p {
+  max-width: 65ch;
+  margin: 0;
+  color: var(--ink-soft);
+  font-size: 1rem;
+  line-height: 1.45;
+  text-wrap: pretty;
+}
+
+.font-size-preview__value {
+  color: var(--muted);
+  font-size: 1rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.settings-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 20px;
+  gap: 18px;
+}
+
+.settings-actions > span {
+  display: inline-flex;
+  align-items: center;
+  max-width: 48ch;
+  gap: 7px;
+  color: var(--muted);
+  font-size: 1rem;
+  line-height: 1.4;
+}
+
+.settings-actions > span svg {
+  flex: 0 0 auto;
+  color: var(--accent-bright);
+}
+
+.settings-actions button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 36px;
+  padding: 7px 11px;
+  gap: 7px;
+  border: 1px solid var(--edge);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--ink-soft);
+  font-size: 1rem;
+  white-space: nowrap;
+  transition:
+    border-color var(--duration-fast) var(--ease-out),
+    background-color var(--duration-fast) var(--ease-out),
+    color var(--duration-fast) var(--ease-out);
+}
+
+.settings-actions button:hover:not(:disabled) {
+  border-color: var(--edge-strong);
+  background: var(--surface-high);
+  color: var(--ink);
+}
+
+.settings-actions button:disabled {
+  opacity: 0.45;
 }
 
 .blueprint-workspace {
@@ -1417,7 +1655,7 @@
   justify-items: end;
   gap: 2px 5px;
   color: var(--muted);
-  font-size: 9px;
+  font-size: 1rem;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
@@ -1429,13 +1667,13 @@
 
 .blueprint-catalog__status > strong {
   color: var(--ink);
-  font-size: 13px;
+  font-size: 1rem;
 }
 
 .blueprint-catalog__status > small {
   grid-column: 1 / -1;
   color: var(--ink-soft);
-  font-size: 8px;
+  font-size: 1rem;
 }
 
 .blueprint-source-state {
@@ -1443,7 +1681,7 @@
   align-items: center;
   gap: 6px;
   color: var(--ink-soft);
-  font-size: 9px;
+  font-size: 1rem;
 }
 
 .blueprint-source-state > span {
@@ -1475,15 +1713,19 @@
 
 .blueprint-tools {
   display: grid;
-  grid-template-columns: minmax(90px, 1fr) auto auto auto;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 9px;
   margin-bottom: 11px;
+}
+
+.blueprint-tools .search-field {
+  grid-column: 1 / -1;
 }
 
 .blueprint-tools .icon-text-button {
   min-width: 0;
   padding-inline: 9px;
-  font-size: 10px;
+  font-size: 1rem;
 }
 
 .blueprint-tool-stack {
@@ -1502,7 +1744,7 @@
   border-radius: var(--radius-sm);
   background: var(--surface-low);
   color: var(--muted);
-  font-size: 8px;
+  font-size: 1rem;
 }
 
 .blueprint-log-status > span:last-child {
@@ -1534,14 +1776,14 @@
 
 .blueprint-catalog__warning strong {
   color: var(--ink);
-  font-size: 9px;
+  font-size: 1rem;
 }
 
 .blueprint-catalog__warning small {
   margin-top: 2px;
   overflow: hidden;
   color: var(--muted);
-  font-size: 8px;
+  font-size: 1rem;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -1553,7 +1795,7 @@
   border-radius: var(--radius-sm);
   background: var(--surface);
   color: var(--ink-soft);
-  font-size: 8px;
+  font-size: 1rem;
 }
 
 .blueprint-catalog__warning button:hover {
@@ -1590,7 +1832,7 @@
   margin: 0 0 4px 4px;
   padding: 0;
   color: var(--muted);
-  font-size: 8px;
+  font-size: 1rem;
 }
 
 .blueprint-filter-group .filter-strip {
@@ -1601,12 +1843,14 @@
   min-width: 0;
   padding-inline: 5px;
   overflow: hidden;
-  font-size: 9px;
+  font-size: 1rem;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .blueprint-list {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
   min-height: 0;
   overflow: hidden;
   border: 1px solid var(--edge);
@@ -1623,16 +1867,16 @@
 }
 
 .blueprint-list__header {
-  height: 33px;
-  padding: 0 11px;
+  min-height: 33px;
+  padding: 8px 11px;
   border-bottom: 1px solid var(--edge);
   background: var(--surface);
   color: var(--muted);
-  font-size: 9px;
+  font-size: 1rem;
 }
 
 .blueprint-list__body {
-  height: calc(100% - 33px);
+  min-height: 0;
   overflow-y: auto;
 }
 
@@ -1678,20 +1922,20 @@
 
 .blueprint-row__identity > strong {
   color: inherit;
-  font-size: 11px;
+  font-size: 1rem;
   font-weight: 600;
 }
 
 .blueprint-row__identity > small {
   margin-top: 3px;
   color: var(--muted);
-  font-size: 8px;
+  font-size: 1rem;
 }
 
 .blueprint-row__type,
 .blueprint-row__time {
   color: var(--muted);
-  font-size: 9px;
+  font-size: 1rem;
 }
 
 .blueprint-row__time {
@@ -1705,14 +1949,14 @@
   min-width: 0;
   gap: 5px;
   color: var(--ink-soft);
-  font-size: 10px;
+  font-size: 1rem;
   font-weight: 500;
 }
 
 .blueprint-access.is-compact,
 .blueprint-collection.is-compact {
   overflow: hidden;
-  font-size: 8px;
+  font-size: 1rem;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -1756,13 +2000,13 @@
 .blueprint-empty > strong {
   margin-top: 10px;
   color: var(--ink);
-  font-size: 12px;
+  font-size: 1rem;
 }
 
 .blueprint-empty > span {
   max-width: 42ch;
   margin-top: 5px;
-  font-size: 10px;
+  font-size: 1rem;
   line-height: 1.4;
   text-wrap: pretty;
 }
@@ -1776,7 +2020,7 @@
   border-radius: var(--radius-sm);
   background: var(--surface);
   color: var(--ink-soft);
-  font-size: 9px;
+  font-size: 1rem;
 }
 
 .blueprint-empty > button:hover,
@@ -1849,7 +2093,7 @@
   display: block;
   overflow: hidden;
   color: var(--muted);
-  font-size: 9px;
+  font-size: 1rem;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -1858,7 +2102,7 @@
   margin: 4px 0;
   overflow: hidden;
   color: var(--ink);
-  font-size: 17px;
+  font-size: 1.214rem;
   font-weight: 650;
   line-height: 1.15;
   letter-spacing: -0.01em;
@@ -1878,7 +2122,7 @@
   border-radius: var(--radius-sm);
   background: var(--surface-low);
   color: var(--ink-soft);
-  font-size: 9px;
+  font-size: 1rem;
   text-decoration: none;
   transition:
     border-color var(--duration-fast) var(--ease-out),
@@ -1939,7 +2183,7 @@ button.blueprint-ownership-action--confirmed:hover {
   align-items: center;
   gap: 6px;
   color: var(--muted);
-  font-size: 9px;
+  font-size: 1rem;
 }
 
 .blueprint-facts dd {
@@ -1947,20 +2191,20 @@ button.blueprint-ownership-action--confirmed:hover {
   margin: 6px 0 0;
   overflow: hidden;
   color: var(--ink);
-  font-size: 12px;
+  font-size: 1rem;
   font-variant-numeric: tabular-nums;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .blueprint-facts dd .blueprint-access {
-  font-size: 10px;
+  font-size: 1rem;
 }
 
 .blueprint-facts dd .blueprint-collection {
   max-width: 100%;
   overflow: hidden;
-  font-size: 10px;
+  font-size: 1rem;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -1973,7 +2217,7 @@ button.blueprint-ownership-action--confirmed:hover {
   gap: 16px;
   border-bottom: 1px solid var(--edge);
   color: var(--muted);
-  font-size: 9px;
+  font-size: 1rem;
 }
 
 .blueprint-detail__error {
@@ -1997,12 +2241,12 @@ button.blueprint-ownership-action--confirmed:hover {
 }
 
 .blueprint-detail__error strong {
-  font-size: 10px;
+  font-size: 1rem;
 }
 
 .blueprint-detail__error span {
   margin-top: 3px;
-  font-size: 9px;
+  font-size: 1rem;
   line-height: 1.35;
 }
 
@@ -2037,13 +2281,13 @@ button.blueprint-ownership-action--confirmed:hover {
 .blueprint-detail__section-heading h3 {
   margin: 0;
   color: var(--ink);
-  font-size: 12px;
+  font-size: 1rem;
   font-weight: 650;
 }
 
 .blueprint-detail__section-heading > span {
   color: var(--muted);
-  font-size: 9px;
+  font-size: 1rem;
   font-variant-numeric: tabular-nums;
 }
 
@@ -2080,7 +2324,7 @@ button.blueprint-ownership-action--confirmed:hover {
 .requirement-group__identity strong {
   overflow: hidden;
   color: var(--ink);
-  font-size: 10px;
+  font-size: 1rem;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -2088,7 +2332,7 @@ button.blueprint-ownership-action--confirmed:hover {
 .requirement-group__identity span {
   margin-top: 4px;
   color: var(--muted);
-  font-size: 8px;
+  font-size: 1rem;
   line-height: 1.3;
 }
 
@@ -2129,7 +2373,7 @@ button.blueprint-ownership-action--confirmed:hover {
   display: block;
   overflow: hidden;
   color: var(--ink);
-  font-size: 10px;
+  font-size: 1rem;
   font-weight: 600;
   text-decoration: none;
   text-overflow: ellipsis;
@@ -2144,12 +2388,12 @@ button.blueprint-ownership-action--confirmed:hover {
   display: block;
   margin-top: 3px;
   color: var(--muted);
-  font-size: 8px;
+  font-size: 1rem;
 }
 
 .requirement-ingredient > strong {
   color: var(--ink-soft);
-  font-size: 10px;
+  font-size: 1rem;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
@@ -2195,13 +2439,13 @@ a.mission-row:hover {
 
 .mission-row strong {
   color: inherit;
-  font-size: 10px;
+  font-size: 1rem;
 }
 
 .mission-row small {
   margin-top: 4px;
   color: var(--muted);
-  font-size: 8px;
+  font-size: 1rem;
 }
 
 .mission-row > svg:last-child {
@@ -2232,12 +2476,12 @@ a.mission-row:hover {
 
 .blueprint-access-note strong {
   color: var(--ink);
-  font-size: 10px;
+  font-size: 1rem;
 }
 
 .blueprint-access-note span {
   margin-top: 4px;
-  font-size: 9px;
+  font-size: 1rem;
   line-height: 1.4;
 }
 
@@ -2248,7 +2492,7 @@ a.mission-row:hover {
 .blueprint-inline-empty {
   padding: 16px;
   color: var(--muted);
-  font-size: 9px;
+  font-size: 1rem;
 }
 
 .blueprint-detail__empty {
@@ -2266,13 +2510,13 @@ a.mission-row:hover {
 .blueprint-detail__empty strong {
   margin-top: 12px;
   color: var(--ink);
-  font-size: 12px;
+  font-size: 1rem;
 }
 
 .blueprint-detail__empty span {
   max-width: 40ch;
   margin-top: 5px;
-  font-size: 10px;
+  font-size: 1rem;
   line-height: 1.4;
 }
 
@@ -2370,6 +2614,56 @@ a.mission-row:hover {
   margin-top: 8px;
 }
 
+.app-shell--large-type .settings-section {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.app-shell--large-type .settings-section__heading {
+  border-right: 0;
+  border-bottom: 1px solid var(--edge);
+}
+
+.app-shell--large-type .settings-section__heading p {
+  max-width: 52ch;
+}
+
+.app-shell--large-type .material-table__header,
+.app-shell--large-type .material-row {
+  grid-template-columns: minmax(0, 1fr) 72px 68px;
+  gap: 10px;
+}
+
+.app-shell--large-type .material-table__selection-columns,
+.app-shell--large-type .material-row__select {
+  grid-template-columns: minmax(140px, 1.2fr) minmax(80px, 0.7fr) 96px;
+  gap: 10px;
+}
+
+.app-shell--large-type .blueprint-workspace {
+  grid-template-columns: minmax(500px, 0.95fr) minmax(420px, 1.05fr);
+}
+
+.app-shell--large-type .blueprint-catalog__heading {
+  align-items: stretch;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.app-shell--large-type .blueprint-catalog__status {
+  align-self: flex-start;
+  justify-items: start;
+}
+
+.app-shell--large-type .blueprint-filter-deck {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.app-shell--large-type .blueprint-list__header,
+.app-shell--large-type .blueprint-row {
+  grid-template-columns: minmax(170px, 1fr) 80px 74px 110px;
+  gap: 6px;
+}
+
 @keyframes blueprint-skeleton-pulse {
   50% {
     opacity: 0.42;
@@ -2430,7 +2724,7 @@ a.mission-row:hover {
 }
 
 .signature-board__identity strong {
-  font-size: calc(12px * var(--overlay-font-scale));
+  font-size: max(1rem, calc(1rem * var(--overlay-font-scale)));
   font-weight: 650;
   letter-spacing: 0.015em;
   text-transform: uppercase;
@@ -2439,13 +2733,13 @@ a.mission-row:hover {
 .signature-board__identity span {
   margin-top: calc(1px * var(--overlay-font-scale));
   color: var(--muted);
-  font-size: calc(9px * var(--overlay-font-scale));
+  font-size: max(1rem, calc(1rem * var(--overlay-font-scale)));
 }
 
 .live-state {
   gap: calc(5px * var(--overlay-font-scale));
   color: var(--ink-soft);
-  font-size: calc(9px * var(--overlay-font-scale));
+  font-size: max(1rem, calc(1rem * var(--overlay-font-scale)));
   text-transform: uppercase;
   letter-spacing: 0.06em;
 }
@@ -2494,7 +2788,7 @@ a.mission-row:hover {
 
 .signature-row__name strong {
   overflow: hidden;
-  font-size: calc(14px * var(--overlay-font-scale));
+  font-size: max(1rem, calc(1rem * var(--overlay-font-scale)));
   font-weight: 650;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -2503,7 +2797,7 @@ a.mission-row:hover {
 .signature-row__name span {
   margin-top: calc(1px * var(--overlay-font-scale));
   color: var(--muted);
-  font-size: calc(9px * var(--overlay-font-scale));
+  font-size: max(1rem, calc(1rem * var(--overlay-font-scale)));
 }
 
 .base-signature {
@@ -2514,14 +2808,14 @@ a.mission-row:hover {
 
 .base-signature span {
   color: var(--muted);
-  font-size: calc(9px * var(--overlay-font-scale));
+  font-size: max(1rem, calc(1rem * var(--overlay-font-scale)));
   text-transform: uppercase;
   letter-spacing: 0.05em;
 }
 
 .base-signature strong {
   color: var(--accent-bright);
-  font-size: calc(21px * var(--overlay-font-scale));
+  font-size: max(1rem, calc(1.5rem * var(--overlay-font-scale)));
   font-variant-numeric: tabular-nums;
   letter-spacing: 0.015em;
   white-space: nowrap;
@@ -2546,7 +2840,7 @@ a.mission-row:hover {
 
 .signature-row__site-label,
 .signature-row__site-probability {
-  font-size: calc(8px * var(--overlay-font-scale));
+  font-size: max(1rem, calc(1rem * var(--overlay-font-scale)));
   white-space: nowrap;
 }
 
@@ -2558,7 +2852,7 @@ a.mission-row:hover {
   min-width: 0;
   overflow: hidden;
   color: var(--ink-soft);
-  font-size: calc(10px * var(--overlay-font-scale));
+  font-size: max(1rem, calc(1rem * var(--overlay-font-scale)));
   font-weight: 600;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -2607,14 +2901,14 @@ a.mission-row:hover {
 
 .cluster-value span {
   color: var(--muted);
-  font-size: calc(9px * var(--overlay-font-scale));
+  font-size: max(1rem, calc(1rem * var(--overlay-font-scale)));
 }
 
 .cluster-value strong {
   margin-top: calc(1px * var(--overlay-font-scale));
   overflow: hidden;
   color: var(--ink);
-  font-size: calc(13px * var(--overlay-font-scale));
+  font-size: max(1rem, calc(1rem * var(--overlay-font-scale)));
   font-variant-numeric: tabular-nums;
   text-overflow: ellipsis;
 }
@@ -2638,12 +2932,12 @@ a.mission-row:hover {
 .signature-empty strong {
   margin-top: calc(7px * var(--overlay-font-scale));
   color: var(--ink-soft);
-  font-size: calc(13px * var(--overlay-font-scale));
+  font-size: max(1rem, calc(1rem * var(--overlay-font-scale)));
 }
 
 .signature-empty span {
   margin-top: calc(4px * var(--overlay-font-scale));
-  font-size: calc(10px * var(--overlay-font-scale));
+  font-size: max(1rem, calc(1rem * var(--overlay-font-scale)));
 }
 
 .signature-board--compact .signature-board__header {
@@ -2692,13 +2986,13 @@ a.mission-row:hover {
 .loading-screen strong {
   margin-top: 16px;
   color: var(--ink);
-  font-size: 14px;
+  font-size: 1rem;
 }
 
 .loading-screen > span:last-child {
   max-width: 48ch;
   margin-top: 6px;
-  font-size: 10px;
+  font-size: 1rem;
   line-height: 1.4;
   text-align: center;
 }
@@ -2790,5 +3084,9 @@ a.mission-row:hover {
   .blueprint-row {
     grid-template-columns: minmax(105px, 1fr) 64px 56px 64px;
     gap: 5px;
+  }
+
+  .settings-workspace {
+    padding-inline: 24px;
   }
 }

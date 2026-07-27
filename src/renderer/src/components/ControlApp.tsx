@@ -14,6 +14,7 @@ import {
   RefreshCw,
   RotateCcw,
   Search,
+  Settings as SettingsIcon,
   SlidersHorizontal,
   Target,
   X,
@@ -41,11 +42,12 @@ import { getAccelerator } from '../lib/shortcut-accelerator'
 import { pinSelectedMaterials } from '../lib/material-order'
 import BlueprintBrowser from './BlueprintBrowser'
 import MiningLocationFlyout from './MiningLocationFlyout'
+import SettingsPage from './SettingsPage'
 import SignatureBoard from './SignatureBoard'
 import SignatureOverrideEditor from './SignatureOverrideEditor'
 
 type MaterialFilter = 'All' | Exclude<MiningMethod, 'Unclassified'>
-type AppTab = 'mining' | 'blueprints'
+type AppTab = 'mining' | 'blueprints' | 'settings'
 
 interface LocationLoadState {
   loading: boolean
@@ -59,6 +61,7 @@ interface LocationFlyoutTarget {
 }
 
 const FILTERS: MaterialFilter[] = ['All', 'Ship', 'Ground Vehicle', 'FPS']
+const APP_TABS: AppTab[] = ['mining', 'blueprints', 'settings']
 const PLACEMENTS: Array<{ value: OverlayPlacement; label: string }> = [
   { value: 'top-right', label: 'Top right' },
   { value: 'top-left', label: 'Top left' },
@@ -267,16 +270,17 @@ export default function ControlApp(): React.JSX.Element {
   }
 
   const handleTabKeyDown = (tab: AppTab, event: ReactKeyboardEvent<HTMLButtonElement>): void => {
+    const currentIndex = APP_TABS.indexOf(tab)
     const nextTab =
       event.key === 'Home'
-        ? 'mining'
+        ? APP_TABS[0]
         : event.key === 'End'
-          ? 'blueprints'
-          : event.key === 'ArrowLeft' || event.key === 'ArrowRight'
-            ? tab === 'mining'
-              ? 'blueprints'
-              : 'mining'
-            : null
+          ? APP_TABS[APP_TABS.length - 1]
+          : event.key === 'ArrowLeft'
+            ? APP_TABS[(currentIndex - 1 + APP_TABS.length) % APP_TABS.length]
+            : event.key === 'ArrowRight'
+              ? APP_TABS[(currentIndex + 1) % APP_TABS.length]
+              : null
     if (!nextTab) return
 
     event.preventDefault()
@@ -285,7 +289,7 @@ export default function ControlApp(): React.JSX.Element {
   }
 
   return (
-    <div className="app-shell">
+    <div className={`app-shell ${settings.appFontSize >= 18 ? 'app-shell--large-type' : ''}`}>
       <header className="app-header">
         <div className="brand-lockup">
           <span className="brand-mark" aria-hidden="true">
@@ -344,6 +348,19 @@ export default function ControlApp(): React.JSX.Element {
             <BookOpen size={15} />
             Blueprints
           </button>
+          <button
+            id="tab-settings"
+            type="button"
+            role="tab"
+            aria-selected={activeTab === 'settings'}
+            aria-controls="panel-settings"
+            tabIndex={activeTab === 'settings' ? 0 : -1}
+            onClick={() => activateTab('settings')}
+            onKeyDown={(event) => handleTabKeyDown('settings', event)}
+          >
+            <SettingsIcon size={15} />
+            Settings
+          </button>
         </nav>
 
         {(error || snapshot.warning) && (
@@ -357,6 +374,7 @@ export default function ControlApp(): React.JSX.Element {
       <main
         className="workspace"
         id="panel-mining"
+        role="tabpanel"
         aria-labelledby="tab-mining"
         hidden={activeTab !== 'mining'}
       >
@@ -749,20 +767,30 @@ export default function ControlApp(): React.JSX.Element {
         </aside>
       </main>
       {activeTab === 'blueprints' && <BlueprintBrowser />}
+      {activeTab === 'settings' && (
+        <SettingsPage
+          fontSize={settings.appFontSize}
+          onFontSizeChange={(appFontSize) => void updateSettings({ appFontSize })}
+        />
+      )}
 
       <footer className="app-footer">
         <span>
-          <Database size={13} />
+          {activeTab === 'settings' ? <SettingsIcon size={13} /> : <Database size={13} />}
           {activeTab === 'mining'
             ? 'Installed game files provide signatures; Star Citizen Wiki provides mining metadata.'
-            : 'Blueprint recipes, item names, icons, and unlock missions come from installed game files.'}
+            : activeTab === 'blueprints'
+              ? 'Blueprint recipes, item names, icons, and unlock missions come from installed game files.'
+              : 'Interface text uses your saved size across Rockfall windows.'}
         </span>
         {activeTab === 'mining' ? (
           <a href="https://api.star-citizen.wiki/" target="_blank" rel="noreferrer">
             Wiki metadata
           </a>
         ) : (
-          <span className="app-footer__source">Local game data</span>
+          <span className="app-footer__source">
+            {activeTab === 'blueprints' ? 'Local game data' : 'Saved automatically'}
+          </span>
         )}
       </footer>
 

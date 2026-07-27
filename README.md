@@ -19,11 +19,11 @@ Cluster values are deterministic:
 cluster signature = base signature × rock count
 ```
 
-The **Blueprints** tab provides a searchable list of every blueprint reported
-for the current game-data version. Selecting an output opens its crafting
-requirements, quantities, craft time, access state, and the missions that can
-unlock it. Collection filters separate blueprints confirmed as owned from
-mission-mapped blueprints that remain obtainable.
+The **Blueprints** tab provides a searchable, item-category-filterable list of
+every blueprint reported for the current game-data version. Selecting an output
+opens its crafting requirements, quantities, craft time, access state, and the
+missions that can unlock it. Collection filters separate blueprints confirmed
+as owned from mission-mapped blueprints that remain obtainable.
 
 ## Current data sources
 
@@ -90,11 +90,12 @@ application data directory. Selected ores stay pinned above filtered results,
 **Sites** opens the ranked mining-location flyout, and **Clear overlay** removes
 every target at once.
 
-Blueprint controls include independent Collection and Access filters. **Owned**
-shows default, log-confirmed, and manually marked blueprints; **Obtainable**
-shows unowned mission-mapped blueprints. **Logs** performs a full history
-rescan. The detail pane identifies the ownership source and exposes **Mark
-owned** or **Clear manual mark** when a manual correction is applicable.
+Blueprint controls keep every item category visible in a wrapping filter row,
+alongside independent Collection and Access filters. **Owned** shows default,
+log-confirmed, and manually marked blueprints; **Obtainable** shows unowned
+mission-mapped blueprints. **Logs** performs a full history rescan. The detail
+pane identifies the ownership source and exposes **Mark owned** or **Clear
+manual mark** when a manual correction is applicable.
 
 Drag the overlay's cyan header to place it anywhere on screen. The header
 captures the mouse for dragging; the remaining overlay area stays click-through.

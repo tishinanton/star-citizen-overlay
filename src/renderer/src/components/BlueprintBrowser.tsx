@@ -32,6 +32,7 @@ import {
   useBlueprintDetail,
   useBlueprintOwnership
 } from '../hooks/useBlueprints'
+import { getBlueprintCategoryOptions, matchesBlueprintCategory } from '../lib/blueprint-categories'
 
 type BlueprintAccessFilter = 'all' | 'mission' | 'default'
 type BlueprintCollectionFilter = 'all' | 'owned' | 'obtainable'
@@ -60,9 +61,17 @@ export default function BlueprintBrowser(): React.JSX.Element {
   const catalog = useBlueprintCatalog()
   const ownership = useBlueprintOwnership()
   const [query, setQuery] = useState('')
+  const [categoryFilter, setCategoryFilter] = useState('')
   const [accessFilter, setAccessFilter] = useState<BlueprintAccessFilter>('all')
   const [collectionFilter, setCollectionFilter] = useState<BlueprintCollectionFilter>('all')
   const [requestedBlueprintId, setRequestedBlueprintId] = useState<string | null>(null)
+  const categoryOptions = useMemo(
+    () => getBlueprintCategoryOptions(catalog.result?.blueprints ?? []),
+    [catalog.result]
+  )
+  const activeCategoryFilter = categoryOptions.some((category) => category.value === categoryFilter)
+    ? categoryFilter
+    : ''
 
   const visibleBlueprints = useMemo(() => {
     if (!catalog.result) return []
@@ -90,9 +99,21 @@ export default function BlueprintBrowser(): React.JSX.Element {
         (collectionFilter === 'obtainable' &&
           ownershipRecord === null &&
           blueprint.unlockingMissionCount > 0)
-      return matchesQuery && matchesAccess && matchesCollection
+      return (
+        matchesQuery &&
+        matchesBlueprintCategory(blueprint, activeCategoryFilter) &&
+        matchesAccess &&
+        matchesCollection
+      )
     })
-  }, [accessFilter, catalog.result, collectionFilter, ownership.result, query])
+  }, [
+    accessFilter,
+    catalog.result,
+    activeCategoryFilter,
+    collectionFilter,
+    ownership.result,
+    query
+  ])
 
   const selectedBlueprint =
     visibleBlueprints.find((blueprint) => blueprint.id === requestedBlueprintId) ??
@@ -305,6 +326,7 @@ export default function BlueprintBrowser(): React.JSX.Element {
                     return
                   }
                   setQuery(toReceiptReviewQuery(ownership.result?.unresolvedReceiptNames[0] ?? ''))
+                  setCategoryFilter('')
                   setCollectionFilter('all')
                   setAccessFilter('all')
                 }}
@@ -316,6 +338,33 @@ export default function BlueprintBrowser(): React.JSX.Element {
         </div>
 
         <div className="blueprint-filter-deck">
+          <fieldset
+            className="blueprint-filter-group blueprint-category-filter"
+            disabled={!catalog.result}
+          >
+            <legend>Item category</legend>
+            <div className="filter-strip" aria-label="Filter blueprints by item category">
+              <button
+                type="button"
+                className={activeCategoryFilter === '' ? 'is-active' : ''}
+                aria-pressed={activeCategoryFilter === ''}
+                onClick={() => setCategoryFilter('')}
+              >
+                All
+              </button>
+              {categoryOptions.map((category) => (
+                <button
+                  key={category.value}
+                  type="button"
+                  className={activeCategoryFilter === category.value ? 'is-active' : ''}
+                  aria-pressed={activeCategoryFilter === category.value}
+                  onClick={() => setCategoryFilter(category.value)}
+                >
+                  {category.label}
+                </button>
+              ))}
+            </div>
+          </fieldset>
           <fieldset className="blueprint-filter-group">
             <legend>Collection</legend>
             <div className="filter-strip" aria-label="Filter blueprint collection">
@@ -353,7 +402,7 @@ export default function BlueprintBrowser(): React.JSX.Element {
         <div className="blueprint-list" aria-busy={catalog.loading && !catalog.result}>
           <div className="blueprint-list__header" aria-hidden="true">
             <span>Blueprint output</span>
-            <span>Type</span>
+            <span>Category</span>
             <span>Craft</span>
             <span>Collection</span>
           </div>
@@ -406,7 +455,7 @@ export default function BlueprintBrowser(): React.JSX.Element {
               <div className="blueprint-empty">
                 <Search size={22} />
                 <strong>No matching blueprints</strong>
-                <span>Try another output, material, access, or collection filter.</span>
+                <span>Try another output, material, category, access, or collection filter.</span>
               </div>
             )}
           </div>

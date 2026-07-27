@@ -270,9 +270,9 @@ where those states apply.
 
 ### Blueprint Workbench
 
-- **Structure:** Search plus independent collection and access filters above a
-  dense output list, paired with a persistent detail pane for requirements and
-  missions.
+- **Structure:** Search plus an always-visible, wrapping item-category filter
+  row and independent collection and access filters above a dense output list,
+  paired with a persistent detail pane for requirements and missions.
 - **Behavior:** Opening the workspace extracts or restores an archive-fingerprinted
   local catalog. Selection reads detail from that catalog without a network
   request. Catalog and detail identify installed versus cached game data.

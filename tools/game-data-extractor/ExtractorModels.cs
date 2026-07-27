@@ -62,7 +62,12 @@ internal sealed record GameBlueprintRequirementGroup(
 internal sealed record GameBlueprintMission(
     string Id,
     string Title,
-    string? RewardScope,
+    string? MissionType,
+    string? ContractType,
+    string? Provider,
+    string? MinimumReputation,
+    bool ReputationVaries,
+    IReadOnlyList<string> StarSystems,
     double? Chance,
     string? WebUrl);
 

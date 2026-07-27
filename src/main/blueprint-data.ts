@@ -17,8 +17,8 @@ import type {
 import { getGameArchiveFingerprint, type GameDataArchive } from './game-data'
 
 const execFileAsync = promisify(execFile)
-const EXTRACTOR_SCHEMA_VERSION = 2
-const BLUEPRINT_CACHE_VERSION = 3
+const EXTRACTOR_SCHEMA_VERSION = 3
+const BLUEPRINT_CACHE_VERSION = 4
 const MIN_BLUEPRINT_COUNT = 1_500
 const MAX_BLUEPRINT_COUNT = 2_500
 const MAX_ICON_COUNT = 200
@@ -72,6 +72,24 @@ function readNumber(value: Record<string, unknown>, key: string): number | null 
 function readNonNegativeInteger(value: Record<string, unknown>, key: string): number | null {
   const candidate = readNumber(value, key)
   return candidate !== null && Number.isInteger(candidate) && candidate >= 0 ? candidate : null
+}
+
+function readStringArray(
+  value: Record<string, unknown>,
+  key: string,
+  maxItems: number
+): string[] | null {
+  const candidate = value[key]
+  if (!Array.isArray(candidate) || candidate.length > maxItems) return null
+  const strings: string[] = []
+  for (const entry of candidate) {
+    if (typeof entry !== 'string' || entry.length > 100) return null
+    const normalized = entry.trim()
+    if (!normalized) return null
+    strings.push(normalized)
+  }
+  const unique = new Set(strings)
+  return unique.size === strings.length ? [...unique] : null
 }
 
 function parseHttpsUrl(value: unknown): string | null {
@@ -143,10 +161,17 @@ function parseMission(value: unknown): BlueprintUnlockMission | null {
   const title = readString(value, 'title')
   if (!id || !title) return null
   const chance = readNumber(value, 'chance')
+  const starSystems = readStringArray(value, 'starSystems', 10)
+  if (!starSystems || typeof value.reputationVaries !== 'boolean') return null
   return {
     id,
     title,
-    rewardScope: readString(value, 'rewardScope'),
+    missionType: readString(value, 'missionType'),
+    contractType: readString(value, 'contractType'),
+    provider: readString(value, 'provider'),
+    minimumReputation: readString(value, 'minimumReputation'),
+    reputationVaries: value.reputationVaries,
+    starSystems,
     chance: chance !== null && chance >= 0 && chance <= 1 ? chance : null,
     webUrl: parseHttpsUrl(value.webUrl)
   }

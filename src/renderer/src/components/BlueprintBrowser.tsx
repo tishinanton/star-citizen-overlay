@@ -25,7 +25,8 @@ import type {
   BlueprintOwnershipRecord,
   BlueprintOwnershipSnapshot,
   BlueprintRequirementGroup,
-  BlueprintSummary
+  BlueprintSummary,
+  BlueprintUnlockMission
 } from '../../../shared/contracts'
 import {
   useBlueprintCatalog,
@@ -50,6 +51,10 @@ const COLLECTION_FILTERS: Array<{ value: BlueprintCollectionFilter; label: strin
 
 const quantityFormatter = new Intl.NumberFormat('en-US', {
   maximumFractionDigits: 3
+})
+const missionChanceFormatter = new Intl.NumberFormat('en-US', {
+  style: 'percent',
+  maximumFractionDigits: 1
 })
 const countFormatter = new Intl.NumberFormat('en-US')
 const ownershipDateFormatter = new Intl.DateTimeFormat('en-US', {
@@ -787,7 +792,12 @@ function BlueprintDetailPane({
               <Route size={15} />
               <h3 id="unlock-missions-title">Blueprint access</h3>
             </div>
-            {!summary.availableByDefault && <span>{summary.unlockingMissionCount} missions</span>}
+            {!summary.availableByDefault && (
+              <span>
+                {summary.unlockingMissionCount}{' '}
+                {summary.unlockingMissionCount === 1 ? 'mission' : 'missions'}
+              </span>
+            )}
           </div>
 
           {summary.availableByDefault ? (
@@ -801,38 +811,50 @@ function BlueprintDetailPane({
           ) : loading ? (
             <MissionSkeleton />
           ) : missions.length > 0 ? (
-            <div className="mission-list">
-              {missions.map((mission) => {
-                const content = (
-                  <>
-                    <Route size={15} />
-                    <span>
-                      <strong>{mission.title}</strong>
-                      <small>
-                        {[mission.rewardScope, formatMissionChance(mission.chance)]
-                          .filter(Boolean)
-                          .join(' · ')}
-                      </small>
-                    </span>
-                    {mission.webUrl && <ExternalLink size={13} />}
-                  </>
-                )
-                return mission.webUrl ? (
-                  <a
-                    className="mission-row"
-                    href={mission.webUrl}
-                    target="_blank"
-                    rel="noreferrer"
-                    key={`${mission.title}-${mission.webUrl}`}
-                  >
-                    {content}
-                  </a>
-                ) : (
-                  <div className="mission-row" key={mission.id}>
-                    {content}
-                  </div>
-                )
-              })}
+            <div className="mission-access">
+              <div className="mission-access__guide">
+                <FileSearch size={16} />
+                <div>
+                  <strong>Find it in mobiGlas &gt; Contracts</strong>
+                  <span>
+                    Match the provider and contract type below. Bracketed title details are filled
+                    in when the mission appears in game.
+                  </span>
+                </div>
+              </div>
+              <div className="mission-list">
+                {missions.map((mission) => {
+                  const route = formatMissionRoute(mission)
+                  const access = formatMissionAccess(mission)
+                  const content = (
+                    <>
+                      <Route size={15} />
+                      <span className="mission-row__details">
+                        <strong>{mission.title}</strong>
+                        {route && <span className="mission-row__route">{route}</span>}
+                        {access && <small>{access}</small>}
+                      </span>
+                      {mission.webUrl && <ExternalLink size={13} aria-hidden="true" />}
+                    </>
+                  )
+                  return mission.webUrl ? (
+                    <a
+                      className="mission-row"
+                      href={mission.webUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      title="Open full mission details on Star Citizen Wiki"
+                      key={mission.id}
+                    >
+                      {content}
+                    </a>
+                  ) : (
+                    <div className="mission-row" key={mission.id}>
+                      {content}
+                    </div>
+                  )
+                })}
+              </div>
             </div>
           ) : (
             <div className="blueprint-access-note">
@@ -960,10 +982,33 @@ function formatIngredientQuantity(
   return 'Required'
 }
 
+function formatMissionRoute(mission: BlueprintUnlockMission): string | null {
+  const contractType =
+    mission.contractType && mission.contractType !== mission.missionType
+      ? mission.contractType
+      : null
+  const route = [mission.provider, mission.missionType, contractType].filter(Boolean).join(' · ')
+  return route || null
+}
+
+function formatMissionAccess(mission: BlueprintUnlockMission): string | null {
+  const systems =
+    mission.starSystems.length > 0 ? `Available in ${mission.starSystems.join(' / ')}` : null
+  const reputation = mission.reputationVaries
+    ? 'Reputation rank varies'
+    : mission.minimumReputation
+      ? `${mission.minimumReputation} required`
+      : null
+  const access = [systems, reputation, formatMissionChance(mission.chance)]
+    .filter(Boolean)
+    .join(' · ')
+  return access || null
+}
+
 function formatMissionChance(chance: number | null): string | null {
   if (chance === null) return null
-  if (chance === 1) return 'Guaranteed unlock'
-  return `${Math.round(chance * 100)}% unlock chance`
+  if (chance === 1) return 'Blueprint guaranteed'
+  return `${missionChanceFormatter.format(chance)} blueprint chance`
 }
 
 function BlueprintListSkeleton(): React.JSX.Element {

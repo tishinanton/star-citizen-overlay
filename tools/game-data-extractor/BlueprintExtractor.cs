@@ -11,6 +11,8 @@ internal static partial class BlueprintExtractor
         "libs/foundry/records/crafting/blueprintrewards/";
     private const string ContractGeneratorPrefix =
         "libs/foundry/records/contracts/contractgenerator/";
+    private const string SolarSystemPrefix =
+        "libs/foundry/records/ssolarsystem/";
     private const string CraftingGlobalParamsPath =
         "libs/foundry/records/crafting/globalparams/craftingglobalparams.xml";
     private const int MinimumBlueprintCount = 1500;
@@ -23,7 +25,12 @@ internal static partial class BlueprintExtractor
         var warnings = new List<string>();
         var defaults = ReadDefaultBlueprints(dataForge);
         var pools = ReadBlueprintPools(dataForge);
-        var missions = ReadBlueprintMissions(dataForge, pools, localization);
+        var solarSystems = ReadSolarSystems(dataForge);
+        var missions = ReadBlueprintMissions(
+            dataForge,
+            pools,
+            solarSystems,
+            localization);
         var blueprints = new List<GameBlueprintRecord>();
         var imagePaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
@@ -65,7 +72,7 @@ internal static partial class BlueprintExtractor
             .ToArray();
 
         return new BlueprintExtractorPayload(
-            2,
+            3,
             gameVersion,
             sortedBlueprints,
             iconResult.Icons,
@@ -139,6 +146,7 @@ internal static partial class BlueprintExtractor
         ReadBlueprintMissions(
             DataForge dataForge,
             IReadOnlyDictionary<Guid, BlueprintPool> pools,
+            IReadOnlyDictionary<string, string> solarSystems,
             LocalizationCatalog localization)
     {
         var missions = new Dictionary<Guid, Dictionary<string, GameBlueprintMission>>();
@@ -181,10 +189,25 @@ internal static partial class BlueprintExtractor
                     localization,
                     debugName,
                     pool.Name);
-                var scope = template is null
+                var missionType = ResolveMissionType(
+                    contract,
+                    template,
+                    dataForge,
+                    localization);
+                var contractType = template is null
                     ? null
                     : HumanizeIdentifier(
                         template.Name.Replace("ContractTemplate.", string.Empty));
+                var provider = ResolveMissionProvider(contract, dataForge, localization);
+                var minimumReputation = ResolveMinimumReputation(
+                    contract,
+                    dataForge,
+                    localization);
+                var starSystems = ResolveMissionSystems(
+                    contract,
+                    template,
+                    dataForge,
+                    solarSystems);
                 var poolChance = Math.Clamp(
                     ParseDouble(reward.GetAttribute("chance")) ?? 1,
                     0,
@@ -207,13 +230,45 @@ internal static partial class BlueprintExtractor
                     var mission = new GameBlueprintMission(
                         missionId,
                         title,
-                        scope,
+                        missionType,
+                        contractType,
+                        provider,
+                        minimumReputation,
+                        false,
+                        starSystems,
                         chance,
-                        null);
-                    var missionKey = string.Create(
-                        CultureInfo.InvariantCulture,
-                        $"{title}\u001f{scope}\u001f{chance:F8}");
-                    blueprintMissions[missionKey] = mission;
+                        BuildMissionWebUrl(missionId));
+                    var missionKey = string.Join(
+                        '\u001f',
+                        title,
+                        missionType,
+                        contractType,
+                        provider,
+                        chance.ToString("F8", CultureInfo.InvariantCulture));
+                    if (blueprintMissions.TryGetValue(missionKey, out var existing))
+                    {
+                        var reputationVaries = existing.ReputationVaries
+                            || !string.Equals(
+                                existing.MinimumReputation,
+                                minimumReputation,
+                                StringComparison.Ordinal);
+                        blueprintMissions[missionKey] = existing with
+                        {
+                            MinimumReputation = reputationVaries
+                                ? null
+                                : existing.MinimumReputation,
+                            ReputationVaries = reputationVaries,
+                            StarSystems = existing.StarSystems
+                                .Concat(starSystems)
+                                .Distinct(StringComparer.OrdinalIgnoreCase)
+                                .Order(StringComparer.OrdinalIgnoreCase)
+                                .ToArray()
+                        };
+                    }
+                    else
+                    {
+                        blueprintMissions[missionKey] = mission;
+                    }
                 }
             }
         }
@@ -474,6 +529,19 @@ internal static partial class BlueprintExtractor
         return null;
     }
 
+    private static IReadOnlyDictionary<string, string> ReadSolarSystems(DataForge dataForge)
+    {
+        var systems = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var path in dataForge.PathToRecordMap.Keys.Where(path =>
+                     path.StartsWith(SolarSystemPrefix, StringComparison.OrdinalIgnoreCase)))
+        {
+            var root = dataForge.ReadRecordByPathAsXml(path);
+            var name = NullIfEmpty(root?.GetAttribute("Name"));
+            if (name is not null) systems[name] = name;
+        }
+        return systems;
+    }
+
     private static string ResolveMissionTitle(
         XmlElement contract,
         XmlElement? template,
@@ -517,6 +585,141 @@ internal static partial class BlueprintExtractor
             ? poolName
             : HumanizeIdentifier(debugName);
     }
+
+    private static string? ResolveMissionType(
+        XmlElement contract,
+        XmlElement? template,
+        DataForge dataForge,
+        LocalizationCatalog localization)
+    {
+        foreach (var source in new XmlElement?[] { contract, template }.OfType<XmlElement>())
+        {
+            var displayInfo = source
+                .GetElementsByTagName("ContractDisplayInfo")
+                .OfType<XmlElement>()
+                .FirstOrDefault();
+            if (displayInfo is null
+                || !Guid.TryParse(displayInfo.GetAttribute("type"), out var typeId))
+            {
+                continue;
+            }
+
+            var missionType = ReadReference(typeId, dataForge);
+            if (missionType is null) continue;
+            return localization.Resolve(missionType.GetAttribute("LocalisedTypeName"))
+                ?? HumanizeIdentifier(
+                    missionType.Name.Replace("MissionType.", string.Empty));
+        }
+        return null;
+    }
+
+    private static string? ResolveMissionProvider(
+        XmlElement contract,
+        DataForge dataForge,
+        LocalizationCatalog localization)
+    {
+        foreach (var result in contract
+                     .GetElementsByTagName("contractResultReputationAmounts")
+                     .OfType<XmlElement>())
+        {
+            if (!Guid.TryParse(result.GetAttribute("factionReputation"), out var factionId))
+            {
+                continue;
+            }
+
+            var faction = ReadReference(factionId, dataForge);
+            if (faction is null) continue;
+            var provider = localization.Resolve(faction.GetAttribute("displayName"));
+            if (provider is not null) return provider;
+
+            var identifier = faction.Name.Replace("FactionReputation.", string.Empty);
+            foreach (var prefix in new[]
+                     {
+                         "FactionReputation_Lawful_",
+                         "FactionReputation_Unlawful_",
+                         "FactionReputation_"
+                     })
+            {
+                if (identifier.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+                {
+                    identifier = identifier[prefix.Length..];
+                    break;
+                }
+            }
+            return HumanizeIdentifier(identifier);
+        }
+        return null;
+    }
+
+    private static string? ResolveMinimumReputation(
+        XmlElement contract,
+        DataForge dataForge,
+        LocalizationCatalog localization)
+    {
+        if (!Guid.TryParse(contract.GetAttribute("minStanding"), out var standingId))
+        {
+            return null;
+        }
+
+        var standing = ReadReference(standingId, dataForge);
+        if (standing is null
+            || (ParseDouble(standing.GetAttribute("minReputation")) ?? 0) <= 0)
+        {
+            return null;
+        }
+
+        var name = NullIfEmpty(standing.GetAttribute("name"));
+        return localization.Resolve(standing.GetAttribute("displayName"))
+            ?? (name is null ? null : HumanizeIdentifier(name));
+    }
+
+    private static IReadOnlyList<string> ResolveMissionSystems(
+        XmlElement contract,
+        XmlElement? template,
+        DataForge dataForge,
+        IReadOnlyDictionary<string, string> solarSystems)
+    {
+        var matches = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var source in new XmlElement?[] { contract, template }.OfType<XmlElement>())
+        {
+            foreach (var location in source
+                         .GetElementsByTagName("MissionPropertyValue_Location")
+                         .OfType<XmlElement>())
+            {
+                foreach (var reference in location
+                             .GetElementsByTagName("Reference")
+                             .OfType<XmlElement>())
+                {
+                    if (!Guid.TryParse(reference.GetAttribute("value"), out var tagId)) continue;
+                    var tag = ReadReference(tagId, dataForge);
+                    var tagName = NullIfEmpty(tag?.GetAttribute("tagName"));
+                    if (tagName is null) continue;
+                    foreach (var system in solarSystems)
+                    {
+                        if (MatchesSolarSystemTag(tagName, system.Key))
+                        {
+                            matches.Add(system.Value);
+                        }
+                    }
+                }
+            }
+        }
+        return matches.Order(StringComparer.OrdinalIgnoreCase).ToArray();
+    }
+
+    private static bool MatchesSolarSystemTag(string tagName, string systemName)
+    {
+        if (tagName.Equals(systemName, StringComparison.OrdinalIgnoreCase)) return true;
+        if (!tagName.StartsWith(systemName, StringComparison.OrdinalIgnoreCase)) return false;
+
+        var suffix = tagName[systemName.Length..].TrimStart('_', '-', ' ');
+        return suffix.Length > 0 && suffix.All(char.IsDigit);
+    }
+
+    private static string? BuildMissionWebUrl(string missionId) =>
+        Guid.TryParse(missionId, out _)
+            ? $"https://api.star-citizen.wiki/missions/{missionId}"
+            : null;
 
     private static int ParseCraftTimeSeconds(XmlElement root)
     {

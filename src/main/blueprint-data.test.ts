@@ -20,6 +20,11 @@ test('parses installed blueprint requirements, missions, and icons', () => {
   assert.equal(blueprint.requirementGroups[0].ingredients[0].name, 'Iron')
   assert.equal(blueprint.requirementGroups[0].ingredients[0].quantityScu, 0.03)
   assert.equal(blueprint.unlockingMissions[0].title, 'Tactical Strike Group Needed')
+  assert.equal(blueprint.unlockingMissions[0].provider, 'Foxwell Enforcement')
+  assert.equal(blueprint.unlockingMissions[0].missionType, 'Mercenary')
+  assert.equal(blueprint.unlockingMissions[0].minimumReputation, 'Senior Security Contractor')
+  assert.equal(blueprint.unlockingMissions[0].reputationVaries, false)
+  assert.deepEqual(blueprint.unlockingMissions[0].starSystems, ['Stanton'])
   assert.equal(blueprint.imageKey, ICON_KEY)
   assert.equal(extraction.icons[ICON_KEY], ICON_DATA)
 })
@@ -34,6 +39,12 @@ test('rejects malformed and duplicate installed blueprint records', () => {
   const malformed = extractorPayload()
   malformed.icons = { [ICON_KEY]: 'https://example.com/icon.png' }
   assert.throws(() => parseGameBlueprintPayload(malformed), /invalid blueprint icon/)
+
+  const invalidMission = extractorPayload()
+  Object.assign(invalidMission.blueprints[0].unlockingMissions[0], {
+    starSystems: ['Stanton', 'Stanton']
+  })
+  assert.throws(() => parseGameBlueprintPayload(invalidMission), /invalid blueprint record/)
 })
 
 test('caches installed blueprints by archive fingerprint', async () => {
@@ -179,7 +190,7 @@ function extractorPayload(): {
   warnings: string[]
 } {
   return {
-    schemaVersion: 2,
+    schemaVersion: 3,
     gameVersion: GAME_VERSION,
     blueprints: Array.from({ length: 1_500 }, (_, index) => blueprint(index)),
     icons: { [ICON_KEY]: ICON_DATA },
@@ -232,7 +243,12 @@ function blueprint(index: number): BlueprintDetail {
       {
         id: `mission-${index}`,
         title: 'Tactical Strike Group Needed',
-        rewardScope: 'Mercenary',
+        missionType: 'Mercenary',
+        contractType: 'Eliminate All',
+        provider: 'Foxwell Enforcement',
+        minimumReputation: 'Senior Security Contractor',
+        reputationVaries: false,
+        starSystems: ['Stanton'],
         chance: 1,
         webUrl: null
       }

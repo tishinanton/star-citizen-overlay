@@ -22,8 +22,11 @@ cluster signature = base signature × rock count
 The **Blueprints** tab provides a searchable, item-category-filterable list of
 every blueprint reported for the current game-data version. Selecting an output
 opens its crafting requirements, quantities, craft time, access state, and the
-missions that can unlock it. Collection filters separate blueprints confirmed
-as owned from mission-mapped blueprints that remain obtainable.
+missions that can unlock it. Mission rows identify the mobiGlas contract
+category, provider, available star system, reputation gate, and blueprint
+reward chance, with a link to the full community Wiki record. Collection
+filters separate blueprints confirmed as owned from mission-mapped blueprints
+that remain obtainable.
 
 ## Current data sources
 
@@ -31,7 +34,8 @@ Rockfall reads base signatures from the installed Star Citizen `Data.p4k`.
 It automatically detects common LIVE/PTU installation paths, or **Game files**
 can select a custom archive. A bundled read-only extractor opens
 `Data\Game2.dcb` and reads current mineable signatures, crafting blueprints,
-output items, resource requirements, reward pools, and mission contracts. It
+output items, resource requirements, reward pools, mission contracts, contract
+providers, mission categories, reputation gates, and availability systems. It
 also resolves names through `Data\Localization\english\global.ini`. The
 extractor does not modify game files or interact with the running game.
 
@@ -213,6 +217,10 @@ shapes are validated before values reach the renderer.
 
 - Game resources supply static reference data, not live telemetry from a
   running game.
+- Mission records describe contract templates and availability constraints.
+  Star Citizen fills bracketed title fields and exact destinations when a
+  contract is generated, so Rockfall cannot predict the current mission
+  rotation.
 - Blueprint log monitoring records receipts present on this Windows
   installation; deleted, rotated-away, or other-machine logs cannot reconstruct
   a complete historical account snapshot.

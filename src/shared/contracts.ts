@@ -105,7 +105,12 @@ export interface BlueprintRequirementGroup {
 export interface BlueprintUnlockMission {
   id: string
   title: string
-  rewardScope: string | null
+  missionType: string | null
+  contractType: string | null
+  provider: string | null
+  minimumReputation: string | null
+  reputationVaries: boolean
+  starSystems: string[]
   chance: number | null
   webUrl: string | null
 }

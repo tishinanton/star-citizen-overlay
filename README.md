@@ -22,7 +22,8 @@ cluster signature = base signature × rock count
 The **Blueprints** tab provides a searchable list of every blueprint reported
 for the current game-data version. Selecting an output opens its crafting
 requirements, quantities, craft time, access state, and the missions that can
-unlock it.
+unlock it. Collection filters separate blueprints confirmed as owned from
+mission-mapped blueprints that remain obtainable.
 
 ## Current data sources
 
@@ -49,6 +50,16 @@ extracts its 64×64 DDS asset and converts it to a local PNG preview. This build
 exposes 27 distinct icons across 853 blueprint outputs; most ship components do
 not ship with a pre-rendered item image, so those outputs retain the standard
 equipment glyph.
+
+Blueprint ownership is tracked separately from the static catalog. Rockfall
+scans the selected channel's `Game.log` and retained `logbackups\*.log` files
+for the canonical `Received Blueprint` notification, then monitors `Game.log`
+for new receipts while it runs. Unique name matches are marked owned
+automatically and stored per game channel and account. Ambiguous names are
+listed for manual review instead of being guessed, and any blueprint can be
+marked owned manually from its detail pane. Log history proves recorded
+receipts but cannot guarantee that an unmarked blueprint is absent from the
+server-side account.
 
 The **Sites** action loads the selected material's detailed deposit data and
 ranks up to five distinct locations by the estimated chance of a 50% or higher
@@ -78,6 +89,12 @@ larger text remains fully visible. Changes are persisted in Electron's per-user
 application data directory. Selected ores stay pinned above filtered results,
 **Sites** opens the ranked mining-location flyout, and **Clear overlay** removes
 every target at once.
+
+Blueprint controls include independent Collection and Access filters. **Owned**
+shows default, log-confirmed, and manually marked blueprints; **Obtainable**
+shows unowned mission-mapped blueprints. **Logs** performs a full history
+rescan. The detail pane identifies the ownership source and exposes **Mark
+owned** or **Clear manual mark** when a manual correction is applicable.
 
 Drag the overlay's cyan header to place it anywhere on screen. The header
 captures the mouse for dragging; the remaining overlay area stays click-through.
@@ -195,6 +212,9 @@ shapes are validated before values reach the renderer.
 
 - Game resources supply static reference data, not live telemetry from a
   running game.
+- Blueprint log monitoring records receipts present on this Windows
+  installation; deleted, rotated-away, or other-machine logs cannot reconstruct
+  a complete historical account snapshot.
 - Signature accuracy follows the selected installed Star Citizen channel.
 - Rockfall does not read game memory, inject code, automate input, or interact
   with Star Citizen's process.

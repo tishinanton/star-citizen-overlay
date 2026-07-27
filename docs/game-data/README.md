@@ -238,6 +238,12 @@ Local client resources do **not** provide authoritative live state:
 Static records can describe possible locations, probabilities, templates, and
 rules. They cannot say what the server instantiated for a player.
 
+Rockfall's blueprint collection uses a separate, read-only source: `Game.log`
+and retained `logbackups\*.log` receipt notifications. Those files can confirm
+blueprints received on this installation, but they do not turn the static
+archive into authoritative account state and cannot recover deleted or
+never-local log history.
+
 ## Adding another extractor
 
 1. Identify the narrowest DataForge path prefix or P4K entry allowlist.

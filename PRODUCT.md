@@ -16,8 +16,11 @@ Provide a lightweight desktop control surface and a click-through,
 always-on-top overlay. The first workflow lets users select mineable materials
 and see each material's base signature alongside signatures for multi-rock
 clusters. A second workspace lets users browse blueprint outputs, inspect
-crafting inputs, and identify unlock missions. Users can control overlay
-visibility and presentation from the app or with global keyboard shortcuts.
+crafting inputs, identify unlock missions, and distinguish owned blueprints
+from known obtainable blueprints. Local game-log receipts update the collection
+automatically, while manual marks cover incomplete or ambiguous history. Users
+can control overlay visibility and presentation from the app or with global
+keyboard shortcuts.
 
 Success means the relevant signature or crafting path can be recognized at a
 glance, configured without friction, and consulted without interfering with

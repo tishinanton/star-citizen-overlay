@@ -3,6 +3,7 @@ import { contextBridge, ipcRenderer } from 'electron'
 import {
   IPC_CHANNELS,
   type AppSnapshot,
+  type BlueprintOwnershipSnapshot,
   type OverlayContentMetrics,
   type OverlaySettingsPatch,
   type RockfallApi
@@ -22,6 +23,10 @@ const rockfallApi: RockfallApi = {
     ipcRenderer.invoke(IPC_CHANNELS.getBlueprintCatalog, refresh),
   getBlueprintDetail: (blueprintId: string) =>
     ipcRenderer.invoke(IPC_CHANNELS.getBlueprintDetail, blueprintId),
+  getBlueprintOwnership: () => ipcRenderer.invoke(IPC_CHANNELS.getBlueprintOwnership),
+  rescanBlueprintOwnership: () => ipcRenderer.invoke(IPC_CHANNELS.rescanBlueprintOwnership),
+  setBlueprintOwned: (blueprintId: string, owned: boolean) =>
+    ipcRenderer.invoke(IPC_CHANNELS.setBlueprintOwned, blueprintId, owned),
   setShortcutCapture: (active: boolean) =>
     ipcRenderer.invoke(IPC_CHANNELS.setShortcutCapture, active),
   checkForUpdates: () => ipcRenderer.invoke(IPC_CHANNELS.checkForUpdates),
@@ -32,6 +37,16 @@ const rockfallApi: RockfallApi = {
     }
     ipcRenderer.on(IPC_CHANNELS.snapshotChanged, handler)
     return () => ipcRenderer.removeListener(IPC_CHANNELS.snapshotChanged, handler)
+  },
+  onBlueprintOwnership: (listener: (snapshot: BlueprintOwnershipSnapshot) => void) => {
+    const handler = (
+      _event: Electron.IpcRendererEvent,
+      snapshot: BlueprintOwnershipSnapshot
+    ): void => {
+      listener(snapshot)
+    }
+    ipcRenderer.on(IPC_CHANNELS.blueprintOwnershipChanged, handler)
+    return () => ipcRenderer.removeListener(IPC_CHANNELS.blueprintOwnershipChanged, handler)
   }
 }
 

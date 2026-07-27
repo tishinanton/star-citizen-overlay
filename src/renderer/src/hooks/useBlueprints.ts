@@ -1,6 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 
-import type { BlueprintCatalogResult, BlueprintDetailResult } from '../../../shared/contracts'
+import type {
+  BlueprintCatalogResult,
+  BlueprintDetailResult,
+  BlueprintOwnershipSnapshot
+} from '../../../shared/contracts'
 
 const DETAIL_SELECTION_DELAY_MS = 120
 
@@ -18,6 +22,22 @@ interface BlueprintDetailState {
   error: string | null
   reload: () => Promise<void>
 }
+
+interface BlueprintOwnershipState {
+  result: BlueprintOwnershipSnapshot | null
+  loading: boolean
+  error: string | null
+  updatingBlueprintId: string | null
+  reload: () => Promise<void>
+  retry: () => Promise<void>
+  rescan: () => Promise<void>
+  setOwned: (blueprintId: string, owned: boolean) => Promise<void>
+}
+
+type BlueprintOwnershipFailedAction =
+  | { type: 'reload' }
+  | { type: 'rescan' }
+  | { type: 'set-owned'; blueprintId: string; owned: boolean }
 
 interface BlueprintDetailError {
   requestKey: string
@@ -151,6 +171,111 @@ export function useBlueprintDetail(
     error: currentError,
     reload
   }
+}
+
+export function useBlueprintOwnership(): BlueprintOwnershipState {
+  const [result, setResult] = useState<BlueprintOwnershipSnapshot | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const [updatingBlueprintId, setUpdatingBlueprintId] = useState<string | null>(null)
+  const [failedAction, setFailedAction] = useState<BlueprintOwnershipFailedAction | null>(null)
+  const generation = useRef(0)
+
+  const reload = useCallback(async (): Promise<void> => {
+    const requestGeneration = ++generation.current
+    setLoading(true)
+    setError(null)
+    setFailedAction(null)
+    try {
+      const nextResult = await window.rockfall.getBlueprintOwnership()
+      if (generation.current === requestGeneration) setResult(nextResult)
+    } catch (reason) {
+      if (generation.current === requestGeneration) {
+        setError(getErrorMessage(reason))
+        setFailedAction({ type: 'reload' })
+      }
+    } finally {
+      if (generation.current === requestGeneration) setLoading(false)
+    }
+  }, [])
+
+  const rescan = useCallback(async (): Promise<void> => {
+    setError(null)
+    setFailedAction(null)
+    try {
+      setResult(await window.rockfall.rescanBlueprintOwnership())
+    } catch (reason) {
+      setError(getErrorMessage(reason))
+      setFailedAction({ type: 'rescan' })
+    }
+  }, [])
+
+  const setOwned = useCallback(async (blueprintId: string, owned: boolean): Promise<void> => {
+    setUpdatingBlueprintId(blueprintId)
+    setError(null)
+    setFailedAction(null)
+    try {
+      setResult(await window.rockfall.setBlueprintOwned(blueprintId, owned))
+    } catch (reason) {
+      setError(getErrorMessage(reason))
+      setFailedAction({ type: 'set-owned', blueprintId, owned })
+    } finally {
+      setUpdatingBlueprintId((current) => (current === blueprintId ? null : current))
+    }
+  }, [])
+
+  const retry = useCallback(async (): Promise<void> => {
+    const action = failedAction
+    if (!action) return
+    if (action.type === 'set-owned') setUpdatingBlueprintId(action.blueprintId)
+    setError(null)
+    try {
+      const nextResult =
+        action.type === 'reload'
+          ? await window.rockfall.getBlueprintOwnership()
+          : action.type === 'rescan'
+            ? await window.rockfall.rescanBlueprintOwnership()
+            : await window.rockfall.setBlueprintOwned(action.blueprintId, action.owned)
+      setResult(nextResult)
+      setFailedAction(null)
+    } catch (reason) {
+      setError(getErrorMessage(reason))
+    } finally {
+      if (action.type === 'set-owned') {
+        setUpdatingBlueprintId((current) => (current === action.blueprintId ? null : current))
+      }
+    }
+  }, [failedAction])
+
+  useEffect(() => {
+    const requestGeneration = ++generation.current
+    const unsubscribe = window.rockfall.onBlueprintOwnership((nextResult) => {
+      generation.current += 1
+      setResult(nextResult)
+      setLoading(false)
+    })
+    window.rockfall
+      .getBlueprintOwnership()
+      .then((nextResult) => {
+        if (generation.current === requestGeneration) setResult(nextResult)
+      })
+      .catch((reason: unknown) => {
+        if (generation.current === requestGeneration) {
+          setError(getErrorMessage(reason))
+          setFailedAction({ type: 'reload' })
+        }
+      })
+      .finally(() => {
+        if (generation.current === requestGeneration) setLoading(false)
+      })
+
+    return () => {
+      generation.current += 1
+      unsubscribe()
+    }
+  }, [])
+
+  return { result, loading, error, updatingBlueprintId, reload, retry, rescan, setOwned }
 }
 
 function getErrorMessage(reason: unknown): string {

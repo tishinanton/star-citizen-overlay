@@ -263,11 +263,16 @@ where those states apply.
 
 ### Blueprint Workbench
 
-- **Structure:** Search and access filters above a dense output list, paired
-  with a persistent detail pane for requirements and missions.
+- **Structure:** Search plus independent collection and access filters above a
+  dense output list, paired with a persistent detail pane for requirements and
+  missions.
 - **Behavior:** Opening the workspace extracts or restores an archive-fingerprinted
   local catalog. Selection reads detail from that catalog without a network
   request. Catalog and detail identify installed versus cached game data.
+  Default and uniquely matched local log receipts are marked owned
+  automatically; ambiguous receipts remain explicit for manual review. The
+  detail header contains the reversible manual ownership action and identifies
+  default, log, or manual provenance.
 - **Surface:** Flat split panes with aligned table rows, full one-pixel
   boundaries, tabular quantities, and no ornamental blueprint cards. A packaged
   64×64 loadout icon appears when the output entity provides one; the equipment

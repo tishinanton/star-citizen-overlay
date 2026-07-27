@@ -1,11 +1,15 @@
 import { useMemo, useState, type KeyboardEvent as ReactKeyboardEvent } from 'react'
 import {
   Box,
+  CheckCircle2,
+  CircleHelp,
   Clock3,
   Database,
   ExternalLink,
+  FileSearch,
   FolderOpen,
   Hammer,
+  ListChecks,
   Lock,
   PackageOpen,
   RefreshCw,
@@ -18,28 +22,46 @@ import {
 import type {
   BlueprintDetail,
   BlueprintIngredient,
+  BlueprintOwnershipRecord,
+  BlueprintOwnershipSnapshot,
   BlueprintRequirementGroup,
   BlueprintSummary
 } from '../../../shared/contracts'
-import { useBlueprintCatalog, useBlueprintDetail } from '../hooks/useBlueprints'
+import {
+  useBlueprintCatalog,
+  useBlueprintDetail,
+  useBlueprintOwnership
+} from '../hooks/useBlueprints'
 
 type BlueprintAccessFilter = 'all' | 'mission' | 'default'
+type BlueprintCollectionFilter = 'all' | 'owned' | 'obtainable'
 
 const ACCESS_FILTERS: Array<{ value: BlueprintAccessFilter; label: string }> = [
-  { value: 'all', label: 'All blueprints' },
-  { value: 'mission', label: 'Mission unlock' },
-  { value: 'default', label: 'Available by default' }
+  { value: 'all', label: 'All' },
+  { value: 'mission', label: 'Mission' },
+  { value: 'default', label: 'Default' }
+]
+const COLLECTION_FILTERS: Array<{ value: BlueprintCollectionFilter; label: string }> = [
+  { value: 'all', label: 'All' },
+  { value: 'owned', label: 'Owned' },
+  { value: 'obtainable', label: 'Obtainable' }
 ]
 
 const quantityFormatter = new Intl.NumberFormat('en-US', {
   maximumFractionDigits: 3
 })
 const countFormatter = new Intl.NumberFormat('en-US')
+const ownershipDateFormatter = new Intl.DateTimeFormat('en-US', {
+  dateStyle: 'medium',
+  timeStyle: 'short'
+})
 
 export default function BlueprintBrowser(): React.JSX.Element {
   const catalog = useBlueprintCatalog()
+  const ownership = useBlueprintOwnership()
   const [query, setQuery] = useState('')
   const [accessFilter, setAccessFilter] = useState<BlueprintAccessFilter>('all')
+  const [collectionFilter, setCollectionFilter] = useState<BlueprintCollectionFilter>('all')
   const [requestedBlueprintId, setRequestedBlueprintId] = useState<string | null>(null)
 
   const visibleBlueprints = useMemo(() => {
@@ -47,6 +69,7 @@ export default function BlueprintBrowser(): React.JSX.Element {
     const normalizedQuery = query.trim().toLowerCase()
 
     return catalog.result.blueprints.filter((blueprint) => {
+      const ownershipRecord = getOwnershipRecord(blueprint, ownership.result)
       const matchesQuery =
         !normalizedQuery ||
         blueprint.outputName.toLowerCase().includes(normalizedQuery) ||
@@ -61,9 +84,15 @@ export default function BlueprintBrowser(): React.JSX.Element {
         (accessFilter === 'mission' &&
           !blueprint.availableByDefault &&
           blueprint.unlockingMissionCount > 0)
-      return matchesQuery && matchesAccess
+      const matchesCollection =
+        collectionFilter === 'all' ||
+        (collectionFilter === 'owned' && ownershipRecord !== null) ||
+        (collectionFilter === 'obtainable' &&
+          ownershipRecord === null &&
+          blueprint.unlockingMissionCount > 0)
+      return matchesQuery && matchesAccess && matchesCollection
     })
-  }, [accessFilter, catalog.result, query])
+  }, [accessFilter, catalog.result, collectionFilter, ownership.result, query])
 
   const selectedBlueprint =
     visibleBlueprints.find((blueprint) => blueprint.id === requestedBlueprintId) ??
@@ -75,7 +104,14 @@ export default function BlueprintBrowser(): React.JSX.Element {
     catalog.result?.state ?? null
   )
   const totalCount = catalog.result?.blueprints.length ?? 0
+  const ownedCount =
+    ownership.result?.ownedCount ??
+    catalog.result?.blueprints.filter((blueprint) => blueprint.availableByDefault).length ??
+    0
   const retainedCatalogError = catalog.result !== null && catalog.error !== null
+  const ownershipRecord = selectedBlueprint
+    ? getOwnershipRecord(selectedBlueprint, ownership.result)
+    : null
 
   const handleBlueprintKeyDown = (
     event: ReactKeyboardEvent<HTMLButtonElement>,
@@ -144,6 +180,7 @@ export default function BlueprintBrowser(): React.JSX.Element {
             )}
             <strong>{countFormatter.format(visibleBlueprints.length)}</strong>
             <span>of {countFormatter.format(totalCount)}</span>
+            <small>{countFormatter.format(ownedCount)} owned</small>
           </div>
         </div>
 
@@ -156,7 +193,7 @@ export default function BlueprintBrowser(): React.JSX.Element {
                 type="search"
                 value={query}
                 onChange={(event) => setQuery(event.target.value)}
-                placeholder="Search output, type, material, or key"
+                placeholder="Search blueprints"
               />
             </label>
             <button
@@ -171,6 +208,19 @@ export default function BlueprintBrowser(): React.JSX.Element {
             <button
               className="icon-text-button"
               type="button"
+              disabled={ownership.loading || ownership.result?.status === 'scanning'}
+              onClick={() => void ownership.rescan()}
+              title="Scan Game.log and retained log backups"
+            >
+              <FileSearch
+                size={15}
+                className={ownership.result?.status === 'scanning' ? 'is-spinning' : ''}
+              />
+              Logs
+            </button>
+            <button
+              className="icon-text-button"
+              type="button"
               disabled={catalog.loading}
               onClick={() => void catalog.chooseGameData()}
             >
@@ -178,6 +228,23 @@ export default function BlueprintBrowser(): React.JSX.Element {
               Game files
             </button>
           </div>
+          {ownership.result && (
+            <div
+              className="blueprint-log-status"
+              aria-live="polite"
+              title={ownership.result.message}
+            >
+              <span
+                className={`blueprint-source-state blueprint-source-state--${ownershipStatusTone(
+                  ownership.result.status
+                )}`}
+              >
+                <span />
+                {ownershipStatusLabel(ownership.result)}
+              </span>
+              <span>{ownership.result.message}</span>
+            </div>
+          )}
           {retainedCatalogError && (
             <div className="blueprint-catalog__warning" role="alert">
               <TriangleAlert size={14} />
@@ -190,20 +257,92 @@ export default function BlueprintBrowser(): React.JSX.Element {
               </button>
             </div>
           )}
+          {ownership.result?.warning && (
+            <div
+              className="blueprint-catalog__warning blueprint-catalog__warning--static"
+              role="alert"
+            >
+              <TriangleAlert size={14} />
+              <span>
+                <strong>Blueprint ownership data was recovered</strong>
+                <small>{ownership.result.warning}</small>
+              </span>
+            </div>
+          )}
+          {(ownership.error !== null ||
+            (ownership.result?.unresolvedReceiptNames.length ?? 0) > 0) && (
+            <div
+              className={`blueprint-catalog__warning ${
+                ownership.error ? 'blueprint-catalog__warning--error' : ''
+              }`}
+              role={ownership.error ? 'alert' : 'status'}
+            >
+              {ownership.error ? <TriangleAlert size={14} /> : <CircleHelp size={14} />}
+              <span>
+                <strong>
+                  {ownership.error
+                    ? 'Blueprint ownership could not be updated'
+                    : `${ownership.result?.unresolvedReceiptNames.length ?? 0} log receipt${
+                        ownership.result?.unresolvedReceiptNames.length === 1 ? '' : 's'
+                      } need manual matching`}
+                </strong>
+                <small>
+                  {ownership.error ??
+                    ownership.result?.unresolvedReceiptNames.join(', ') ??
+                    'Select the matching blueprint and mark it owned.'}
+                </small>
+              </span>
+              <button
+                type="button"
+                onClick={() => {
+                  if (ownership.error) {
+                    void ownership.retry()
+                    return
+                  }
+                  setQuery(toReceiptReviewQuery(ownership.result?.unresolvedReceiptNames[0] ?? ''))
+                  setCollectionFilter('all')
+                  setAccessFilter('all')
+                }}
+              >
+                {ownership.error ? 'Retry' : 'Review'}
+              </button>
+            </div>
+          )}
         </div>
 
-        <div className="filter-strip blueprint-filter-strip" aria-label="Filter blueprint access">
-          {ACCESS_FILTERS.map((filter) => (
-            <button
-              key={filter.value}
-              type="button"
-              className={accessFilter === filter.value ? 'is-active' : ''}
-              aria-pressed={accessFilter === filter.value}
-              onClick={() => setAccessFilter(filter.value)}
-            >
-              {filter.label}
-            </button>
-          ))}
+        <div className="blueprint-filter-deck">
+          <fieldset className="blueprint-filter-group">
+            <legend>Collection</legend>
+            <div className="filter-strip" aria-label="Filter blueprint collection">
+              {COLLECTION_FILTERS.map((filter) => (
+                <button
+                  key={filter.value}
+                  type="button"
+                  className={collectionFilter === filter.value ? 'is-active' : ''}
+                  aria-pressed={collectionFilter === filter.value}
+                  onClick={() => setCollectionFilter(filter.value)}
+                >
+                  {filter.label}
+                </button>
+              ))}
+            </div>
+          </fieldset>
+          <fieldset className="blueprint-filter-group">
+            <legend>Access</legend>
+            <div className="filter-strip" aria-label="Filter blueprint access">
+              {ACCESS_FILTERS.map((filter) => (
+                <button
+                  key={filter.value}
+                  type="button"
+                  className={accessFilter === filter.value ? 'is-active' : ''}
+                  aria-pressed={accessFilter === filter.value}
+                  onClick={() => setAccessFilter(filter.value)}
+                >
+                  {filter.label}
+                </button>
+              ))}
+            </div>
+          </fieldset>
         </div>
 
         <div className="blueprint-list" aria-busy={catalog.loading && !catalog.result}>
@@ -211,7 +350,7 @@ export default function BlueprintBrowser(): React.JSX.Element {
             <span>Blueprint output</span>
             <span>Type</span>
             <span>Craft</span>
-            <span>Access</span>
+            <span>Collection</span>
           </div>
           <div className="blueprint-list__body" role="listbox" aria-label="Blueprints">
             {!catalog.result && catalog.loading && <BlueprintListSkeleton />}
@@ -230,6 +369,7 @@ export default function BlueprintBrowser(): React.JSX.Element {
             {catalog.result &&
               visibleBlueprints.map((blueprint, index) => {
                 const selected = blueprint.id === selectedBlueprint?.id
+                const rowOwnership = getOwnershipRecord(blueprint, ownership.result)
                 return (
                   <button
                     id={`blueprint-option-${blueprint.id}`}
@@ -248,7 +388,11 @@ export default function BlueprintBrowser(): React.JSX.Element {
                     </span>
                     <span className="blueprint-row__type">{blueprint.outputTypeLabel}</span>
                     <span className="blueprint-row__time">{blueprint.craftTimeLabel}</span>
-                    <BlueprintAccess blueprint={blueprint} compact />
+                    <BlueprintCollectionStatus
+                      blueprint={blueprint}
+                      record={rowOwnership}
+                      compact
+                    />
                   </button>
                 )
               })}
@@ -257,7 +401,7 @@ export default function BlueprintBrowser(): React.JSX.Element {
               <div className="blueprint-empty">
                 <Search size={22} />
                 <strong>No matching blueprints</strong>
-                <span>Try another output, material, item type, or access filter.</span>
+                <span>Try another output, material, access, or collection filter.</span>
               </div>
             )}
           </div>
@@ -290,6 +434,9 @@ export default function BlueprintBrowser(): React.JSX.Element {
               loading={detail.loading}
               error={detail.error}
               onRetry={retryDetail}
+              ownershipRecord={ownershipRecord}
+              ownershipUpdating={ownership.updatingBlueprintId === selectedBlueprint.id}
+              onSetOwned={(owned) => void ownership.setOwned(selectedBlueprint.id, owned)}
             />
           )}
         </div>
@@ -330,6 +477,69 @@ function BlueprintAccess({
   )
 }
 
+function BlueprintCollectionStatus({
+  blueprint,
+  record,
+  compact = false
+}: {
+  blueprint: BlueprintSummary
+  record: BlueprintOwnershipRecord | null
+  compact?: boolean
+}): React.JSX.Element {
+  if (record) {
+    const sourceLabel =
+      record.source === 'default'
+        ? 'Available by default'
+        : record.source === 'log'
+          ? record.acquiredAt
+            ? `Detected in Game.log on ${formatOwnershipDate(record.acquiredAt)}`
+            : 'Detected in Game.log'
+          : 'Marked owned manually'
+    const visibleLabel =
+      record.source === 'default'
+        ? 'Default access'
+        : record.source === 'log'
+          ? 'Log confirmed'
+          : 'Manually owned'
+    return (
+      <span
+        className={`blueprint-collection blueprint-collection--owned ${
+          compact ? 'is-compact' : ''
+        }`}
+        title={sourceLabel}
+      >
+        <CheckCircle2 size={12} />
+        {compact ? (record.source === 'default' ? 'Default' : 'Owned') : visibleLabel}
+      </span>
+    )
+  }
+
+  if (blueprint.unlockingMissionCount > 0) {
+    return (
+      <span
+        className={`blueprint-collection blueprint-collection--obtainable ${
+          compact ? 'is-compact' : ''
+        }`}
+      >
+        <Route size={12} />
+        Obtainable
+      </span>
+    )
+  }
+
+  return (
+    <span
+      className={`blueprint-collection blueprint-collection--unknown ${
+        compact ? 'is-compact' : ''
+      }`}
+      title="No ownership receipt or unlocking mission is currently mapped"
+    >
+      <CircleHelp size={12} />
+      Unconfirmed
+    </span>
+  )
+}
+
 function BlueprintDetailPane({
   summary,
   detail,
@@ -338,7 +548,10 @@ function BlueprintDetailPane({
   imageDataUrl,
   loading,
   error,
-  onRetry
+  onRetry,
+  ownershipRecord,
+  ownershipUpdating,
+  onSetOwned
 }: {
   summary: BlueprintSummary
   detail: BlueprintDetail | null
@@ -348,6 +561,9 @@ function BlueprintDetailPane({
   loading: boolean
   error: string | null
   onRetry: () => void
+  ownershipRecord: BlueprintOwnershipRecord | null
+  ownershipUpdating: boolean
+  onSetOwned: (owned: boolean) => void
 }): React.JSX.Element {
   const requirementGroups = detail?.requirementGroups ?? []
   const missions = detail?.unlockingMissions ?? []
@@ -366,17 +582,53 @@ function BlueprintDetailPane({
           </h2>
           <small>{summary.key}</small>
         </div>
-        {summary.webUrl && (
-          <a
-            className="blueprint-detail__external"
-            href={summary.webUrl}
-            target="_blank"
-            rel="noreferrer"
-          >
-            View on Wiki
-            <ExternalLink size={13} />
-          </a>
-        )}
+        <div className="blueprint-detail__actions">
+          {ownershipRecord?.source === 'default' || ownershipRecord?.source === 'log' ? (
+            <span
+              className="blueprint-ownership-action blueprint-ownership-action--confirmed"
+              title={
+                ownershipRecord.source === 'log' && ownershipRecord.acquiredAt
+                  ? `Detected ${formatOwnershipDate(ownershipRecord.acquiredAt)}`
+                  : undefined
+              }
+            >
+              <CheckCircle2 size={13} />
+              {ownershipRecord.source === 'default' ? 'Default access' : 'Log confirmed'}
+            </span>
+          ) : (
+            <button
+              className={`blueprint-ownership-action ${
+                ownershipRecord?.source === 'manual' ? 'blueprint-ownership-action--confirmed' : ''
+              }`}
+              type="button"
+              disabled={ownershipUpdating}
+              aria-pressed={ownershipRecord?.source === 'manual'}
+              onClick={() => onSetOwned(ownershipRecord?.source !== 'manual')}
+            >
+              {ownershipRecord?.source === 'manual' ? (
+                <CheckCircle2 size={13} />
+              ) : (
+                <ListChecks size={13} />
+              )}
+              {ownershipUpdating
+                ? 'Saving…'
+                : ownershipRecord?.source === 'manual'
+                  ? 'Clear manual mark'
+                  : 'Mark owned'}
+            </button>
+          )}
+          {summary.webUrl && (
+            <a
+              className="blueprint-detail__external"
+              href={summary.webUrl}
+              target="_blank"
+              rel="noreferrer"
+            >
+              View on Wiki
+              <ExternalLink size={13} />
+            </a>
+          )}
+        </div>
       </header>
 
       <div className="blueprint-detail__body">
@@ -402,6 +654,15 @@ function BlueprintDetailPane({
             </dt>
             <dd>
               <BlueprintAccess blueprint={summary} />
+            </dd>
+          </div>
+          <div>
+            <dt>
+              <ListChecks size={13} />
+              Collection
+            </dt>
+            <dd>
+              <BlueprintCollectionStatus blueprint={summary} record={ownershipRecord} />
             </dd>
           </div>
         </dl>
@@ -538,6 +799,46 @@ function BlueprintDetailPane({
       </div>
     </>
   )
+}
+
+function getOwnershipRecord(
+  blueprint: BlueprintSummary,
+  ownership: BlueprintOwnershipSnapshot | null
+): BlueprintOwnershipRecord | null {
+  return (
+    ownership?.records[blueprint.id] ??
+    (blueprint.availableByDefault
+      ? {
+          blueprintId: blueprint.id,
+          source: 'default',
+          acquiredAt: null
+        }
+      : null)
+  )
+}
+
+function ownershipStatusTone(
+  status: BlueprintOwnershipSnapshot['status']
+): 'game' | 'cached' | 'loading' | 'error' {
+  if (status === 'watching') return 'game'
+  if (status === 'scanning') return 'loading'
+  if (status === 'error') return 'error'
+  return 'cached'
+}
+
+function ownershipStatusLabel(ownership: BlueprintOwnershipSnapshot): string {
+  if (ownership.status === 'watching') return `Watching ${ownership.channel ?? 'logs'}`
+  if (ownership.status === 'scanning') return 'Scanning logs'
+  if (ownership.status === 'error') return 'Log monitor error'
+  return 'Logs unavailable'
+}
+
+function formatOwnershipDate(timestamp: string): string {
+  return ownershipDateFormatter.format(new Date(timestamp))
+}
+
+function toReceiptReviewQuery(name: string): string {
+  return name.replace(/^[A-Za-z]+\/\d{1,2}\/[A-Za-z]+\s+/, '')
 }
 
 function RequirementGroup({ group }: { group: BlueprintRequirementGroup }): React.JSX.Element {

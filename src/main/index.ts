@@ -24,6 +24,7 @@ import {
   type BestMiningLocationState,
   type BlueprintCatalogResult,
   type BlueprintDetailResult,
+  type BlueprintOwnershipSnapshot,
   type GameDataSelectionResult,
   type MiningDataStatus,
   type MiningLocationResult,
@@ -42,6 +43,7 @@ import {
 } from '../shared/overlay-layout'
 import { AppUpdaterController, createUpdaterClient } from './app-updater'
 import { loadBlueprintData, type BlueprintDataResult } from './blueprint-data'
+import { BlueprintOwnershipService } from './blueprint-ownership'
 import {
   loadGameDataPreference,
   resolveGameDataArchive,
@@ -54,6 +56,7 @@ import { loadMiningLocations } from './mining-locations'
 import { DEFAULT_SETTINGS, loadSettings, mergeSettings, saveSettings } from './settings-store'
 
 const SCREEN_MARGIN = 24
+const hasSingleInstanceLock = app.requestSingleInstanceLock()
 
 const SHORTCUT_DEFINITIONS: Array<
   Omit<ShortcutStatus, 'accelerator' | 'registered'> & { action: () => void }
@@ -122,11 +125,14 @@ let settingsPath = ''
 let cachePath = ''
 let locationCachePath = ''
 let blueprintCatalogCachePath = ''
+let blueprintOwnershipPath = ''
 let gameDataPreferencePath = ''
 let gameDataArchive: GameDataArchive | null = null
 let extractorPath = ''
 let appUpdater: AppUpdaterController | null = null
 let isQuitting = false
+let appInitialized = false
+let focusRequestedDuringStartup = false
 let shortcutCaptureActive = false
 let expectedOverlayPosition: OverlayPosition | null = null
 let overlayPositionTimer: NodeJS.Timeout | null = null
@@ -140,6 +146,7 @@ let pendingBlueprintData: {
   generation: number
   request: Promise<BlueprintDataResult>
 } | null = null
+let blueprintOwnershipService: BlueprintOwnershipService | null = null
 
 function getSnapshot(): AppSnapshot {
   return {
@@ -161,6 +168,16 @@ function broadcastSnapshot(
     if (window && !window.isDestroyed()) {
       window.webContents.send(IPC_CHANNELS.snapshotChanged, snapshot)
     }
+  }
+}
+
+function broadcastBlueprintOwnership(): void {
+  if (!blueprintDataResult || !blueprintOwnershipService) return
+  if (controlWindow && !controlWindow.isDestroyed()) {
+    controlWindow.webContents.send(
+      IPC_CHANNELS.blueprintOwnershipChanged,
+      blueprintOwnershipService.getSnapshot(blueprintDataResult.catalog.blueprints)
+    )
   }
 }
 
@@ -420,6 +437,13 @@ async function chooseGameData(): Promise<GameDataSelectionResult> {
   gameDataArchive = archive
   blueprintDataGeneration += 1
   blueprintDataResult = null
+  const ownershipService = blueprintOwnershipService
+  if (ownershipService) {
+    runInBackground(
+      'Blueprint log monitoring could not be changed',
+      ownershipService.configure(archive)
+    )
+  }
   return { snapshot: await refreshMaterials(), changed: true }
 }
 
@@ -545,11 +569,58 @@ async function getBlueprintCatalog(refresh: unknown = false): Promise<BlueprintC
     const result = await request
     if (generation === blueprintDataGeneration) {
       blueprintDataResult = result
+      broadcastBlueprintOwnership()
     }
     return result.catalog
   } finally {
     if (pendingBlueprintData === pending) pendingBlueprintData = null
   }
+}
+
+async function getBlueprintOwnership(): Promise<BlueprintOwnershipSnapshot> {
+  const service = blueprintOwnershipService
+  if (!service) throw new Error('Blueprint ownership is not initialized.')
+  if (!blueprintDataResult) await getBlueprintCatalog()
+  const data = blueprintDataResult
+  if (!data) throw new Error('Blueprint catalog data is unavailable.')
+  return service.getSnapshot(data.catalog.blueprints)
+}
+
+async function rescanBlueprintOwnership(): Promise<BlueprintOwnershipSnapshot> {
+  const service = blueprintOwnershipService
+  if (!service) throw new Error('Blueprint ownership is not initialized.')
+  await service.rescan()
+  return getBlueprintOwnership()
+}
+
+async function setBlueprintOwned(
+  blueprintId: unknown,
+  owned: unknown
+): Promise<BlueprintOwnershipSnapshot> {
+  if (typeof blueprintId !== 'string' || blueprintId.length === 0 || blueprintId.length > 200) {
+    throw new TypeError('A valid blueprint is required.')
+  }
+  if (typeof owned !== 'boolean') {
+    throw new TypeError('Blueprint ownership state must be a boolean.')
+  }
+
+  if (!blueprintDataResult) await getBlueprintCatalog()
+  const data = blueprintDataResult
+  const service = blueprintOwnershipService
+  const blueprint = data?.details[blueprintId]
+  if (!data || !service || !blueprint) {
+    throw new Error('That blueprint is no longer available.')
+  }
+
+  const current = service.getSnapshot(data.catalog.blueprints)
+  const record = current.records[blueprintId]
+  if (owned && record && record.source !== 'manual') return current
+  if (!owned && record && record.source !== 'manual') {
+    throw new Error('Only manually marked blueprint ownership can be cleared.')
+  }
+
+  await service.setManualOwned(blueprint, owned)
+  return service.getSnapshot(data.catalog.blueprints)
 }
 
 async function getBlueprintDetail(blueprintId: unknown): Promise<BlueprintDetailResult> {
@@ -807,6 +878,18 @@ function registerIpcHandlers(): void {
     assertControlWindowSender(event)
     return getBlueprintDetail(blueprintId)
   })
+  ipcMain.handle(IPC_CHANNELS.getBlueprintOwnership, (event) => {
+    assertControlWindowSender(event)
+    return getBlueprintOwnership()
+  })
+  ipcMain.handle(IPC_CHANNELS.rescanBlueprintOwnership, (event) => {
+    assertControlWindowSender(event)
+    return rescanBlueprintOwnership()
+  })
+  ipcMain.handle(IPC_CHANNELS.setBlueprintOwned, (event, blueprintId: unknown, owned: unknown) => {
+    assertControlWindowSender(event)
+    return setBlueprintOwned(blueprintId, owned)
+  })
   ipcMain.handle(IPC_CHANNELS.setShortcutCapture, (_event, active: unknown) => {
     if (typeof active !== 'boolean') {
       throw new TypeError('Shortcut capture state must be a boolean.')
@@ -827,78 +910,105 @@ function registerIpcHandlers(): void {
   })
 }
 
-app.whenReady().then(async () => {
-  electronApp.setAppUserModelId('space.rockfall.overlay')
-  nativeTheme.themeSource = 'dark'
-  settingsPath = join(app.getPath('userData'), 'settings.json')
-  cachePath = join(app.getPath('userData'), 'mining-signatures.json')
-  locationCachePath = join(app.getPath('userData'), 'mining-locations.json')
-  blueprintCatalogCachePath = join(app.getPath('userData'), 'blueprints.json')
-  gameDataPreferencePath = join(app.getPath('userData'), 'game-data.json')
-  extractorPath = app.isPackaged
-    ? join(process.resourcesPath, 'game-data-extractor', 'Rockfall.GameDataExtractor.exe')
-    : join(
-        app.getAppPath(),
-        'tools',
-        'game-data-extractor',
-        'bin',
-        'Release',
-        'net8.0',
-        'win-x64',
-        'publish',
-        'Rockfall.GameDataExtractor.exe'
-      )
-
-  const [loaded, gameDataPreference] = await Promise.all([
-    loadSettings(settingsPath),
-    loadGameDataPreference(gameDataPreferencePath)
-  ])
-  let gameDataResolutionWarning: string | null = null
-  try {
-    gameDataArchive = await resolveGameDataArchive(gameDataPreference.preferredPath)
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error)
-    gameDataResolutionWarning = `The configured game data location is unavailable: ${message}`
-  }
-  settings = loaded.settings
-  warning =
-    [loaded.warning, gameDataPreference.warning, gameDataResolutionWarning]
-      .filter(Boolean)
-      .join(' ') || null
-  appUpdater = new AppUpdaterController(createUpdaterClient(autoUpdater), {
-    enabled: app.isPackaged,
-    currentVersion: app.getVersion(),
-    onStateChange: (state) => {
-      appUpdate = state
-      broadcastSnapshot([controlWindow])
+if (!hasSingleInstanceLock) {
+  app.quit()
+} else {
+  app.on('second-instance', () => {
+    if (appInitialized) {
+      showControlWindow()
+    } else {
+      focusRequestedDuringStartup = true
     }
   })
-  appUpdate = appUpdater.getState()
 
-  app.on('browser-window-created', (_, window) => {
-    optimizer.watchWindowShortcuts(window)
-  })
+  app.whenReady().then(async () => {
+    electronApp.setAppUserModelId('space.rockfall.overlay')
+    nativeTheme.themeSource = 'dark'
+    settingsPath = join(app.getPath('userData'), 'settings.json')
+    cachePath = join(app.getPath('userData'), 'mining-signatures.json')
+    locationCachePath = join(app.getPath('userData'), 'mining-locations.json')
+    blueprintCatalogCachePath = join(app.getPath('userData'), 'blueprints.json')
+    blueprintOwnershipPath = join(app.getPath('userData'), 'blueprint-ownership.json')
+    gameDataPreferencePath = join(app.getPath('userData'), 'game-data.json')
+    extractorPath = app.isPackaged
+      ? join(process.resourcesPath, 'game-data-extractor', 'Rockfall.GameDataExtractor.exe')
+      : join(
+          app.getAppPath(),
+          'tools',
+          'game-data-extractor',
+          'bin',
+          'Release',
+          'net8.0',
+          'win-x64',
+          'publish',
+          'Rockfall.GameDataExtractor.exe'
+        )
 
-  registerIpcHandlers()
-  tray = createAppTray()
-  controlWindow = createControlWindow()
-  overlayWindow = createOverlayWindow()
-  dragHandleWindow = createDragHandleWindow()
-  if (loaded.needsSave) {
+    blueprintOwnershipService = new BlueprintOwnershipService({
+      storePath: blueprintOwnershipPath,
+      onChange: broadcastBlueprintOwnership
+    })
+    const [loaded, gameDataPreference] = await Promise.all([
+      loadSettings(settingsPath),
+      loadGameDataPreference(gameDataPreferencePath),
+      blueprintOwnershipService.initialize()
+    ])
+    let gameDataResolutionWarning: string | null = null
+    try {
+      gameDataArchive = await resolveGameDataArchive(gameDataPreference.preferredPath)
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      gameDataResolutionWarning = `The configured game data location is unavailable: ${message}`
+    }
+    settings = loaded.settings
+    warning =
+      [loaded.warning, gameDataPreference.warning, gameDataResolutionWarning]
+        .filter(Boolean)
+        .join(' ') || null
+    appUpdater = new AppUpdaterController(createUpdaterClient(autoUpdater), {
+      enabled: app.isPackaged,
+      currentVersion: app.getVersion(),
+      onStateChange: (state) => {
+        appUpdate = state
+        broadcastSnapshot([controlWindow])
+      }
+    })
+    appUpdate = appUpdater.getState()
+
+    app.on('browser-window-created', (_, window) => {
+      optimizer.watchWindowShortcuts(window)
+    })
+
+    registerIpcHandlers()
+    tray = createAppTray()
+    controlWindow = createControlWindow()
+    overlayWindow = createOverlayWindow()
+    dragHandleWindow = createDragHandleWindow()
+    appInitialized = true
+    if (focusRequestedDuringStartup) {
+      focusRequestedDuringStartup = false
+      showControlWindow()
+    }
+    if (loaded.needsSave) {
+      runInBackground(
+        'Updated overlay defaults could not be saved',
+        saveSettings(settingsPath, settings)
+      )
+    }
+    shortcutStatuses = registerShortcuts()
+    broadcastSnapshot()
+    appUpdater.start()
+    runInBackground('Mining signatures could not be refreshed', refreshMaterials())
     runInBackground(
-      'Updated overlay defaults could not be saved',
-      saveSettings(settingsPath, settings)
+      'Blueprint logs could not be monitored',
+      blueprintOwnershipService.configure(gameDataArchive)
     )
-  }
-  shortcutStatuses = registerShortcuts()
-  broadcastSnapshot()
-  appUpdater.start()
-  runInBackground('Mining signatures could not be refreshed', refreshMaterials())
 
-  app.on('activate', () => {
-    showControlWindow()
+    app.on('activate', () => {
+      showControlWindow()
+    })
   })
-})
+}
 
 app.on('before-quit', () => {
   isQuitting = true
@@ -906,6 +1016,7 @@ app.on('before-quit', () => {
 
 app.on('will-quit', () => {
   appUpdater?.stop()
+  blueprintOwnershipService?.dispose()
   globalShortcut.unregisterAll()
   if (overlayPositionTimer) clearTimeout(overlayPositionTimer)
   tray?.destroy()

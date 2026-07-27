@@ -126,6 +126,33 @@ export interface BlueprintDetailResult {
   updatedAt: string
 }
 
+export type BlueprintOwnershipSource = 'default' | 'log' | 'manual'
+export type BlueprintOwnershipStatus = 'scanning' | 'watching' | 'unavailable' | 'error'
+
+export interface BlueprintOwnershipRecord {
+  blueprintId: string
+  source: BlueprintOwnershipSource
+  acquiredAt: string | null
+}
+
+export interface BlueprintOwnershipSnapshot {
+  records: Record<string, BlueprintOwnershipRecord>
+  ownedCount: number
+  defaultCount: number
+  logCount: number
+  manualCount: number
+  status: BlueprintOwnershipStatus
+  channel: string | null
+  message: string
+  warning: string | null
+  filesScanned: number
+  filesSkipped: number
+  unassignedReceiptCount: number
+  earliestLogAt: string | null
+  lastScanAt: string | null
+  unresolvedReceiptNames: string[]
+}
+
 export type BestMiningLocationState =
   | {
       status: 'loading'
@@ -233,10 +260,14 @@ export interface RockfallApi {
   getMiningLocations: (materialId: string) => Promise<MiningLocationResult>
   getBlueprintCatalog: (refresh?: boolean) => Promise<BlueprintCatalogResult>
   getBlueprintDetail: (blueprintId: string) => Promise<BlueprintDetailResult>
+  getBlueprintOwnership: () => Promise<BlueprintOwnershipSnapshot>
+  rescanBlueprintOwnership: () => Promise<BlueprintOwnershipSnapshot>
+  setBlueprintOwned: (blueprintId: string, owned: boolean) => Promise<BlueprintOwnershipSnapshot>
   setShortcutCapture: (active: boolean) => Promise<AppSnapshot>
   checkForUpdates: () => Promise<AppSnapshot>
   restartToUpdate: () => Promise<void>
   onSnapshot: (listener: (snapshot: AppSnapshot) => void) => () => void
+  onBlueprintOwnership: (listener: (snapshot: BlueprintOwnershipSnapshot) => void) => () => void
 }
 
 export const IPC_CHANNELS = {
@@ -248,6 +279,10 @@ export const IPC_CHANNELS = {
   getMiningLocations: 'rockfall:mining-locations:get',
   getBlueprintCatalog: 'rockfall:blueprints:get',
   getBlueprintDetail: 'rockfall:blueprints:detail',
+  getBlueprintOwnership: 'rockfall:blueprints:ownership:get',
+  rescanBlueprintOwnership: 'rockfall:blueprints:ownership:rescan',
+  setBlueprintOwned: 'rockfall:blueprints:ownership:set',
+  blueprintOwnershipChanged: 'rockfall:blueprints:ownership:changed',
   setShortcutCapture: 'rockfall:shortcuts:capture',
   checkForUpdates: 'rockfall:updates:check',
   restartToUpdate: 'rockfall:updates:restart',

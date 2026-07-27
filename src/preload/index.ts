@@ -18,6 +18,10 @@ const rockfallApi: RockfallApi = {
   chooseGameData: () => ipcRenderer.invoke(IPC_CHANNELS.chooseGameData),
   getMiningLocations: (materialId: string) =>
     ipcRenderer.invoke(IPC_CHANNELS.getMiningLocations, materialId),
+  getBlueprintCatalog: (refresh = false) =>
+    ipcRenderer.invoke(IPC_CHANNELS.getBlueprintCatalog, refresh),
+  getBlueprintDetail: (blueprintId: string) =>
+    ipcRenderer.invoke(IPC_CHANNELS.getBlueprintDetail, blueprintId),
   setShortcutCapture: (active: boolean) =>
     ipcRenderer.invoke(IPC_CHANNELS.setShortcutCapture, active),
   checkForUpdates: () => ipcRenderer.invoke(IPC_CHANNELS.checkForUpdates),

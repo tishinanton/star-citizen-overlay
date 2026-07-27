@@ -44,20 +44,19 @@ records and file formats in any patch.
 
 ## What the method can access
 
-| Layer                                               | Available data                                                                                               | Current decoder support                                              |
-| --------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------- |
-| P4K central directory                               | Every path, extension, packed/unpacked size, compression method, and encryption flag                         | Yes                                                                  |
-| P4K file payloads                                   | Raw bytes for any archive entry                                                                              | Yes; add a path allowlist before extraction                          |
-| DataForge database                                  | Record paths, GUIDs, owning teams, root schemas, properties, arrays, references, pointers, enums, and values | Yes                                                                  |
-| DataForge reference graph                           | Record-to-record links such as entity to component, commodity, manufacturer, loadout, location, or UI record | Yes                                                                  |
-| Localization                                        | Language packs and `@localization_key` values                                                                | Raw files are accessible; key resolution is not yet part of Rockfall |
-| CryXML files                                        | Compiled XML under `Data\Libs`, `Data\Scripts`, materials, audio, and other systems                          | Raw bytes only; a CryXML decoder must be added                       |
-| Geometry, textures, audio, animation, UI, and video | All packaged client assets                                                                                   | Raw bytes only; each proprietary format needs its own decoder        |
+| Layer                                               | Available data                                                                                               | Current decoder support                                          |
+| --------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------- |
+| P4K central directory                               | Every path, extension, packed/unpacked size, compression method, and encryption flag                         | Yes                                                              |
+| P4K file payloads                                   | Raw bytes for any archive entry                                                                              | Yes; add a path allowlist before extraction                      |
+| DataForge database                                  | Record paths, GUIDs, owning teams, root schemas, properties, arrays, references, pointers, enums, and values | Yes                                                              |
+| DataForge reference graph                           | Record-to-record links such as entity to component, commodity, manufacturer, loadout, location, or UI record | Yes                                                              |
+| Localization                                        | Language packs and `@localization_key` values                                                                | English key resolution is used by the blueprint extractor        |
+| CryXML files                                        | Compiled XML under `Data\Libs`, `Data\Scripts`, materials, audio, and other systems                          | Raw bytes only; a CryXML decoder must be added                   |
+| Geometry, textures, audio, animation, UI, and video | All packaged client assets                                                                                   | Raw bytes; BC1/BC2/BC3 DDS loadout icons can be converted to PNG |
 
-The bundled helper currently uses `Game2.dcb` as its only P4K payload and emits
-only the mineable subset described below. Its P4K reader is already capable of
-selecting any other file entry, but Rockfall should not unpack the whole
-archive: this build expands to more than 233 GiB.
+The bundled helper uses `Game2.dcb` for structured records, reads the English
+localization pack, and allowlists referenced loadout icons. Rockfall does not
+unpack the whole archive: this build expands to more than 233 GiB.
 
 ## Archive-level data
 
@@ -175,7 +174,7 @@ with the chosen `Data\Localization\<language>\global.ini`.
 
 ## What Rockfall currently reads
 
-The released extractor intentionally narrows the full inventory to:
+Mining signature extraction remains intentionally narrow:
 
 ```text
 Data.p4k
@@ -190,10 +189,36 @@ and ground-vehicle definitions, producing 38 signature/method variants for 37
 material keys in this build. Commodity names and location metadata are still
 joined from the Star Citizen Wiki API.
 
+Blueprint extraction follows a second local-only path:
+
+```text
+Data.p4k
+  -> Data/Game2.dcb
+  -> crafting blueprints + default selection
+  -> output entities + resource and item requirements
+  -> blueprint reward pools + contract generators/templates
+  -> Data/Localization/english/global.ini
+  -> referenced Data/UI loadout icon DDS files
+```
+
+The measured LIVE build contains 1,598 blueprint records. Six reference removed
+output entities, leaving 1,591 complete entries, matching the previous API
+catalog count. Local extraction resolves 25 resource types, 297 item-cost
+occurrences, eight default blueprints, and mission links for 660 released
+blueprints.
+Output entities reference 27 distinct browser-convertible loadout icons used by
+853 entries.
+
+These icons are UI silhouettes, not universal item renders. Most ship
+components expose geometry and material assets but no pre-rendered preview;
+rendering those models would require CGF/CGA and material decoders plus a
+renderer, so Rockfall uses its normal equipment glyph for those records.
+
 The implementation lives in:
 
 - [`tools\game-data-extractor`](../../tools/game-data-extractor/);
-- [`src\main\game-data.ts`](../../src/main/game-data.ts); and
+- [`src\main\game-data.ts`](../../src/main/game-data.ts);
+- [`src\main\blueprint-data.ts`](../../src/main/blueprint-data.ts); and
 - [`src\main\mining-data.ts`](../../src/main/mining-data.ts).
 
 ## Data that this method cannot provide
@@ -223,7 +248,7 @@ rules. They cannot say what the server instantiated for a player.
 6. Preserve method/context distinctions when one resource has multiple values.
 7. Cache against the `Data.p4k` size and modification time.
 8. Fail explicitly on conflicting or incomplete records and retain the current
-   API/cache fallback.
+   archive-derived cache fallback.
 9. Never redistribute extracted game assets. Store only the minimal derived
    facts needed by the application.
 

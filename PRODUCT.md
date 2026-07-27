@@ -6,21 +6,22 @@ product
 
 ## Users
 
-Star Citizen players who mine while the game is running on Windows. They need
-to identify promising rocks quickly without leaving the game or mentally
-calculating cluster signatures.
+Star Citizen players who mine or plan crafting while using Windows. They need
+to identify promising rocks quickly, compare crafting requirements, and find
+the missions that unlock a desired blueprint without searching several tools.
 
 ## Product Purpose
 
 Provide a lightweight desktop control surface and a click-through,
 always-on-top overlay. The first workflow lets users select mineable materials
 and see each material's base signature alongside signatures for multi-rock
-clusters. Users can control overlay visibility and presentation from the app
-or with global keyboard shortcuts.
+clusters. A second workspace lets users browse blueprint outputs, inspect
+crafting inputs, and identify unlock missions. Users can control overlay
+visibility and presentation from the app or with global keyboard shortcuts.
 
-Success means the relevant signature value can be recognized at a glance,
-configured without friction, and kept visible without interfering with game
-input.
+Success means the relevant signature or crafting path can be recognized at a
+glance, configured without friction, and consulted without interfering with
+game input.
 
 ## Brand Personality
 

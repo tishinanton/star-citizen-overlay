@@ -242,9 +242,10 @@ where those states apply.
 
 ### Navigation
 
-- **Style:** The first release uses a persistent task surface instead of
-  navigation chrome. Header, target console, overlay console, and status bar
-  form one continuous instrument.
+- **Style:** A compact tab rail beneath the persistent header switches between
+  Mining and Blueprints. The active task uses a two-pixel Scanner Cyan
+  indicator; inactive tasks remain neutral. Overlay controls stay available in
+  the header across both workspaces.
 
 ### Signature Board
 
@@ -259,6 +260,18 @@ where those states apply.
 - **Surface:** Content-fit translucent Overlay Field at a 58% default backdrop
   opacity. Header and value cells honor the same control; text stays fully
   opaque. No backdrop blur, panel shadow, or glass treatment.
+
+### Blueprint Workbench
+
+- **Structure:** Search and access filters above a dense output list, paired
+  with a persistent detail pane for requirements and missions.
+- **Behavior:** Opening the workspace extracts or restores an archive-fingerprinted
+  local catalog. Selection reads detail from that catalog without a network
+  request. Catalog and detail identify installed versus cached game data.
+- **Surface:** Flat split panes with aligned table rows, full one-pixel
+  boundaries, tabular quantities, and no ornamental blueprint cards. A packaged
+  64×64 loadout icon appears when the output entity provides one; the equipment
+  glyph remains the explicit fallback.
 
 ## 6. Do's and Don'ts
 

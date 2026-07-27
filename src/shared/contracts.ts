@@ -57,6 +57,75 @@ export interface MiningLocationResult {
   updatedAt: string
 }
 
+export type BlueprintSourceState = 'game' | 'cached'
+export type BlueprintIngredientKind = 'resource' | 'item' | 'unknown'
+
+export interface BlueprintIngredient {
+  name: string
+  kind: BlueprintIngredientKind
+  quantity: number | null
+  quantityScu: number | null
+  webUrl: string | null
+}
+
+export interface BlueprintSummary {
+  id: string
+  key: string
+  outputName: string
+  outputClass: string
+  outputType: string
+  outputTypeLabel: string
+  outputGrade: string | null
+  craftTimeSeconds: number
+  craftTimeLabel: string
+  availableByDefault: boolean
+  ingredientCount: number
+  unlockingMissionCount: number
+  ingredients: BlueprintIngredient[]
+  gameVersion: string
+  imageKey: string | null
+  webUrl: string | null
+}
+
+export interface BlueprintRequirementIngredient extends BlueprintIngredient {
+  minQuality: number | null
+}
+
+export interface BlueprintRequirementGroup {
+  key: string
+  name: string
+  requiredCount: number
+  ingredients: BlueprintRequirementIngredient[]
+}
+
+export interface BlueprintUnlockMission {
+  id: string
+  title: string
+  rewardScope: string | null
+  chance: number | null
+  webUrl: string | null
+}
+
+export interface BlueprintDetail extends BlueprintSummary {
+  requirementGroups: BlueprintRequirementGroup[]
+  unlockingMissions: BlueprintUnlockMission[]
+}
+
+export interface BlueprintCatalogResult {
+  blueprints: BlueprintSummary[]
+  icons: Record<string, string>
+  state: BlueprintSourceState
+  message: string
+  updatedAt: string
+}
+
+export interface BlueprintDetailResult {
+  blueprint: BlueprintDetail
+  state: BlueprintSourceState
+  message: string
+  updatedAt: string
+}
+
 export type BestMiningLocationState =
   | {
       status: 'loading'
@@ -148,6 +217,11 @@ export interface AppSnapshot {
   warning: string | null
 }
 
+export interface GameDataSelectionResult {
+  snapshot: AppSnapshot
+  changed: boolean
+}
+
 export type OverlaySettingsPatch = Partial<OverlaySettings>
 
 export interface RockfallApi {
@@ -155,8 +229,10 @@ export interface RockfallApi {
   updateSettings: (patch: OverlaySettingsPatch) => Promise<AppSnapshot>
   reportOverlayMetrics: (metrics: OverlayContentMetrics) => Promise<void>
   refreshMaterials: () => Promise<AppSnapshot>
-  chooseGameData: () => Promise<AppSnapshot>
+  chooseGameData: () => Promise<GameDataSelectionResult>
   getMiningLocations: (materialId: string) => Promise<MiningLocationResult>
+  getBlueprintCatalog: (refresh?: boolean) => Promise<BlueprintCatalogResult>
+  getBlueprintDetail: (blueprintId: string) => Promise<BlueprintDetailResult>
   setShortcutCapture: (active: boolean) => Promise<AppSnapshot>
   checkForUpdates: () => Promise<AppSnapshot>
   restartToUpdate: () => Promise<void>
@@ -170,6 +246,8 @@ export const IPC_CHANNELS = {
   refreshMaterials: 'rockfall:materials:refresh',
   chooseGameData: 'rockfall:game-data:choose',
   getMiningLocations: 'rockfall:mining-locations:get',
+  getBlueprintCatalog: 'rockfall:blueprints:get',
+  getBlueprintDetail: 'rockfall:blueprints:detail',
   setShortcutCapture: 'rockfall:shortcuts:capture',
   checkForUpdates: 'rockfall:updates:check',
   restartToUpdate: 'rockfall:updates:restart',

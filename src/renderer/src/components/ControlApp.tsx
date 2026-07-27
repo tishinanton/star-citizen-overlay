@@ -1,5 +1,6 @@
 import { useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from 'react'
 import {
+  BookOpen,
   Crosshair,
   Database,
   Download,
@@ -38,11 +39,13 @@ import { resolveMaterialSignature } from '../../../shared/signatures'
 import { useRockfall } from '../hooks/useRockfall'
 import { getAccelerator } from '../lib/shortcut-accelerator'
 import { pinSelectedMaterials } from '../lib/material-order'
+import BlueprintBrowser from './BlueprintBrowser'
 import MiningLocationFlyout from './MiningLocationFlyout'
 import SignatureBoard from './SignatureBoard'
 import SignatureOverrideEditor from './SignatureOverrideEditor'
 
 type MaterialFilter = 'All' | Exclude<MiningMethod, 'Unclassified'>
+type AppTab = 'mining' | 'blueprints'
 
 interface LocationLoadState {
   loading: boolean
@@ -77,6 +80,7 @@ export default function ControlApp(): React.JSX.Element {
     checkForUpdates,
     restartToUpdate
   } = useRockfall()
+  const [activeTab, setActiveTab] = useState<AppTab>('mining')
   const [query, setQuery] = useState('')
   const [filter, setFilter] = useState<MaterialFilter>('All')
   const [recordingShortcut, setRecordingShortcut] = useState<ShortcutId | null>(null)
@@ -254,6 +258,32 @@ export default function ControlApp(): React.JSX.Element {
     })()
   }
 
+  const activateTab = (tab: AppTab): void => {
+    if (tab === activeTab) return
+    setLocationFlyout(null)
+    setEditingSignatureId(null)
+    if (recordingShortcut) endShortcutCapture()
+    setActiveTab(tab)
+  }
+
+  const handleTabKeyDown = (tab: AppTab, event: ReactKeyboardEvent<HTMLButtonElement>): void => {
+    const nextTab =
+      event.key === 'Home'
+        ? 'mining'
+        : event.key === 'End'
+          ? 'blueprints'
+          : event.key === 'ArrowLeft' || event.key === 'ArrowRight'
+            ? tab === 'mining'
+              ? 'blueprints'
+              : 'mining'
+            : null
+    if (!nextTab) return
+
+    event.preventDefault()
+    activateTab(nextTab)
+    requestAnimationFrame(() => document.getElementById(`tab-${nextTab}`)?.focus())
+  }
+
   return (
     <div className="app-shell">
       <header className="app-header">
@@ -263,7 +293,7 @@ export default function ControlApp(): React.JSX.Element {
           </span>
           <div>
             <strong>Rockfall</strong>
-            <span>Mining field console</span>
+            <span>Field operations console</span>
           </div>
         </div>
 
@@ -286,14 +316,50 @@ export default function ControlApp(): React.JSX.Element {
         </div>
       </header>
 
-      {(error || snapshot.warning) && (
-        <div className="system-warning" role="alert">
-          <Zap size={15} />
-          {error ?? snapshot.warning}
-        </div>
-      )}
+      <div className="app-chrome">
+        <nav className="app-tabs" role="tablist" aria-label="Rockfall workspaces">
+          <button
+            id="tab-mining"
+            type="button"
+            role="tab"
+            aria-selected={activeTab === 'mining'}
+            aria-controls="panel-mining"
+            tabIndex={activeTab === 'mining' ? 0 : -1}
+            onClick={() => activateTab('mining')}
+            onKeyDown={(event) => handleTabKeyDown('mining', event)}
+          >
+            <Pickaxe size={15} />
+            Mining
+          </button>
+          <button
+            id="tab-blueprints"
+            type="button"
+            role="tab"
+            aria-selected={activeTab === 'blueprints'}
+            aria-controls="panel-blueprints"
+            tabIndex={activeTab === 'blueprints' ? 0 : -1}
+            onClick={() => activateTab('blueprints')}
+            onKeyDown={(event) => handleTabKeyDown('blueprints', event)}
+          >
+            <BookOpen size={15} />
+            Blueprints
+          </button>
+        </nav>
 
-      <main className="workspace">
+        {(error || snapshot.warning) && (
+          <div className="system-warning" role="alert">
+            <Zap size={15} />
+            {error ?? snapshot.warning}
+          </div>
+        )}
+      </div>
+
+      <main
+        className="workspace"
+        id="panel-mining"
+        aria-labelledby="tab-mining"
+        hidden={activeTab !== 'mining'}
+      >
         <section className="target-console" aria-labelledby="targets-title">
           <div className="section-heading">
             <div>
@@ -682,18 +748,25 @@ export default function ControlApp(): React.JSX.Element {
           </div>
         </aside>
       </main>
+      {activeTab === 'blueprints' && <BlueprintBrowser />}
 
       <footer className="app-footer">
         <span>
           <Database size={13} />
-          Installed game files provide signatures; Star Citizen Wiki provides mining metadata.
+          {activeTab === 'mining'
+            ? 'Installed game files provide signatures; Star Citizen Wiki provides mining metadata.'
+            : 'Blueprint recipes, item names, icons, and unlock missions come from installed game files.'}
         </span>
-        <a href="https://api.star-citizen.wiki/" target="_blank" rel="noreferrer">
-          Wiki metadata
-        </a>
+        {activeTab === 'mining' ? (
+          <a href="https://api.star-citizen.wiki/" target="_blank" rel="noreferrer">
+            Wiki metadata
+          </a>
+        ) : (
+          <span className="app-footer__source">Local game data</span>
+        )}
       </footer>
 
-      {locationFlyout && (
+      {activeTab === 'mining' && locationFlyout && (
         <MiningLocationFlyout
           anchor={locationFlyout.anchor}
           material={locationFlyout.material}

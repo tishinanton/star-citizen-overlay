@@ -22,6 +22,9 @@ import {
   type AppSnapshot,
   type AppUpdateState,
   type BestMiningLocationState,
+  type BlueprintCatalogResult,
+  type BlueprintDetailResult,
+  type GameDataSelectionResult,
   type MiningDataStatus,
   type MiningLocationResult,
   type MiningMaterial,
@@ -38,6 +41,7 @@ import {
   type OverlayLayout
 } from '../shared/overlay-layout'
 import { AppUpdaterController, createUpdaterClient } from './app-updater'
+import { loadBlueprintData, type BlueprintDataResult } from './blueprint-data'
 import {
   loadGameDataPreference,
   resolveGameDataArchive,
@@ -117,6 +121,7 @@ let warning: string | null = null
 let settingsPath = ''
 let cachePath = ''
 let locationCachePath = ''
+let blueprintCatalogCachePath = ''
 let gameDataPreferencePath = ''
 let gameDataArchive: GameDataArchive | null = null
 let extractorPath = ''
@@ -129,6 +134,12 @@ let measuredOverlayMetrics: OverlayContentMetrics | null = null
 let miningLocationGeneration = 0
 const miningLocationResults = new Map<string, MiningLocationResult>()
 const pendingLocationRequests = new Map<string, Promise<MiningLocationResult>>()
+let blueprintDataResult: BlueprintDataResult | null = null
+let blueprintDataGeneration = 0
+let pendingBlueprintData: {
+  generation: number
+  request: Promise<BlueprintDataResult>
+} | null = null
 
 function getSnapshot(): AppSnapshot {
   return {
@@ -388,7 +399,7 @@ async function refreshMaterials(): Promise<AppSnapshot> {
   return getSnapshot()
 }
 
-async function chooseGameData(): Promise<AppSnapshot> {
+async function chooseGameData(): Promise<GameDataSelectionResult> {
   if (!controlWindow || controlWindow.isDestroyed()) {
     throw new Error('The Rockfall control window is unavailable.')
   }
@@ -400,12 +411,16 @@ async function chooseGameData(): Promise<AppSnapshot> {
     properties: ['openFile'],
     filters: [{ name: 'Star Citizen data archive', extensions: ['p4k'] }]
   })
-  if (result.canceled || result.filePaths.length === 0) return getSnapshot()
+  if (result.canceled || result.filePaths.length === 0) {
+    return { snapshot: getSnapshot(), changed: false }
+  }
 
   const archive = await validateGameDataArchive(result.filePaths[0])
   await saveGameDataPreference(gameDataPreferencePath, archive.path)
   gameDataArchive = archive
-  return refreshMaterials()
+  blueprintDataGeneration += 1
+  blueprintDataResult = null
+  return { snapshot: await refreshMaterials(), changed: true }
 }
 
 async function getMiningLocations(materialId: unknown): Promise<MiningLocationResult> {
@@ -507,6 +522,55 @@ function queueSelectedMiningLocations(): void {
   }
 }
 
+async function getBlueprintCatalog(refresh: unknown = false): Promise<BlueprintCatalogResult> {
+  if (typeof refresh !== 'boolean') {
+    throw new TypeError('Blueprint refresh state must be a boolean.')
+  }
+  const generation = blueprintDataGeneration
+  if (pendingBlueprintData?.generation === generation) {
+    return (await pendingBlueprintData.request).catalog
+  }
+  if (!refresh && blueprintDataResult) return blueprintDataResult.catalog
+
+  const request = loadBlueprintData({
+    cachePath: blueprintCatalogCachePath,
+    extractorPath,
+    gameDataArchive,
+    forceRefresh: refresh,
+    shouldWriteCache: () => generation === blueprintDataGeneration
+  })
+  const pending = { generation, request }
+  pendingBlueprintData = pending
+  try {
+    const result = await request
+    if (generation === blueprintDataGeneration) {
+      blueprintDataResult = result
+    }
+    return result.catalog
+  } finally {
+    if (pendingBlueprintData === pending) pendingBlueprintData = null
+  }
+}
+
+async function getBlueprintDetail(blueprintId: unknown): Promise<BlueprintDetailResult> {
+  if (typeof blueprintId !== 'string' || blueprintId.length === 0 || blueprintId.length > 200) {
+    throw new TypeError('A valid blueprint is required.')
+  }
+
+  if (!blueprintDataResult) await getBlueprintCatalog()
+  const data = blueprintDataResult
+  const blueprint = data?.details[blueprintId]
+  if (!blueprint) {
+    throw new Error('That blueprint is no longer available.')
+  }
+  return {
+    blueprint,
+    state: data.catalog.state,
+    message: data.catalog.message,
+    updatedAt: data.catalog.updatedAt
+  }
+}
+
 function loadRenderer(window: BrowserWindow, view: 'control' | 'overlay' | 'drag-handle'): void {
   if (is.dev && process.env['ELECTRON_RENDERER_URL']) {
     const url = new URL(process.env['ELECTRON_RENDERER_URL'])
@@ -558,7 +622,7 @@ function runWithQuitIntent(action: () => void): void {
 
 function createAppTray(): Tray {
   const appTray = new Tray(icon)
-  appTray.setToolTip('Rockfall Mining Overlay')
+  appTray.setToolTip('Rockfall Field Console')
   appTray.setContextMenu(
     Menu.buildFromTemplate([
       { label: 'Open Rockfall', click: showControlWindow },
@@ -572,7 +636,7 @@ function createAppTray(): Tray {
 
 function createControlWindow(): BrowserWindow {
   const window = new BrowserWindow({
-    title: 'Rockfall Mining Overlay',
+    title: 'Rockfall',
     icon,
     width: 1180,
     height: 780,
@@ -735,6 +799,14 @@ function registerIpcHandlers(): void {
     assertControlWindowSender(event)
     return getMiningLocations(materialId)
   })
+  ipcMain.handle(IPC_CHANNELS.getBlueprintCatalog, (event, refresh: unknown) => {
+    assertControlWindowSender(event)
+    return getBlueprintCatalog(refresh)
+  })
+  ipcMain.handle(IPC_CHANNELS.getBlueprintDetail, (event, blueprintId: unknown) => {
+    assertControlWindowSender(event)
+    return getBlueprintDetail(blueprintId)
+  })
   ipcMain.handle(IPC_CHANNELS.setShortcutCapture, (_event, active: unknown) => {
     if (typeof active !== 'boolean') {
       throw new TypeError('Shortcut capture state must be a boolean.')
@@ -761,6 +833,7 @@ app.whenReady().then(async () => {
   settingsPath = join(app.getPath('userData'), 'settings.json')
   cachePath = join(app.getPath('userData'), 'mining-signatures.json')
   locationCachePath = join(app.getPath('userData'), 'mining-locations.json')
+  blueprintCatalogCachePath = join(app.getPath('userData'), 'blueprints.json')
   gameDataPreferencePath = join(app.getPath('userData'), 'game-data.json')
   extractorPath = app.isPackaged
     ? join(process.resourcesPath, 'game-data-extractor', 'Rockfall.GameDataExtractor.exe')

@@ -1,8 +1,19 @@
 Rockfall Game Data Extractor
 
-This helper reads Data/Game2.dcb from a local Star Citizen Data.p4k archive and
-prints mineable entity signature records as JSON. It does not read game memory,
-modify game files, or connect to the running game.
+This helper reads structured records from Data/Game2.dcb in a local Star Citizen
+Data.p4k archive. Its default `signatures` mode prints current mineable scanner
+signatures. `blueprints` mode prints localized crafting recipes, output items,
+default availability, reward missions, and allowlisted loadout icons converted
+from packaged DDS files to PNG data URLs.
+
+Usage:
+
+Rockfall.GameDataExtractor <Data.p4k|Game2.dcb> [signatures|blueprints]
+
+Blueprint mode requires Data.p4k. It reads the adjacent English localization
+pack when available and otherwise reads that allowlisted file from the archive.
+It does not read game memory, modify game files, connect to the running game, or
+redistribute extracted assets.
 
 The DataForge parser in Vendor/Unforge is derived from dolkensp/unp4k commit
 b492ab14d26280c6ec91c4365ff0faf5f3e24a6b under the MIT License. See

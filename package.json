@@ -1,7 +1,7 @@
 {
   "name": "rockfall",
   "version": "0.1.6",
-  "description": "A Star Citizen mining signature overlay for Windows",
+  "description": "A Star Citizen mining overlay and blueprint field console for Windows",
   "main": "./out/main/index.js",
   "author": "Rockfall contributors",
   "homepage": "https://github.com/tishinanton/star-citizen-overlay",

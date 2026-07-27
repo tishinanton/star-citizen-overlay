@@ -1,8 +1,8 @@
 # Rockfall
 
-Rockfall is a Windows desktop companion for Star Citizen mining. It combines a
+Rockfall is a Windows desktop field companion for Star Citizen. It combines a
 web-based control console with a transparent, click-through, always-on-top
-overlay.
+mining overlay and a blueprint reference workspace.
 
 The first workflow lets a player select up to four mining targets and see:
 
@@ -19,13 +19,20 @@ Cluster values are deterministic:
 cluster signature = base signature × rock count
 ```
 
+The **Blueprints** tab provides a searchable list of every blueprint reported
+for the current game-data version. Selecting an output opens its crafting
+requirements, quantities, craft time, access state, and the missions that can
+unlock it.
+
 ## Current data sources
 
 Rockfall reads base signatures from the installed Star Citizen `Data.p4k`.
 It automatically detects common LIVE/PTU installation paths, or **Game files**
 can select a custom archive. A bundled read-only extractor opens
-`Data\Game2.dcb` and keeps only current mineable entity signatures; it does not
-modify game files or interact with the running game.
+`Data\Game2.dcb` and reads current mineable signatures, crafting blueprints,
+output items, resource requirements, reward pools, and mission contracts. It
+also resolves names through `Data\Localization\english\global.ini`. The
+extractor does not modify game files or interact with the running game.
 
 The community-maintained [Star Citizen Wiki API](https://api.star-citizen.wiki/)
 still supplies commodity names and mining-quality distributions. Extracted
@@ -34,6 +41,14 @@ Rockfall falls back to Wiki, cached, and finally bundled signatures in that
 order. Any material can also use a locally persisted manual signature correction.
 Corrected values are marked with `*` in the control window and overlay, and can
 be reset to the current source value at any time.
+
+The blueprint workspace depends only on installed game files. Derived records
+are cached against the selected archive fingerprint for faster subsequent
+loads. When an output entity references a packaged loadout icon, Rockfall
+extracts its 64×64 DDS asset and converts it to a local PNG preview. This build
+exposes 27 distinct icons across 853 blueprint outputs; most ship components do
+not ship with a pre-rendered item image, so those outputs retain the standard
+equipment glyph.
 
 The **Sites** action loads the selected material's detailed deposit data and
 ranks up to five distinct locations by the estimated chance of a 50% or higher
@@ -53,15 +68,16 @@ Complete endpoint inventories:
 
 ## Controls
 
-The control window supports material search and mining-method filters, overlay
-position, opacity, font size, cluster range, compact mode, visibility, game-data
-selection, and data refresh. Each material row also exposes a contextual signature correction
+The control window has dedicated **Mining** and **Blueprints** tabs. Mining
+supports material search and mining-method filters, overlay position, opacity,
+font size, cluster range, compact mode, visibility, game-data selection, and
+data refresh. Each material row also exposes a contextual signature correction
 editor; cluster values recalculate from the corrected base immediately. Font
 size ranges from 80% to 160%; the native overlay resizes with the readout so
 larger text remains fully visible. Changes are persisted in Electron's per-user
-application data directory. Selected ores stay pinned above
-filtered results, **Sites** opens the ranked mining-location flyout, and **Clear
-overlay** removes every target at once.
+application data directory. Selected ores stay pinned above filtered results,
+**Sites** opens the ranked mining-location flyout, and **Clear overlay** removes
+every target at once.
 
 Drag the overlay's cyan header to place it anywhere on screen. The header
 captures the mouse for dragging; the remaining overlay area stays click-through.

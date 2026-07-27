@@ -213,6 +213,9 @@ The overlay never reads game files or calls an external API directly. Both
 operations run in the Electron main process, where extractor and API response
 shapes are validated before values reach the renderer.
 
+The proposed cross-device blueprint ownership backend is defined in the
+[Rockfall Cloud Ownership Service specification](docs/api/rockfall-cloud/README.md).
+
 ## Scope and limitations
 
 - Game resources supply static reference data, not live telemetry from a

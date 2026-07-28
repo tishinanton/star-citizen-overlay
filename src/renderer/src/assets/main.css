@@ -2115,7 +2115,7 @@
   margin-bottom: 12px;
 }
 
-.blueprint-category-filter {
+.blueprint-taxonomy-filter {
   grid-column: 1 / -1;
 }
 
@@ -2146,11 +2146,11 @@
   white-space: nowrap;
 }
 
-.blueprint-category-filter .filter-strip {
+.blueprint-taxonomy-filter .filter-strip {
   flex-wrap: wrap;
 }
 
-.blueprint-category-filter .filter-strip button {
+.blueprint-taxonomy-filter .filter-strip button {
   flex: 0 0 auto;
   padding-inline: 9px;
   overflow: visible;

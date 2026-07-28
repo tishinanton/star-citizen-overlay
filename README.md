@@ -19,14 +19,14 @@ Cluster values are deterministic:
 cluster signature = base signature × rock count
 ```
 
-The **Blueprints** tab provides a searchable, item-category-filterable list of
-every blueprint reported for the current game-data version. Selecting an output
-opens its crafting requirements, quantities, craft time, access state, and the
-missions that can unlock it. Mission rows identify the mobiGlas contract
-category, provider, available star system, reputation gate, and blueprint
-reward chance, with a link to the full community Wiki record. Collection
-filters separate blueprints confirmed as owned from mission-mapped blueprints
-that remain obtainable.
+The **Blueprints** tab provides a searchable list of every blueprint reported
+for the current game-data version, organized by category and subcategory.
+Selecting an output opens its crafting requirements, quantities, craft time,
+access state, and the missions that can unlock it. Mission rows identify the
+mobiGlas contract category, provider, available star system, reputation gate,
+and blueprint reward chance, with a link to the full community Wiki record.
+Collection filters separate blueprints confirmed as owned from mission-mapped
+blueprints that remain obtainable.
 
 ## Current data sources
 

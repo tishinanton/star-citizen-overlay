@@ -33,7 +33,11 @@ import {
   useBlueprintDetail,
   useBlueprintOwnership
 } from '../hooks/useBlueprints'
-import { getBlueprintCategoryOptions, matchesBlueprintCategory } from '../lib/blueprint-categories'
+import {
+  getBlueprintCategoryOptions,
+  getBlueprintSubcategoryOptions,
+  matchesBlueprintCategory
+} from '../lib/blueprint-categories'
 
 type BlueprintAccessFilter = 'all' | 'mission' | 'default'
 type BlueprintCollectionFilter = 'all' | 'owned' | 'obtainable'
@@ -67,6 +71,7 @@ export default function BlueprintBrowser(): React.JSX.Element {
   const ownership = useBlueprintOwnership()
   const [query, setQuery] = useState('')
   const [categoryFilter, setCategoryFilter] = useState('')
+  const [subcategoryFilter, setSubcategoryFilter] = useState('')
   const [accessFilter, setAccessFilter] = useState<BlueprintAccessFilter>('all')
   const [collectionFilter, setCollectionFilter] = useState<BlueprintCollectionFilter>('all')
   const [requestedBlueprintId, setRequestedBlueprintId] = useState<string | null>(null)
@@ -76,6 +81,15 @@ export default function BlueprintBrowser(): React.JSX.Element {
   )
   const activeCategoryFilter = categoryOptions.some((category) => category.value === categoryFilter)
     ? categoryFilter
+    : ''
+  const subcategoryOptions = useMemo(
+    () => getBlueprintSubcategoryOptions(catalog.result?.blueprints ?? [], activeCategoryFilter),
+    [activeCategoryFilter, catalog.result]
+  )
+  const activeSubcategoryFilter = subcategoryOptions.some(
+    (subcategory) => subcategory.value === subcategoryFilter
+  )
+    ? subcategoryFilter
     : ''
 
   const visibleBlueprints = useMemo(() => {
@@ -106,7 +120,7 @@ export default function BlueprintBrowser(): React.JSX.Element {
           blueprint.unlockingMissionCount > 0)
       return (
         matchesQuery &&
-        matchesBlueprintCategory(blueprint, activeCategoryFilter) &&
+        matchesBlueprintCategory(blueprint, activeCategoryFilter, activeSubcategoryFilter) &&
         matchesAccess &&
         matchesCollection
       )
@@ -115,6 +129,7 @@ export default function BlueprintBrowser(): React.JSX.Element {
     accessFilter,
     catalog.result,
     activeCategoryFilter,
+    activeSubcategoryFilter,
     collectionFilter,
     ownership.result,
     query
@@ -332,6 +347,7 @@ export default function BlueprintBrowser(): React.JSX.Element {
                   }
                   setQuery(toReceiptReviewQuery(ownership.result?.unresolvedReceiptNames[0] ?? ''))
                   setCategoryFilter('')
+                  setSubcategoryFilter('')
                   setCollectionFilter('all')
                   setAccessFilter('all')
                 }}
@@ -344,16 +360,19 @@ export default function BlueprintBrowser(): React.JSX.Element {
 
         <div className="blueprint-filter-deck">
           <fieldset
-            className="blueprint-filter-group blueprint-category-filter"
+            className="blueprint-filter-group blueprint-taxonomy-filter"
             disabled={!catalog.result}
           >
-            <legend>Item category</legend>
-            <div className="filter-strip" aria-label="Filter blueprints by item category">
+            <legend>Category</legend>
+            <div className="filter-strip" aria-label="Filter blueprints by category">
               <button
                 type="button"
                 className={activeCategoryFilter === '' ? 'is-active' : ''}
                 aria-pressed={activeCategoryFilter === ''}
-                onClick={() => setCategoryFilter('')}
+                onClick={() => {
+                  setCategoryFilter('')
+                  setSubcategoryFilter('')
+                }}
               >
                 All
               </button>
@@ -363,13 +382,45 @@ export default function BlueprintBrowser(): React.JSX.Element {
                   type="button"
                   className={activeCategoryFilter === category.value ? 'is-active' : ''}
                   aria-pressed={activeCategoryFilter === category.value}
-                  onClick={() => setCategoryFilter(category.value)}
+                  onClick={() => {
+                    setCategoryFilter(category.value)
+                    setSubcategoryFilter('')
+                  }}
                 >
                   {category.label}
                 </button>
               ))}
             </div>
           </fieldset>
+          {activeCategoryFilter && (
+            <fieldset
+              className="blueprint-filter-group blueprint-taxonomy-filter"
+              disabled={!catalog.result}
+            >
+              <legend>Subcategory</legend>
+              <div className="filter-strip" aria-label="Filter blueprints by subcategory">
+                <button
+                  type="button"
+                  className={activeSubcategoryFilter === '' ? 'is-active' : ''}
+                  aria-pressed={activeSubcategoryFilter === ''}
+                  onClick={() => setSubcategoryFilter('')}
+                >
+                  All
+                </button>
+                {subcategoryOptions.map((subcategory) => (
+                  <button
+                    key={subcategory.value}
+                    type="button"
+                    className={activeSubcategoryFilter === subcategory.value ? 'is-active' : ''}
+                    aria-pressed={activeSubcategoryFilter === subcategory.value}
+                    onClick={() => setSubcategoryFilter(subcategory.value)}
+                  >
+                    {subcategory.label}
+                  </button>
+                ))}
+              </div>
+            </fieldset>
+          )}
           <fieldset className="blueprint-filter-group">
             <legend>Collection</legend>
             <div className="filter-strip" aria-label="Filter blueprint collection">

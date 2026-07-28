@@ -2974,6 +2974,657 @@ a.mission-row:hover {
   margin-top: 8px;
 }
 
+.faction-workspace {
+  display: grid;
+  grid-template-columns: minmax(370px, 0.72fr) minmax(540px, 1.28fr);
+  min-width: 0;
+  min-height: 0;
+}
+
+.faction-directory,
+.faction-detail {
+  min-width: 0;
+  min-height: 0;
+}
+
+.faction-directory {
+  display: grid;
+  grid-template-rows: auto auto auto auto minmax(0, 1fr);
+  padding: 20px 22px 0;
+  border-right: 1px solid var(--edge);
+}
+
+.faction-directory__heading {
+  align-items: flex-start;
+  margin-bottom: 15px;
+}
+
+.faction-directory__status {
+  display: grid;
+  grid-template-columns: auto auto;
+  align-items: baseline;
+  justify-items: end;
+  gap: 2px 5px;
+  color: var(--muted);
+  font-size: 1rem;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.faction-directory__status .blueprint-source-state {
+  grid-column: 1 / -1;
+  margin-bottom: 2px;
+}
+
+.faction-directory__status > strong {
+  color: var(--ink);
+}
+
+.faction-directory__status > small {
+  grid-column: 1 / -1;
+  color: var(--ink-soft);
+  font-size: 1rem;
+}
+
+.faction-tools {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 9px;
+  margin-bottom: 11px;
+}
+
+.faction-tools .search-field {
+  grid-column: 1 / -1;
+}
+
+.faction-tools .icon-text-button {
+  min-width: 0;
+  padding-inline: 9px;
+}
+
+.faction-directory__warning {
+  display: grid;
+  grid-template-columns: 18px minmax(0, 1fr) auto;
+  align-items: center;
+  min-height: 46px;
+  margin: 0 0 11px;
+  padding: 8px 9px;
+  gap: 8px;
+  border: 1px solid color-mix(in oklch, var(--warning) 45%, var(--edge));
+  border-radius: var(--radius-sm);
+  background: color-mix(in oklch, var(--warning) 8%, var(--surface-low));
+  color: var(--warning);
+}
+
+.faction-directory__warning > span,
+.faction-directory__warning strong,
+.faction-directory__warning small {
+  display: block;
+  min-width: 0;
+}
+
+.faction-directory__warning strong {
+  color: var(--ink);
+}
+
+.faction-directory__warning small {
+  margin-top: 2px;
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 1rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.faction-directory__warning button {
+  height: 27px;
+  padding: 0 8px;
+  border: 1px solid var(--edge);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--ink-soft);
+}
+
+.faction-directory__warning button:hover {
+  border-color: var(--edge-strong);
+  background: var(--surface-high);
+  color: var(--ink);
+}
+
+.faction-filter-group {
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.faction-filter-group legend {
+  margin: 0 0 4px 4px;
+  padding: 0;
+  color: var(--muted);
+  font-size: 1rem;
+}
+
+.faction-filter-group .filter-strip {
+  margin-bottom: 12px;
+}
+
+.faction-list {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  min-height: 0;
+  overflow: hidden;
+  border: 1px solid var(--edge);
+  border-radius: var(--radius-md) var(--radius-md) 0 0;
+  background: var(--surface-low);
+}
+
+.faction-list__header,
+.faction-row {
+  display: grid;
+  grid-template-columns: minmax(145px, 1fr) 76px 96px;
+  align-items: center;
+  gap: 8px;
+}
+
+.faction-list__header {
+  min-height: 33px;
+  padding: 8px 11px;
+  border-bottom: 1px solid var(--edge);
+  background: var(--surface);
+  color: var(--muted);
+  font-size: 1rem;
+}
+
+.faction-list__body {
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.faction-row {
+  width: 100%;
+  min-height: 56px;
+  padding: 8px 11px;
+  border-bottom: 1px solid color-mix(in oklch, var(--edge) 65%, transparent);
+  background: transparent;
+  color: var(--ink-soft);
+  text-align: left;
+  transition:
+    background-color var(--duration-fast) var(--ease-out),
+    color var(--duration-fast) var(--ease-out);
+}
+
+.faction-row:hover {
+  background: var(--surface);
+  color: var(--ink);
+}
+
+.faction-row--selected,
+.faction-row--selected:hover {
+  background: var(--surface-selected);
+  color: var(--ink);
+}
+
+.faction-row__identity,
+.faction-row__identity > strong,
+.faction-row__identity > small,
+.faction-row__reputation {
+  display: block;
+  min-width: 0;
+}
+
+.faction-row__identity > strong,
+.faction-row__identity > small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.faction-row__identity > strong {
+  color: inherit;
+  font-weight: 600;
+}
+
+.faction-row__identity > small {
+  margin-top: 3px;
+  color: var(--muted);
+  font-size: 1rem;
+}
+
+.faction-alignment {
+  display: inline-flex;
+  align-items: center;
+  min-width: 0;
+  gap: 6px;
+  color: var(--ink-soft);
+  font-size: 1rem;
+  white-space: nowrap;
+}
+
+.faction-alignment > span {
+  display: block;
+  width: 6px;
+  height: 6px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  background: var(--muted);
+}
+
+.faction-alignment--lawful > span {
+  background: var(--accent);
+  box-shadow: 0 0 0 3px color-mix(in oklch, var(--accent) 11%, transparent);
+}
+
+.faction-alignment--unlawful > span {
+  background: var(--edge-strong);
+}
+
+.faction-row__reputation {
+  color: var(--muted);
+  font-size: 1rem;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.3;
+}
+
+.faction-row__reputation > strong {
+  color: var(--ink-soft);
+  font-weight: 600;
+}
+
+.faction-row__reputation > span {
+  display: block;
+  margin-top: 2px;
+}
+
+.faction-detail {
+  overflow: hidden;
+  background: var(--surface-low);
+}
+
+.faction-detail__scroll {
+  height: 100%;
+  overflow-y: auto;
+}
+
+.faction-detail__header {
+  display: grid;
+  grid-template-columns: 52px minmax(0, 1fr);
+  align-items: center;
+  padding: 22px 24px 20px;
+  gap: 14px;
+  border-bottom: 1px solid var(--edge);
+  background: var(--surface-low);
+}
+
+.faction-emblem {
+  display: grid;
+  width: 52px;
+  height: 52px;
+  place-items: center;
+  border: 1px solid var(--edge-strong);
+  border-radius: var(--radius-md);
+  background: var(--surface-high);
+  color: var(--accent-bright);
+  font-size: 1.214rem;
+  font-weight: 650;
+  letter-spacing: 0.025em;
+}
+
+.faction-detail__identity {
+  min-width: 0;
+}
+
+.faction-detail__identity .faction-alignment {
+  margin-bottom: 5px;
+}
+
+.faction-detail__identity h2 {
+  margin: 0;
+  color: var(--ink);
+  font-size: 1.214rem;
+  line-height: 1.2;
+  text-wrap: balance;
+}
+
+.faction-detail__identity h2:focus-visible {
+  border-radius: var(--radius-xs);
+  box-shadow:
+    0 0 0 2px var(--surface-low),
+    0 0 0 4px var(--focus);
+}
+
+.faction-detail__identity small {
+  display: block;
+  margin-top: 5px;
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 1rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.faction-detail__body {
+  padding: 20px 24px 34px;
+}
+
+.faction-description {
+  max-width: 72ch;
+  color: var(--ink-soft);
+  line-height: 1.5;
+  text-wrap: pretty;
+}
+
+.faction-facts {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  margin: 18px 0 0;
+  border: 1px solid var(--edge);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+}
+
+.faction-facts > div {
+  min-width: 0;
+  padding: 11px 12px;
+  border-right: 1px solid var(--edge);
+}
+
+.faction-facts > div:last-child {
+  border-right: 0;
+}
+
+.faction-facts dt,
+.faction-profile dt {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--muted);
+}
+
+.faction-facts dd,
+.faction-profile dd {
+  margin: 5px 0 0;
+  color: var(--ink);
+  font-weight: 600;
+}
+
+.faction-facts dd {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.faction-profile {
+  display: flex;
+  flex-wrap: wrap;
+  margin: 14px 0 0;
+  padding: 12px 0;
+  gap: 16px 28px;
+  border-top: 1px solid var(--edge);
+  border-bottom: 1px solid var(--edge);
+}
+
+.faction-profile > div {
+  min-width: min(240px, 100%);
+  flex: 1 1 240px;
+}
+
+.faction-profile dd {
+  line-height: 1.35;
+}
+
+.faction-requirements {
+  margin-top: 24px;
+}
+
+.faction-requirements__heading,
+.reputation-scope__heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18px;
+}
+
+.faction-requirements__heading {
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--edge);
+}
+
+.faction-requirements__heading > div {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.faction-requirements__heading h3,
+.reputation-scope__heading h4 {
+  margin: 0;
+  color: var(--ink);
+  font-size: 1rem;
+}
+
+.faction-requirements__heading > span,
+.reputation-scope__heading > span {
+  color: var(--muted);
+  font-size: 1rem;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.reputation-scope {
+  padding-top: 18px;
+}
+
+.reputation-scope + .reputation-scope {
+  margin-top: 18px;
+  border-top: 1px solid var(--edge);
+}
+
+.reputation-scope__heading {
+  margin-bottom: 9px;
+}
+
+.reputation-scope__heading p {
+  max-width: 62ch;
+  margin: 4px 0 0;
+  color: var(--muted);
+  line-height: 1.4;
+}
+
+.reputation-table-wrap {
+  overflow-x: auto;
+  border: 1px solid var(--edge);
+  border-radius: var(--radius-md);
+}
+
+.reputation-table {
+  width: 100%;
+  min-width: 650px;
+  border-collapse: collapse;
+  background: var(--surface-low);
+  color: var(--ink-soft);
+  font-size: 1rem;
+}
+
+.reputation-table th,
+.reputation-table td {
+  padding: 9px 11px;
+  border-bottom: 1px solid color-mix(in oklch, var(--edge) 68%, transparent);
+  text-align: left;
+  vertical-align: top;
+}
+
+.reputation-table thead th {
+  background: var(--surface);
+  color: var(--muted);
+  font-weight: 400;
+  white-space: nowrap;
+}
+
+.reputation-table thead th:first-child {
+  width: 40%;
+}
+
+.reputation-table thead th:nth-child(2) {
+  width: 20%;
+}
+
+.reputation-table thead th:nth-child(3) {
+  width: 18%;
+}
+
+.reputation-table tbody tr:last-child > * {
+  border-bottom: 0;
+}
+
+.reputation-table tbody tr:hover > * {
+  background: color-mix(in oklch, var(--surface) 70%, transparent);
+}
+
+.reputation-table tbody th strong,
+.reputation-table tbody th small {
+  display: block;
+}
+
+.reputation-table tbody th strong {
+  color: var(--ink);
+  font-weight: 600;
+}
+
+.reputation-table tbody th small {
+  margin-top: 3px;
+  color: var(--muted);
+  font-size: 1rem;
+  font-weight: 400;
+  line-height: 1.35;
+  text-wrap: pretty;
+}
+
+.reputation-table__number {
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+}
+
+.reputation-gate {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--accent-bright);
+  white-space: nowrap;
+}
+
+.reputation-open {
+  color: var(--muted);
+}
+
+.faction-empty,
+.faction-detail__empty {
+  display: flex;
+  align-items: center;
+  flex-direction: column;
+  justify-content: center;
+  min-height: 240px;
+  padding: 28px;
+  color: var(--muted);
+  text-align: center;
+}
+
+.faction-detail__empty {
+  height: 100%;
+  min-height: 320px;
+}
+
+.faction-empty strong,
+.faction-detail__empty strong {
+  margin-top: 11px;
+  color: var(--ink);
+}
+
+.faction-empty > span,
+.faction-detail__empty > span {
+  max-width: 42ch;
+  margin-top: 5px;
+  line-height: 1.4;
+}
+
+.faction-empty > div {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  margin-top: 14px;
+  gap: 8px;
+}
+
+.faction-empty button {
+  min-height: 30px;
+  padding: 0 10px;
+  border: 1px solid var(--edge);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--ink-soft);
+}
+
+.faction-empty button:hover {
+  border-color: var(--edge-strong);
+  background: var(--surface-high);
+  color: var(--ink);
+}
+
+.faction-list-skeleton {
+  overflow: hidden;
+}
+
+.faction-list-skeleton > span {
+  display: block;
+  height: 56px;
+  border-bottom: 1px solid var(--edge);
+  background: linear-gradient(
+    90deg,
+    var(--surface-low) 0 6%,
+    var(--surface) 6% 48%,
+    var(--surface-low) 48% 55%,
+    var(--surface) 55% 69%,
+    var(--surface-low) 69% 76%,
+    var(--surface) 76% 92%,
+    var(--surface-low) 92%
+  );
+  opacity: 0.58;
+  animation: blueprint-skeleton-pulse 1.2s ease-in-out infinite;
+}
+
+.faction-detail-skeleton {
+  padding: 22px 24px;
+}
+
+.faction-detail-skeleton > span {
+  display: block;
+  border-radius: var(--radius-xs);
+  background: var(--surface-high);
+  animation: blueprint-skeleton-pulse 1.2s ease-in-out infinite;
+}
+
+.faction-detail-skeleton > span:first-child {
+  width: 42%;
+  height: 20px;
+}
+
+.faction-detail-skeleton > span:nth-child(2) {
+  width: 72%;
+  height: 10px;
+  margin-top: 10px;
+}
+
+.faction-detail-skeleton > span:nth-child(3) {
+  height: 76px;
+  margin-top: 28px;
+}
+
+.faction-detail-skeleton > span:last-child {
+  height: 260px;
+  margin-top: 24px;
+}
+
 .app-shell--large-type .settings-section {
   grid-template-columns: minmax(0, 1fr);
 }
@@ -3022,6 +3673,38 @@ a.mission-row:hover {
 .app-shell--large-type .blueprint-row {
   grid-template-columns: minmax(170px, 1fr) 80px 74px 110px;
   gap: 6px;
+}
+
+.app-shell--large-type .faction-workspace {
+  grid-template-columns: minmax(460px, 0.9fr) minmax(460px, 1.1fr);
+}
+
+.app-shell--large-type .faction-directory__heading {
+  align-items: stretch;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.app-shell--large-type .faction-directory__status {
+  align-self: flex-start;
+  justify-items: start;
+}
+
+.app-shell--large-type .faction-list__header,
+.app-shell--large-type .faction-row {
+  grid-template-columns: minmax(175px, 1fr) 86px 120px;
+}
+
+.app-shell--large-type .faction-facts {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.app-shell--large-type .faction-facts > div:nth-child(2) {
+  border-right: 0;
+}
+
+.app-shell--large-type .faction-facts > div:nth-child(-n + 2) {
+  border-bottom: 1px solid var(--edge);
 }
 
 @keyframes blueprint-skeleton-pulse {
@@ -3444,6 +4127,35 @@ a.mission-row:hover {
   .blueprint-row {
     grid-template-columns: minmax(105px, 1fr) 64px 56px 64px;
     gap: 5px;
+  }
+
+  .faction-workspace {
+    grid-template-columns: minmax(335px, 0.68fr) minmax(0, 1.32fr);
+  }
+
+  .faction-directory,
+  .faction-detail__header,
+  .faction-detail__body {
+    padding-right: 18px;
+    padding-left: 18px;
+  }
+
+  .faction-list__header,
+  .faction-row {
+    grid-template-columns: minmax(125px, 1fr) 70px 84px;
+    gap: 6px;
+  }
+
+  .faction-facts {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .faction-facts > div:nth-child(2) {
+    border-right: 0;
+  }
+
+  .faction-facts > div:nth-child(-n + 2) {
+    border-bottom: 1px solid var(--edge);
   }
 
   .settings-workspace {

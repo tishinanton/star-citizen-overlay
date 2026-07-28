@@ -6,9 +6,10 @@ product
 
 ## Users
 
-Star Citizen players who mine or plan crafting while using Windows. They need
-to identify promising rocks quickly, compare crafting requirements, and find
-the missions that unlock a desired blueprint without searching several tools.
+Star Citizen players who mine, plan crafting, or compare faction progression
+while using Windows. They need to identify promising rocks quickly, inspect
+crafting requirements, find blueprint unlock missions, and compare reputation
+rank thresholds without searching several tools.
 
 ## Product Purpose
 
@@ -18,13 +19,15 @@ and see each material's base signature alongside signatures for multi-rock
 clusters. A second workspace lets users browse blueprint outputs, inspect
 crafting inputs, identify unlock missions, and distinguish owned blueprints
 from known obtainable blueprints. Local game-log receipts update the collection
-automatically, while manual marks cover incomplete or ambiguous history. Users
-can control overlay visibility and presentation from the app or with global
-keyboard shortcuts.
+automatically, while manual marks cover incomplete or ambiguous history. A
+faction directory exposes the reputation tracks, named standings, thresholds,
+drift, perks, and gates shipped in the selected game build. Users can control
+overlay visibility and presentation from the app or with global keyboard
+shortcuts.
 
-Success means the relevant signature or crafting path can be recognized at a
-glance, configured without friction, and consulted without interfering with
-game input.
+Success means the relevant signature, crafting path, or reputation requirement
+can be recognized at a glance, configured without friction, and consulted
+without interfering with game input.
 
 ## Brand Personality
 

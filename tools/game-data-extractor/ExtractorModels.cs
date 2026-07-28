@@ -71,9 +71,47 @@ internal sealed record GameBlueprintMission(
     double? Chance,
     string? WebUrl);
 
+internal sealed record FactionExtractorPayload(
+    int SchemaVersion,
+    string GameVersion,
+    IReadOnlyList<GameFactionRecord> Factions,
+    IReadOnlyList<string> Warnings);
+
+internal sealed record GameFactionRecord(
+    string Id,
+    string Key,
+    string Name,
+    string? Description,
+    string Alignment,
+    bool IsNpc,
+    bool Hidden,
+    string? Headquarters,
+    string? Focus,
+    int ScopeCount,
+    int StandingCount,
+    IReadOnlyList<GameReputationScope> Scopes);
+
+internal sealed record GameReputationScope(
+    string Id,
+    string Name,
+    string? Description,
+    double InitialReputation,
+    double ReputationCeiling,
+    IReadOnlyList<GameReputationStanding> Standings);
+
+internal sealed record GameReputationStanding(
+    string Id,
+    string Name,
+    double MinReputation,
+    double DriftReputation,
+    double DriftTimeHours,
+    bool Gated,
+    string? PerkDescription);
+
 [JsonSourceGenerationOptions(
     PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase,
     WriteIndented = false)]
 [JsonSerializable(typeof(SignatureExtractorPayload))]
 [JsonSerializable(typeof(BlueprintExtractorPayload))]
+[JsonSerializable(typeof(FactionExtractorPayload))]
 internal sealed partial class ExtractorJsonContext : JsonSerializerContext;

@@ -2,7 +2,7 @@
 
 Rockfall is a Windows desktop field companion for Star Citizen. It combines a
 web-based control console with a transparent, click-through, always-on-top
-mining overlay and a blueprint reference workspace.
+mining overlay, blueprint reference workspace, and faction reputation directory.
 
 The first workflow lets a player select up to four mining targets and see:
 
@@ -28,6 +28,11 @@ and blueprint reward chance, with a link to the full community Wiki record.
 Collection filters separate blueprints confirmed as owned from mission-mapped
 blueprints that remain obtainable.
 
+The **Factions** tab lists every player-facing reputation entity in the selected
+game build. Search and alignment filters narrow the roster, while the detail
+pane shows each linked reputation track, named standing, minimum reputation
+threshold, drift behavior, perk text, and gate flag.
+
 ## Current data sources
 
 Rockfall reads base signatures from the installed Star Citizen `Data.p4k`.
@@ -35,9 +40,10 @@ It automatically detects common LIVE/PTU installation paths, or **Game files**
 can select a custom archive. A bundled read-only extractor opens
 `Data\Game2.dcb` and reads current mineable signatures, crafting blueprints,
 output items, resource requirements, reward pools, mission contracts, contract
-providers, mission categories, reputation gates, and availability systems. It
-also resolves names through `Data\Localization\english\global.ini`. The
-extractor does not modify game files or interact with the running game.
+providers, mission categories, faction profiles, reputation scopes, standing
+thresholds, drift, gates, and availability systems. It also resolves names
+through `Data\Localization\english\global.ini`. The extractor does not modify
+game files or interact with the running game.
 
 The community-maintained [Star Citizen Wiki API](https://api.star-citizen.wiki/)
 still supplies commodity names and mining-quality distributions. Extracted
@@ -90,16 +96,16 @@ Complete endpoint inventories:
 
 ## Controls
 
-The control window has dedicated **Mining** and **Blueprints** tabs. Mining
-supports material search and mining-method filters, overlay position, opacity,
-font size, cluster range, compact mode, visibility, game-data selection, and
-data refresh. Each material row also exposes a contextual signature correction
-editor; cluster values recalculate from the corrected base immediately. Font
-size ranges from 80% to 160%; the native overlay resizes with the readout so
-larger text remains fully visible. Changes are persisted in Electron's per-user
-application data directory. Selected ores stay pinned above filtered results,
-**Sites** opens the ranked mining-location flyout, and **Clear overlay** removes
-every target at once.
+The control window has dedicated **Mining**, **Blueprints**, **Factions**, and
+**Settings** tabs. Mining supports material search and mining-method filters,
+overlay position, opacity, font size, cluster range, compact mode, visibility,
+game-data selection, and data refresh. Each material row also exposes a
+contextual signature correction editor; cluster values recalculate from the
+corrected base immediately. Font size ranges from 80% to 160%; the native
+overlay resizes with the readout so larger text remains fully visible. Changes
+are persisted in Electron's per-user application data directory. Selected ores
+stay pinned above filtered results, **Sites** opens the ranked mining-location
+flyout, and **Clear overlay** removes every target at once.
 
 Blueprint controls keep every item category visible in a wrapping filter row,
 alongside independent Collection and Access filters. **Owned** shows default,
@@ -107,6 +113,11 @@ log-confirmed, and manually marked blueprints; **Obtainable** shows unowned
 mission-mapped blueprints. **Logs** performs a full history rescan. The detail
 pane identifies the ownership source and exposes **Mark owned** or **Clear
 manual mark** when a manual correction is applicable.
+
+Faction controls search names, profile text, reputation tracks, and rank names,
+with lawful and unlawful roster filters. Arrow keys move through the faction
+list, and the detail pane keeps every named standing requirement in aligned,
+scrollable tables.
 
 The **Settings** workspace exposes cloud connection state, manual sync, Discord
 sign-in and sign-out, and the Rockfall Cloud API URL. Enter the service root,

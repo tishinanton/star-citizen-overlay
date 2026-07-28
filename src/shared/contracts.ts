@@ -61,7 +61,8 @@ export interface MiningLocationResult {
   updatedAt: string
 }
 
-export type BlueprintSourceState = 'game' | 'cached'
+export type LocalGameDataState = 'game' | 'cached'
+export type BlueprintSourceState = LocalGameDataState
 export type BlueprintIngredientKind = 'resource' | 'item' | 'unknown'
 
 export interface BlueprintIngredient {
@@ -160,6 +161,51 @@ export interface BlueprintOwnershipSnapshot {
   earliestLogAt: string | null
   lastScanAt: string | null
   unresolvedReceiptNames: string[]
+}
+
+export type FactionSourceState = LocalGameDataState
+export type FactionAlignment = 'lawful' | 'unlawful' | 'unknown'
+
+export interface FactionReputationStanding {
+  id: string
+  name: string
+  minReputation: number
+  driftReputation: number
+  driftTimeHours: number
+  gated: boolean
+  perkDescription: string | null
+}
+
+export interface FactionReputationScope {
+  id: string
+  name: string
+  description: string | null
+  initialReputation: number
+  reputationCeiling: number
+  standings: FactionReputationStanding[]
+}
+
+export interface FactionReputation {
+  id: string
+  key: string
+  name: string
+  description: string | null
+  alignment: FactionAlignment
+  isNpc: boolean
+  hidden: boolean
+  headquarters: string | null
+  focus: string | null
+  scopeCount: number
+  standingCount: number
+  scopes: FactionReputationScope[]
+}
+
+export interface FactionCatalogResult {
+  factions: FactionReputation[]
+  gameVersion: string
+  state: FactionSourceState
+  message: string
+  updatedAt: string
 }
 
 export type BestMiningLocationState =
@@ -303,6 +349,7 @@ export interface RockfallApi {
   getBlueprintOwnership: () => Promise<BlueprintOwnershipSnapshot>
   rescanBlueprintOwnership: () => Promise<BlueprintOwnershipSnapshot>
   setBlueprintOwned: (blueprintId: string, owned: boolean) => Promise<BlueprintOwnershipSnapshot>
+  getFactionCatalog: (refresh?: boolean) => Promise<FactionCatalogResult>
   setShortcutCapture: (active: boolean) => Promise<AppSnapshot>
   beginCloudLogin: () => Promise<CloudSyncState>
   completeCloudLogin: (handoffCode: string) => Promise<CloudSyncState>
@@ -329,6 +376,7 @@ export const IPC_CHANNELS = {
   rescanBlueprintOwnership: 'rockfall:blueprints:ownership:rescan',
   setBlueprintOwned: 'rockfall:blueprints:ownership:set',
   blueprintOwnershipChanged: 'rockfall:blueprints:ownership:changed',
+  getFactionCatalog: 'rockfall:factions:get',
   setShortcutCapture: 'rockfall:shortcuts:capture',
   beginCloudLogin: 'rockfall:cloud:login',
   completeCloudLogin: 'rockfall:cloud:login:complete',

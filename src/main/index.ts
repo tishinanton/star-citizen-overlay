@@ -28,6 +28,7 @@ import {
   type BlueprintDetailResult,
   type BlueprintOwnershipSnapshot,
   type CloudSyncState,
+  type FactionCatalogResult,
   type GameDataSelectionResult,
   type MiningDataStatus,
   type MiningLocationResult,
@@ -48,6 +49,7 @@ import { AppUpdaterController, createUpdaterClient } from './app-updater'
 import { loadBlueprintData, type BlueprintDataResult } from './blueprint-data'
 import { BlueprintOwnershipService } from './blueprint-ownership'
 import { CloudSyncController } from './cloud-sync'
+import { loadFactionData } from './faction-data'
 import {
   loadGameDataPreference,
   resolveGameDataArchive,
@@ -148,6 +150,7 @@ let settingsPath = ''
 let cachePath = ''
 let locationCachePath = ''
 let blueprintCatalogCachePath = ''
+let factionCatalogCachePath = ''
 let blueprintOwnershipPath = ''
 let cloudStatePath = ''
 let gameDataPreferencePath = ''
@@ -169,6 +172,12 @@ let blueprintDataGeneration = 0
 let pendingBlueprintData: {
   generation: number
   request: Promise<BlueprintDataResult>
+} | null = null
+let factionDataResult: FactionCatalogResult | null = null
+let factionDataGeneration = 0
+let pendingFactionData: {
+  generation: number
+  request: Promise<FactionCatalogResult>
 } | null = null
 let blueprintOwnershipService: BlueprintOwnershipService | null = null
 let cloudSyncController: CloudSyncController | null = null
@@ -482,6 +491,8 @@ async function chooseGameData(): Promise<GameDataSelectionResult> {
   gameDataArchive = archive
   blueprintDataGeneration += 1
   blueprintDataResult = null
+  factionDataGeneration += 1
+  factionDataResult = null
   const ownershipService = blueprintOwnershipService
   if (ownershipService) {
     runInBackground(
@@ -625,6 +636,34 @@ async function getBlueprintCatalog(refresh: unknown = false): Promise<BlueprintC
     return result.catalog
   } finally {
     if (pendingBlueprintData === pending) pendingBlueprintData = null
+  }
+}
+
+async function getFactionCatalog(refresh: unknown = false): Promise<FactionCatalogResult> {
+  if (typeof refresh !== 'boolean') {
+    throw new TypeError('Faction refresh state must be a boolean.')
+  }
+  const generation = factionDataGeneration
+  if (pendingFactionData?.generation === generation) {
+    return pendingFactionData.request
+  }
+  if (!refresh && factionDataResult) return factionDataResult
+
+  const request = loadFactionData({
+    cachePath: factionCatalogCachePath,
+    extractorPath,
+    gameDataArchive,
+    forceRefresh: refresh,
+    shouldWriteCache: () => generation === factionDataGeneration
+  })
+  const pending = { generation, request }
+  pendingFactionData = pending
+  try {
+    const result = await request
+    if (generation === factionDataGeneration) factionDataResult = result
+    return result
+  } finally {
+    if (pendingFactionData === pending) pendingFactionData = null
   }
 }
 
@@ -970,6 +1009,10 @@ function registerIpcHandlers(): void {
     assertControlWindowSender(event)
     return getBlueprintDetail(blueprintId)
   })
+  ipcMain.handle(IPC_CHANNELS.getFactionCatalog, (event, refresh: unknown) => {
+    assertControlWindowSender(event)
+    return getFactionCatalog(refresh)
+  })
   ipcMain.handle(IPC_CHANNELS.getBlueprintOwnership, (event) => {
     assertControlWindowSender(event)
     return getBlueprintOwnership()
@@ -1079,6 +1122,7 @@ if (!hasSingleInstanceLock) {
     cachePath = join(app.getPath('userData'), 'mining-signatures.json')
     locationCachePath = join(app.getPath('userData'), 'mining-locations.json')
     blueprintCatalogCachePath = join(app.getPath('userData'), 'blueprints.json')
+    factionCatalogCachePath = join(app.getPath('userData'), 'factions.json')
     blueprintOwnershipPath = join(app.getPath('userData'), 'blueprint-ownership.json')
     cloudStatePath = join(app.getPath('userData'), 'cloud-state.json')
     gameDataPreferencePath = join(app.getPath('userData'), 'game-data.json')

@@ -249,9 +249,9 @@ where those states apply.
 ### Navigation
 
 - **Style:** A compact tab rail beneath the persistent header switches between
-  Mining and Blueprints. The active task uses a two-pixel Scanner Cyan
-  indicator; inactive tasks remain neutral. Overlay controls stay available in
-  the header across both workspaces.
+  Mining, Blueprints, Factions, and Settings. The active task uses a two-pixel
+  Scanner Cyan indicator; inactive tasks remain neutral. Overlay controls stay
+  available in the header across every workspace.
 
 ### Signature Board
 
@@ -284,6 +284,20 @@ where those states apply.
   boundaries, tabular quantities, and no ornamental blueprint cards. A packaged
   64×64 loadout icon appears when the output entity provides one; the equipment
   glyph remains the explicit fallback.
+
+### Faction Directory
+
+- **Structure:** Search and alignment filters sit above a dense faction roster,
+  paired with a persistent detail pane containing profile metadata and one
+  requirements table per linked reputation track.
+- **Behavior:** Opening the workspace extracts or restores an
+  archive-fingerprinted local catalog. Arrow keys move through the roster.
+  Named standings expose their minimum reputation, drift cadence, perks, and
+  gate flag without presenting the user's live reputation as local data.
+- **Surface:** Flat split panes reuse the blueprint workbench's row density and
+  source states. Rank thresholds use tabular numerals, track tables remain
+  horizontally readable at large text sizes, and alignment is always labeled
+  rather than communicated by color alone.
 
 ## 6. Do's and Don'ts
 

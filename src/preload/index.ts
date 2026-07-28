@@ -27,6 +27,8 @@ const rockfallApi: RockfallApi = {
   rescanBlueprintOwnership: () => ipcRenderer.invoke(IPC_CHANNELS.rescanBlueprintOwnership),
   setBlueprintOwned: (blueprintId: string, owned: boolean) =>
     ipcRenderer.invoke(IPC_CHANNELS.setBlueprintOwned, blueprintId, owned),
+  getFactionCatalog: (refresh = false) =>
+    ipcRenderer.invoke(IPC_CHANNELS.getFactionCatalog, refresh),
   setShortcutCapture: (active: boolean) =>
     ipcRenderer.invoke(IPC_CHANNELS.setShortcutCapture, active),
   beginCloudLogin: () => ipcRenderer.invoke(IPC_CHANNELS.beginCloudLogin),

@@ -6,7 +6,7 @@ using unforge;
 if (args.Length is < 1 or > 2)
 {
     Console.Error.WriteLine(
-        "Usage: Rockfall.GameDataExtractor <Data.p4k|Game2.dcb> [signatures|blueprints]");
+        "Usage: Rockfall.GameDataExtractor <Data.p4k|Game2.dcb> [signatures|blueprints|factions]");
     return 2;
 }
 
@@ -17,15 +17,15 @@ if (!File.Exists(inputPath))
     Console.Error.WriteLine($"Game data file does not exist: {inputPath}");
     return 2;
 }
-if (mode is not ("signatures" or "blueprints"))
+if (mode is not ("signatures" or "blueprints" or "factions"))
 {
     Console.Error.WriteLine($"Unsupported extraction mode: {mode}");
     return 2;
 }
-if (mode == "blueprints"
+if (mode is "blueprints" or "factions"
     && !Path.GetExtension(inputPath).Equals(".p4k", StringComparison.OrdinalIgnoreCase))
 {
-    Console.Error.WriteLine("Blueprint extraction requires the Star Citizen Data.p4k archive.");
+    Console.Error.WriteLine($"{mode} extraction requires the Star Citizen Data.p4k archive.");
     return 2;
 }
 
@@ -42,7 +42,13 @@ try
 
     using var stream = File.OpenRead(temporaryDcbPath ?? inputPath);
     using var dataForge = new DataForge(stream);
-    if (mode == "blueprints")
+    if (mode == "factions")
+    {
+        var payload = FactionExtractor.Extract(inputPath, dataForge);
+        Console.WriteLine(
+            JsonSerializer.Serialize(payload, ExtractorJsonContext.Default.FactionExtractorPayload));
+    }
+    else if (mode == "blueprints")
     {
         var payload = BlueprintExtractor.Extract(inputPath, dataForge);
         Console.WriteLine(

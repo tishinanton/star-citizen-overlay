@@ -15,6 +15,7 @@ import {
   RotateCcw,
   Search,
   Settings as SettingsIcon,
+  Shield,
   SlidersHorizontal,
   Target,
   X,
@@ -41,13 +42,14 @@ import { useRockfall } from '../hooks/useRockfall'
 import { getAccelerator } from '../lib/shortcut-accelerator'
 import { pinSelectedMaterials } from '../lib/material-order'
 import BlueprintBrowser from './BlueprintBrowser'
+import FactionBrowser from './FactionBrowser'
 import MiningLocationFlyout from './MiningLocationFlyout'
 import SettingsPage from './SettingsPage'
 import SignatureBoard from './SignatureBoard'
 import SignatureOverrideEditor from './SignatureOverrideEditor'
 
 type MaterialFilter = 'All' | Exclude<MiningMethod, 'Unclassified'>
-type AppTab = 'mining' | 'blueprints' | 'settings'
+type AppTab = 'mining' | 'blueprints' | 'factions' | 'settings'
 
 interface LocationLoadState {
   loading: boolean
@@ -61,7 +63,7 @@ interface LocationFlyoutTarget {
 }
 
 const FILTERS: MaterialFilter[] = ['All', 'Ship', 'Ground Vehicle', 'FPS']
-const APP_TABS: AppTab[] = ['mining', 'blueprints', 'settings']
+const APP_TABS: AppTab[] = ['mining', 'blueprints', 'factions', 'settings']
 const PLACEMENTS: Array<{ value: OverlayPlacement; label: string }> = [
   { value: 'top-right', label: 'Top right' },
   { value: 'top-left', label: 'Top left' },
@@ -353,6 +355,19 @@ export default function ControlApp(): React.JSX.Element {
           >
             <BookOpen size={15} />
             Blueprints
+          </button>
+          <button
+            id="tab-factions"
+            type="button"
+            role="tab"
+            aria-selected={activeTab === 'factions'}
+            aria-controls="panel-factions"
+            tabIndex={activeTab === 'factions' ? 0 : -1}
+            onClick={() => activateTab('factions')}
+            onKeyDown={(event) => handleTabKeyDown('factions', event)}
+          >
+            <Shield size={15} />
+            Factions
           </button>
           <button
             id="tab-settings"
@@ -773,6 +788,7 @@ export default function ControlApp(): React.JSX.Element {
         </aside>
       </main>
       {activeTab === 'blueprints' && <BlueprintBrowser />}
+      {activeTab === 'factions' && <FactionBrowser />}
       {activeTab === 'settings' && (
         <SettingsPage
           fontSize={settings.appFontSize}
@@ -796,7 +812,9 @@ export default function ControlApp(): React.JSX.Element {
             ? 'Installed game files provide signatures; Star Citizen Wiki provides mining metadata.'
             : activeTab === 'blueprints'
               ? 'Blueprint recipes, item names, icons, and unlock missions come from installed game files.'
-              : 'Interface text uses your saved size across Rockfall windows.'}
+              : activeTab === 'factions'
+                ? 'Faction profiles, reputation tracks, rank thresholds, drift, and gates come from installed game files.'
+                : 'Interface text uses your saved size across Rockfall windows.'}
         </span>
         {activeTab === 'mining' ? (
           <a href="https://api.star-citizen.wiki/" target="_blank" rel="noreferrer">
@@ -804,7 +822,9 @@ export default function ControlApp(): React.JSX.Element {
           </a>
         ) : (
           <span className="app-footer__source">
-            {activeTab === 'blueprints' ? 'Local game data' : 'Saved automatically'}
+            {activeTab === 'blueprints' || activeTab === 'factions'
+              ? 'Local game data'
+              : 'Saved automatically'}
           </span>
         )}
       </footer>

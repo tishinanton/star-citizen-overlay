@@ -546,12 +546,16 @@ Contains:
 - operation ID;
 - profile channel, account ID, and optional handle;
 - blueprint ID and blueprint key;
+- `blueprintKeyIsUnique`, computed from the current local catalog;
 - `owned` boolean;
 - client change timestamp.
 
 Merge rules:
 
 - only explicit user actions create this operation;
+- blueprint ID matching is always primary; blueprint-key fallback is allowed only
+  when `blueprintKeyIsUnique` is true;
+- missing `blueprintKeyIsUnique` values from older clients are treated as false;
 - operations are applied in server arrival order;
 - the last accepted operation sets `IsOwned`;
 - client timestamps are retained for display or diagnostics but never decide
@@ -836,6 +840,7 @@ Request:
       "manual": {
         "blueprintId": "duplicate-a",
         "blueprintKey": "duplicate-key-a",
+        "blueprintKeyIsUnique": true,
         "owned": true,
         "changedAt": "2026-07-27T16:51:00Z"
       }

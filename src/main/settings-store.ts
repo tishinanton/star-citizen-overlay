@@ -22,8 +22,9 @@ import {
   type SignatureOverrides,
   type ShortcutId
 } from '../shared/contracts'
+import { DEFAULT_CLOUD_API_URL, normalizeCloudApiUrl } from './cloud-url'
 
-export const SETTINGS_VERSION = 7
+export const SETTINGS_VERSION = 8
 
 export const DEFAULT_SETTINGS: OverlaySettings = {
   selectedMaterialIds: ['agricium-ore', 'laranite-raw', 'riccite-ore'],
@@ -37,7 +38,8 @@ export const DEFAULT_SETTINGS: OverlaySettings = {
   placement: 'top-right',
   customPosition: null,
   spotlightMaterialId: null,
-  shortcuts: { ...DEFAULT_SHORTCUTS }
+  shortcuts: { ...DEFAULT_SHORTCUTS },
+  cloudApiUrl: DEFAULT_CLOUD_API_URL
 }
 
 const PLACEMENTS: OverlayPlacement[] = ['top-left', 'top-right', 'bottom-left', 'bottom-right']
@@ -191,6 +193,8 @@ export function normalizeSettings(
     fallback.signatureOverrides
   )
   const shortcuts = normalizeShortcuts(value.shortcuts, fallback.shortcuts)
+  const cloudApiUrl =
+    value.cloudApiUrl === undefined ? fallback.cloudApiUrl : normalizeCloudApiUrl(value.cloudApiUrl)
 
   return {
     selectedMaterialIds,
@@ -204,7 +208,8 @@ export function normalizeSettings(
     placement: isPlacement(value.placement) ? value.placement : fallback.placement,
     customPosition,
     spotlightMaterialId,
-    shortcuts
+    shortcuts,
+    cloudApiUrl
   }
 }
 

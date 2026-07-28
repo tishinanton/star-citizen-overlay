@@ -1,5 +1,9 @@
 appId: space.rockfall.overlay
 productName: Rockfall
+protocols:
+  - name: Rockfall Discord authentication
+    schemes:
+      - rockfall
 directories:
   buildResources: build
 files:

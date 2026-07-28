@@ -6,12 +6,14 @@ import {
   ipcMain,
   Menu,
   nativeTheme,
+  safeStorage,
   screen,
   shell,
   Tray,
   type IpcMainInvokeEvent
 } from 'electron'
-import { join } from 'node:path'
+import { hostname } from 'node:os'
+import { join, resolve } from 'node:path'
 
 import { electronApp, is, optimizer } from '@electron-toolkit/utils'
 import { autoUpdater } from 'electron-updater'
@@ -25,6 +27,7 @@ import {
   type BlueprintCatalogResult,
   type BlueprintDetailResult,
   type BlueprintOwnershipSnapshot,
+  type CloudSyncState,
   type GameDataSelectionResult,
   type MiningDataStatus,
   type MiningLocationResult,
@@ -44,6 +47,7 @@ import {
 import { AppUpdaterController, createUpdaterClient } from './app-updater'
 import { loadBlueprintData, type BlueprintDataResult } from './blueprint-data'
 import { BlueprintOwnershipService } from './blueprint-ownership'
+import { CloudSyncController } from './cloud-sync'
 import {
   loadGameDataPreference,
   resolveGameDataArchive,
@@ -56,6 +60,14 @@ import { loadMiningLocations } from './mining-locations'
 import { DEFAULT_SETTINGS, loadSettings, mergeSettings, saveSettings } from './settings-store'
 
 const SCREEN_MARGIN = 24
+const ROCKFALL_PROTOCOL = 'rockfall'
+
+if (process.defaultApp && process.argv[1]) {
+  app.setAsDefaultProtocolClient(ROCKFALL_PROTOCOL, process.execPath, [resolve(process.argv[1])])
+} else {
+  app.setAsDefaultProtocolClient(ROCKFALL_PROTOCOL)
+}
+
 const hasSingleInstanceLock = app.requestSingleInstanceLock()
 
 const SHORTCUT_DEFINITIONS: Array<
@@ -119,6 +131,17 @@ let appUpdate: AppUpdateState = {
   downloadProgress: null,
   message: 'Update checks are available in installed builds.'
 }
+let cloudSync: CloudSyncState = {
+  status: 'signed-out',
+  user: null,
+  message: 'Sign in with Discord to synchronize blueprint ownership.',
+  lastSyncedAt: null,
+  pendingOperationCount: 0,
+  quarantinedOperationCount: 0,
+  blockedProfileCount: 0,
+  loginExpiresAt: null,
+  refreshTokenPersistent: false
+}
 let shortcutStatuses: ShortcutStatus[] = []
 let warning: string | null = null
 let settingsPath = ''
@@ -126,6 +149,7 @@ let cachePath = ''
 let locationCachePath = ''
 let blueprintCatalogCachePath = ''
 let blueprintOwnershipPath = ''
+let cloudStatePath = ''
 let gameDataPreferencePath = ''
 let gameDataArchive: GameDataArchive | null = null
 let extractorPath = ''
@@ -147,6 +171,9 @@ let pendingBlueprintData: {
   request: Promise<BlueprintDataResult>
 } | null = null
 let blueprintOwnershipService: BlueprintOwnershipService | null = null
+let cloudSyncController: CloudSyncController | null = null
+let suppressCloudOwnershipCapture = false
+const pendingProtocolUrls = process.argv.filter((argument) => argument.startsWith('rockfall://'))
 
 function getSnapshot(): AppSnapshot {
   return {
@@ -156,6 +183,7 @@ function getSnapshot(): AppSnapshot {
     dataStatus,
     shortcuts: shortcutStatuses,
     appUpdate,
+    cloud: cloudSync,
     warning
   }
 }
@@ -176,7 +204,20 @@ function broadcastBlueprintOwnership(): void {
   if (controlWindow && !controlWindow.isDestroyed()) {
     controlWindow.webContents.send(
       IPC_CHANNELS.blueprintOwnershipChanged,
-      blueprintOwnershipService.getSnapshot(blueprintDataResult.catalog.blueprints)
+      blueprintOwnershipService.getSnapshot(
+        blueprintDataResult.catalog.blueprints,
+        cloudSyncController?.getOwnershipLayer() ?? null
+      )
+    )
+  }
+}
+
+function handleBlueprintOwnershipChange(): void {
+  broadcastBlueprintOwnership()
+  if (!suppressCloudOwnershipCapture && cloudSyncController) {
+    runInBackground(
+      'Cloud ownership changes could not be queued',
+      cloudSyncController.captureLocalChanges()
     )
   }
 }
@@ -351,12 +392,16 @@ async function saveDraggedOverlayPosition(position: OverlayPosition): Promise<vo
 async function updateSettings(patch: OverlaySettingsPatch): Promise<AppSnapshot> {
   const shortcutsChanged = patch.shortcuts !== undefined
   const next = mergeSettings(settings, patch)
+  const cloudApiChanged = next.cloudApiUrl !== settings.cloudApiUrl
   if (getOverlayLayoutKey(next) !== getOverlayLayoutKey(settings)) {
     measuredOverlayMetrics = null
   }
   await saveSettings(settingsPath, next)
   settings = next
   warning = null
+  if (cloudApiChanged && cloudSyncController) {
+    cloudSync = await cloudSyncController.changeApiUrl(next.cloudApiUrl)
+  }
   if (shortcutsChanged && !shortcutCaptureActive) {
     shortcutStatuses = registerShortcuts()
   }
@@ -570,6 +615,12 @@ async function getBlueprintCatalog(refresh: unknown = false): Promise<BlueprintC
     if (generation === blueprintDataGeneration) {
       blueprintDataResult = result
       broadcastBlueprintOwnership()
+      if (cloudSyncController) {
+        runInBackground(
+          'Local blueprint ownership could not be queued for cloud sync',
+          cloudSyncController.captureLocalChanges()
+        )
+      }
     }
     return result.catalog
   } finally {
@@ -583,7 +634,10 @@ async function getBlueprintOwnership(): Promise<BlueprintOwnershipSnapshot> {
   if (!blueprintDataResult) await getBlueprintCatalog()
   const data = blueprintDataResult
   if (!data) throw new Error('Blueprint catalog data is unavailable.')
-  return service.getSnapshot(data.catalog.blueprints)
+  return service.getSnapshot(
+    data.catalog.blueprints,
+    cloudSyncController?.getOwnershipLayer() ?? null
+  )
 }
 
 async function rescanBlueprintOwnership(): Promise<BlueprintOwnershipSnapshot> {
@@ -619,8 +673,32 @@ async function setBlueprintOwned(
     throw new Error('Only manually marked blueprint ownership can be cleared.')
   }
 
-  await service.setManualOwned(blueprint, owned)
-  return service.getSnapshot(data.catalog.blueprints)
+  const cloudController = cloudSyncController
+  const keyIsUnique =
+    data.catalog.blueprints.filter((candidate) => candidate.key === blueprint.key).length === 1
+  suppressCloudOwnershipCapture = true
+  try {
+    await service.setManualOwned(
+      blueprint,
+      owned,
+      cloudController
+        ? (identity) =>
+            cloudController
+              .recordManualChange(identity, {
+                blueprintId: blueprint.id,
+                blueprintKey: blueprint.key,
+                owned,
+                keyIsUnique
+              })
+              .then(() => undefined)
+        : undefined,
+      keyIsUnique
+    )
+  } finally {
+    suppressCloudOwnershipCapture = false
+  }
+  if (cloudController) await cloudController.syncNow()
+  return getBlueprintOwnership()
 }
 
 async function getBlueprintDetail(blueprintId: unknown): Promise<BlueprintDetailResult> {
@@ -679,6 +757,20 @@ function showControlWindow(): void {
   if (controlWindow.isMinimized()) controlWindow.restore()
   controlWindow.show()
   controlWindow.focus()
+}
+
+function handleProtocolUrl(value: string): void {
+  if (!value.startsWith('rockfall://')) return
+  if (!cloudSyncController || !appInitialized) {
+    pendingProtocolUrls.push(value)
+    return
+  }
+  showControlWindow()
+  const controller = cloudSyncController
+  runInBackground(
+    'Discord sign-in could not be completed',
+    Promise.resolve().then(() => controller.handleLoginUrl(value))
+  )
 }
 
 function runWithQuitIntent(action: () => void): void {
@@ -896,6 +988,58 @@ function registerIpcHandlers(): void {
     }
     return setShortcutCapture(active)
   })
+  ipcMain.handle(IPC_CHANNELS.beginCloudLogin, (event) => {
+    assertControlWindowSender(event)
+    if (!cloudSyncController) throw new Error('Cloud sync is not initialized.')
+    return cloudSyncController.beginLogin()
+  })
+  ipcMain.handle(IPC_CHANNELS.completeCloudLogin, (event, handoffCode: unknown) => {
+    assertControlWindowSender(event)
+    if (!cloudSyncController) throw new Error('Cloud sync is not initialized.')
+    if (
+      typeof handoffCode !== 'string' ||
+      handoffCode.trim().length === 0 ||
+      handoffCode.length > 2_000
+    ) {
+      throw new TypeError('A valid Discord handoff code is required.')
+    }
+    return cloudSyncController.completeLoginCode(handoffCode)
+  })
+  ipcMain.handle(IPC_CHANNELS.cancelCloudLogin, (event) => {
+    assertControlWindowSender(event)
+    if (!cloudSyncController) throw new Error('Cloud sync is not initialized.')
+    return cloudSyncController.cancelLogin()
+  })
+  ipcMain.handle(IPC_CHANNELS.syncCloud, (event) => {
+    assertControlWindowSender(event)
+    if (!cloudSyncController) throw new Error('Cloud sync is not initialized.')
+    return cloudSyncController.syncNow()
+  })
+  ipcMain.handle(IPC_CHANNELS.confirmCloudProfileImport, async (event) => {
+    assertControlWindowSender(event)
+    if (!cloudSyncController || !controlWindow) {
+      throw new Error('Cloud sync is not initialized.')
+    }
+    const confirmation = await dialog.showMessageBox(controlWindow, {
+      type: 'warning',
+      title: 'Import local ownership',
+      message: 'Import profiles linked to another Discord account?',
+      detail:
+        'This uploads the selected local Star Citizen ownership profiles to the currently signed-in Discord account.',
+      buttons: ['Cancel', 'Import profiles'],
+      defaultId: 0,
+      cancelId: 0,
+      noLink: true
+    })
+    return confirmation.response === 1
+      ? cloudSyncController.confirmProfileImport()
+      : cloudSyncController.getSnapshot()
+  })
+  ipcMain.handle(IPC_CHANNELS.logoutCloud, (event) => {
+    assertControlWindowSender(event)
+    if (!cloudSyncController) throw new Error('Cloud sync is not initialized.')
+    return cloudSyncController.logout()
+  })
   ipcMain.handle(IPC_CHANNELS.checkForUpdates, async (event) => {
     assertControlWindowSender(event)
     if (!appUpdater) throw new Error('The application updater is not initialized.')
@@ -910,10 +1054,17 @@ function registerIpcHandlers(): void {
   })
 }
 
+app.on('open-url', (event, url) => {
+  event.preventDefault()
+  handleProtocolUrl(url)
+})
+
 if (!hasSingleInstanceLock) {
   app.quit()
 } else {
-  app.on('second-instance', () => {
+  app.on('second-instance', (_event, commandLine) => {
+    const protocolUrl = commandLine.find((argument) => argument.startsWith('rockfall://'))
+    if (protocolUrl) handleProtocolUrl(protocolUrl)
     if (appInitialized) {
       showControlWindow()
     } else {
@@ -929,6 +1080,7 @@ if (!hasSingleInstanceLock) {
     locationCachePath = join(app.getPath('userData'), 'mining-locations.json')
     blueprintCatalogCachePath = join(app.getPath('userData'), 'blueprints.json')
     blueprintOwnershipPath = join(app.getPath('userData'), 'blueprint-ownership.json')
+    cloudStatePath = join(app.getPath('userData'), 'cloud-state.json')
     gameDataPreferencePath = join(app.getPath('userData'), 'game-data.json')
     extractorPath = app.isPackaged
       ? join(process.resourcesPath, 'game-data-extractor', 'Rockfall.GameDataExtractor.exe')
@@ -946,7 +1098,7 @@ if (!hasSingleInstanceLock) {
 
     blueprintOwnershipService = new BlueprintOwnershipService({
       storePath: blueprintOwnershipPath,
-      onChange: broadcastBlueprintOwnership
+      onChange: handleBlueprintOwnershipChange
     })
     const [loaded, gameDataPreference] = await Promise.all([
       loadSettings(settingsPath),
@@ -965,6 +1117,39 @@ if (!hasSingleInstanceLock) {
       [loaded.warning, gameDataPreference.warning, gameDataResolutionWarning]
         .filter(Boolean)
         .join(' ') || null
+    cloudSyncController = new CloudSyncController({
+      storePath: cloudStatePath,
+      apiUrl: settings.cloudApiUrl,
+      appVersion: app.getVersion(),
+      deviceName: hostname().trim().slice(0, 200) || 'Windows PC',
+      tokenProtector: {
+        isEncryptionAvailable: () => safeStorage.isEncryptionAvailable(),
+        encrypt: (value) => safeStorage.encryptString(value).toString('base64'),
+        decrypt: (value) => safeStorage.decryptString(Buffer.from(value, 'base64'))
+      },
+      getLocalProfiles: () => {
+        const ownershipService = blueprintOwnershipService
+        if (!ownershipService) return []
+        const catalog = blueprintDataResult?.catalog.blueprints
+        return ownershipService.getSyncProfiles(catalog, catalog !== undefined)
+      },
+      prepareLocalProfiles: async () => {
+        if (!blueprintDataResult) await getBlueprintCatalog()
+      },
+      isBlueprintKeyUnique: (blueprintKey) =>
+        blueprintDataResult?.catalog.blueprints.filter(
+          (blueprint) => blueprint.key === blueprintKey
+        ).length === 1,
+      getActiveProfile: () => blueprintOwnershipService?.getActiveProfileIdentity() ?? null,
+      openExternal: (url) => shell.openExternal(url),
+      onStateChange: (state) => {
+        cloudSync = state
+        broadcastSnapshot([controlWindow])
+      },
+      onOwnershipChange: broadcastBlueprintOwnership
+    })
+    await cloudSyncController.initialize()
+    cloudSync = cloudSyncController.getSnapshot()
     appUpdater = new AppUpdaterController(createUpdaterClient(autoUpdater), {
       enabled: app.isPackaged,
       currentVersion: app.getVersion(),
@@ -985,6 +1170,9 @@ if (!hasSingleInstanceLock) {
     overlayWindow = createOverlayWindow()
     dragHandleWindow = createDragHandleWindow()
     appInitialized = true
+    for (const protocolUrl of pendingProtocolUrls.splice(0)) {
+      handleProtocolUrl(protocolUrl)
+    }
     if (focusRequestedDuringStartup) {
       focusRequestedDuringStartup = false
       showControlWindow()
@@ -1016,6 +1204,7 @@ app.on('before-quit', () => {
 
 app.on('will-quit', () => {
   appUpdater?.stop()
+  cloudSyncController?.dispose()
   blueprintOwnershipService?.dispose()
   globalShortcut.unregisterAll()
   if (overlayPositionTimer) clearTimeout(overlayPositionTimer)

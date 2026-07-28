@@ -34,7 +34,8 @@ test('normalizes persisted settings and clamps opacity', () => {
       placement: 'bottom-left',
       customPosition: null,
       spotlightMaterialId: 'riccite-ore',
-      shortcuts: DEFAULT_SETTINGS.shortcuts
+      shortcuts: DEFAULT_SETTINGS.shortcuts,
+      cloudApiUrl: DEFAULT_SETTINGS.cloudApiUrl
     }
   )
 })
@@ -49,6 +50,24 @@ test('normalizes application font size to the supported range', () => {
   assert.equal(normalizeSettings({ ...DEFAULT_SETTINGS, appFontSize: 10 }).appFontSize, 14)
   assert.equal(normalizeSettings({ ...DEFAULT_SETTINGS, appFontSize: 16.6 }).appFontSize, 17)
   assert.equal(normalizeSettings({ ...DEFAULT_SETTINGS, appFontSize: 24 }).appFontSize, 20)
+})
+
+test('normalizes the cloud endpoint and rejects insecure remote URLs', () => {
+  assert.equal(
+    normalizeSettings({
+      ...DEFAULT_SETTINGS,
+      cloudApiUrl: 'https://localhost:7065/swagger/index.html'
+    }).cloudApiUrl,
+    'https://localhost:7065'
+  )
+  assert.throws(
+    () =>
+      normalizeSettings({
+        ...DEFAULT_SETTINGS,
+        cloudApiUrl: 'http://api.rockfall.example'
+      }),
+    /must use HTTPS/
+  )
 })
 
 test('normalizes valid signature overrides and rejects invalid values', () => {

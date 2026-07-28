@@ -3,6 +3,7 @@ import { useCallback, useEffect, useState } from 'react'
 import {
   DEFAULT_APP_FONT_SIZE,
   type AppSnapshot,
+  type CloudSyncState,
   type MiningLocationResult,
   type OverlaySettingsPatch
 } from '../../../shared/contracts'
@@ -15,6 +16,12 @@ interface RockfallState {
   chooseGameData: () => Promise<boolean>
   getMiningLocations: (materialId: string) => Promise<MiningLocationResult>
   setShortcutCapture: (active: boolean) => Promise<void>
+  beginCloudLogin: () => Promise<void>
+  completeCloudLogin: (handoffCode: string) => Promise<void>
+  cancelCloudLogin: () => Promise<void>
+  syncCloud: () => Promise<void>
+  confirmCloudProfileImport: () => Promise<void>
+  logoutCloud: () => Promise<void>
   checkForUpdates: () => Promise<void>
   restartToUpdate: () => Promise<void>
 }
@@ -98,6 +105,58 @@ export function useRockfall(): RockfallState {
     }
   }, [])
 
+  const runCloudAction = useCallback(
+    async (action: () => Promise<CloudSyncState>): Promise<void> => {
+      try {
+        setError(null)
+        const cloud = await action()
+        setSnapshot((current) => (current ? { ...current, cloud } : current))
+      } catch (reason) {
+        setError(getErrorMessage(reason))
+      }
+    },
+    []
+  )
+
+  const beginCloudLogin = useCallback(
+    (): Promise<void> => runCloudAction(() => window.rockfall.beginCloudLogin()),
+    [runCloudAction]
+  )
+
+  const completeCloudLogin = useCallback(
+    (handoffCode: string): Promise<void> =>
+      runCloudAction(() => window.rockfall.completeCloudLogin(handoffCode)),
+    [runCloudAction]
+  )
+
+  const cancelCloudLogin = useCallback(
+    (): Promise<void> => runCloudAction(() => window.rockfall.cancelCloudLogin()),
+    [runCloudAction]
+  )
+
+  const syncCloud = useCallback(
+    (): Promise<void> => runCloudAction(() => window.rockfall.syncCloud()),
+    [runCloudAction]
+  )
+
+  const confirmCloudProfileImport = useCallback(
+    (): Promise<void> => runCloudAction(() => window.rockfall.confirmCloudProfileImport()),
+    [runCloudAction]
+  )
+
+  const logoutCloud = useCallback(
+    (): Promise<void> => runCloudAction(() => window.rockfall.logoutCloud()),
+    [runCloudAction]
+  )
+
+  useEffect(() => {
+    const handleOnline = (): void => {
+      void syncCloud()
+    }
+    window.addEventListener('online', handleOnline)
+    return () => window.removeEventListener('online', handleOnline)
+  }, [syncCloud])
+
   const checkForUpdates = useCallback(async (): Promise<void> => {
     try {
       setError(null)
@@ -124,6 +183,12 @@ export function useRockfall(): RockfallState {
     chooseGameData,
     getMiningLocations,
     setShortcutCapture,
+    beginCloudLogin,
+    completeCloudLogin,
+    cancelCloudLogin,
+    syncCloud,
+    confirmCloudProfileImport,
+    logoutCloud,
     checkForUpdates,
     restartToUpdate
   }

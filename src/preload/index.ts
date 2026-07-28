@@ -29,6 +29,13 @@ const rockfallApi: RockfallApi = {
     ipcRenderer.invoke(IPC_CHANNELS.setBlueprintOwned, blueprintId, owned),
   setShortcutCapture: (active: boolean) =>
     ipcRenderer.invoke(IPC_CHANNELS.setShortcutCapture, active),
+  beginCloudLogin: () => ipcRenderer.invoke(IPC_CHANNELS.beginCloudLogin),
+  completeCloudLogin: (handoffCode: string) =>
+    ipcRenderer.invoke(IPC_CHANNELS.completeCloudLogin, handoffCode),
+  cancelCloudLogin: () => ipcRenderer.invoke(IPC_CHANNELS.cancelCloudLogin),
+  syncCloud: () => ipcRenderer.invoke(IPC_CHANNELS.syncCloud),
+  confirmCloudProfileImport: () => ipcRenderer.invoke(IPC_CHANNELS.confirmCloudProfileImport),
+  logoutCloud: () => ipcRenderer.invoke(IPC_CHANNELS.logoutCloud),
   checkForUpdates: () => ipcRenderer.invoke(IPC_CHANNELS.checkForUpdates),
   restartToUpdate: () => ipcRenderer.invoke(IPC_CHANNELS.restartToUpdate),
   onSnapshot: (listener: (snapshot: AppSnapshot) => void) => {

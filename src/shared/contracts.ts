@@ -216,6 +216,7 @@ export interface OverlaySettings {
   customPosition: OverlayPosition | null
   spotlightMaterialId: string | null
   shortcuts: Record<ShortcutId, string>
+  cloudApiUrl: string
 }
 
 export type DataSourceState = 'loading' | 'game' | 'live' | 'cached' | 'fallback'
@@ -244,6 +245,34 @@ export interface AppUpdateState {
   message: string
 }
 
+export type CloudSyncStatus =
+  | 'signed-out'
+  | 'connecting'
+  | 'waiting-for-browser'
+  | 'restoring'
+  | 'syncing'
+  | 'synced'
+  | 'offline'
+  | 'auth-expired'
+  | 'error'
+
+export interface CloudUserSummary {
+  id: string
+  displayName: string
+}
+
+export interface CloudSyncState {
+  status: CloudSyncStatus
+  user: CloudUserSummary | null
+  message: string
+  lastSyncedAt: string | null
+  pendingOperationCount: number
+  quarantinedOperationCount: number
+  blockedProfileCount: number
+  loginExpiresAt: string | null
+  refreshTokenPersistent: boolean
+}
+
 export interface AppSnapshot {
   materials: MiningMaterial[]
   bestMiningLocations: Record<string, BestMiningLocationState>
@@ -251,6 +280,7 @@ export interface AppSnapshot {
   dataStatus: MiningDataStatus
   shortcuts: ShortcutStatus[]
   appUpdate: AppUpdateState
+  cloud: CloudSyncState
   warning: string | null
 }
 
@@ -274,6 +304,12 @@ export interface RockfallApi {
   rescanBlueprintOwnership: () => Promise<BlueprintOwnershipSnapshot>
   setBlueprintOwned: (blueprintId: string, owned: boolean) => Promise<BlueprintOwnershipSnapshot>
   setShortcutCapture: (active: boolean) => Promise<AppSnapshot>
+  beginCloudLogin: () => Promise<CloudSyncState>
+  completeCloudLogin: (handoffCode: string) => Promise<CloudSyncState>
+  cancelCloudLogin: () => Promise<CloudSyncState>
+  syncCloud: () => Promise<CloudSyncState>
+  confirmCloudProfileImport: () => Promise<CloudSyncState>
+  logoutCloud: () => Promise<CloudSyncState>
   checkForUpdates: () => Promise<AppSnapshot>
   restartToUpdate: () => Promise<void>
   onSnapshot: (listener: (snapshot: AppSnapshot) => void) => () => void
@@ -294,6 +330,12 @@ export const IPC_CHANNELS = {
   setBlueprintOwned: 'rockfall:blueprints:ownership:set',
   blueprintOwnershipChanged: 'rockfall:blueprints:ownership:changed',
   setShortcutCapture: 'rockfall:shortcuts:capture',
+  beginCloudLogin: 'rockfall:cloud:login',
+  completeCloudLogin: 'rockfall:cloud:login:complete',
+  cancelCloudLogin: 'rockfall:cloud:login:cancel',
+  syncCloud: 'rockfall:cloud:sync',
+  confirmCloudProfileImport: 'rockfall:cloud:import:confirm',
+  logoutCloud: 'rockfall:cloud:logout',
   checkForUpdates: 'rockfall:updates:check',
   restartToUpdate: 'rockfall:updates:restart',
   snapshotChanged: 'rockfall:snapshot:changed'

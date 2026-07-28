@@ -65,6 +65,13 @@ marked owned manually from its detail pane. Log history proves recorded
 receipts but cannot guarantee that an unmarked blueprint is absent from the
 server-side account.
 
+Optional Rockfall Cloud sync keeps those account-scoped receipts and manual
+marks consistent across installations. Discord sign-in happens in the default
+system browser; access and refresh tokens stay in Electron's main process, and
+the refresh token is encrypted with Windows credential protection before it is
+saved. Local ownership remains available while signed out or offline, and
+pending changes are durably queued until the service returns.
+
 The **Sites** action loads the selected material's detailed deposit data and
 ranks up to five distinct locations by the estimated chance of a 50% or higher
 quality roll. The estimate combines the reported spawn-group probability,
@@ -100,6 +107,13 @@ log-confirmed, and manually marked blueprints; **Obtainable** shows unowned
 mission-mapped blueprints. **Logs** performs a full history rescan. The detail
 pane identifies the ownership source and exposes **Mark owned** or **Clear
 manual mark** when a manual correction is applicable.
+
+The **Settings** workspace exposes cloud connection state, manual sync, Discord
+sign-in and sign-out, and the Rockfall Cloud API URL. Enter the service root,
+Swagger page, or OpenAPI document; Rockfall normalizes documentation URLs to
+their service origin. Changing endpoints clears the current local cloud session.
+Loopback HTTP and self-signed HTTPS certificates are accepted only for local
+development.
 
 Drag the overlay's cyan header to place it anywhere on screen. The header
 captures the mouse for dragging; the remaining overlay area stays click-through.
@@ -199,8 +213,9 @@ certificate through electron-builder's standard `CSC_*` environment variables.
 Rockfall uses Electron, React, TypeScript, and electron-vite.
 
 - `src\main` owns native windows, tray lifecycle, global shortcuts, settings
-  persistence, local game-data extraction, API access, caching, overlay
-  placement, and application updates.
+  persistence, secure cloud authentication and ownership synchronization, local
+  game-data extraction, API access, caching, overlay placement, and application
+  updates.
 - `src\preload` exposes a narrow typed IPC bridge; renderer code has no Node.js
   access.
 - `src\renderer` renders both the control console and overlay from the same
@@ -213,7 +228,7 @@ The overlay never reads game files or calls an external API directly. Both
 operations run in the Electron main process, where extractor and API response
 shapes are validated before values reach the renderer.
 
-The proposed cross-device blueprint ownership backend is defined in the
+The cross-device blueprint ownership contract is defined in the
 [Rockfall Cloud Ownership Service specification](docs/api/rockfall-cloud/README.md).
 
 ## Scope and limitations

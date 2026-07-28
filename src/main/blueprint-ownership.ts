@@ -37,7 +37,41 @@ interface StoredManualBlueprint {
   blueprintKey: string
 }
 
-interface StoredOwnershipProfile {
+export interface OwnershipProfileIdentity {
+  channel: string
+  accountId: string
+  handle: string | null
+}
+
+export interface OwnershipSyncReceipt {
+  normalizedName: string
+  name: string
+  firstSeenAt: string
+  lastSeenAt: string
+}
+
+export interface OwnershipSyncManualBlueprint {
+  blueprintId: string
+  blueprintKey: string
+  keyIsUnique?: boolean
+}
+
+export interface OwnershipSyncProfile extends OwnershipProfileIdentity {
+  receipts: OwnershipSyncReceipt[]
+  manualBlueprints: OwnershipSyncManualBlueprint[]
+}
+
+export interface CloudOwnershipLayer {
+  receipts: ReadonlyArray<OwnershipSyncReceipt>
+  manualBlueprints: ReadonlyArray<
+    OwnershipSyncManualBlueprint & {
+      owned: boolean
+      changedAt: string
+    }
+  >
+}
+
+interface StoredOwnershipProfile extends OwnershipProfileIdentity {
   channel: string
   accountId: string
   handle: string | null
@@ -358,7 +392,8 @@ function mergeReceipt(profile: StoredOwnershipProfile, receipt: BlueprintLogRece
 
 export function resolveBlueprintOwnership(
   blueprints: readonly BlueprintSummary[],
-  profile: StoredOwnershipProfile | null
+  profile: StoredOwnershipProfile | null,
+  cloud: CloudOwnershipLayer | null = null
 ): OwnershipResolution {
   const records: Record<string, BlueprintOwnershipRecord> = {}
   const byName = new Map<string, BlueprintSummary[]>()
@@ -386,44 +421,61 @@ export function resolveBlueprintOwnership(
 
   const unresolvedReceipts: StoredReceipt[] = []
   const manuallyResolvedNames = new Set<string>()
+  const receipts = [...(profile ? Object.values(profile.receipts) : []), ...(cloud?.receipts ?? [])]
+  for (const receipt of receipts) {
+    let matches: BlueprintSummary[] = []
+    for (const candidate of blueprintNameCandidates(receipt.name)) {
+      const candidateMatches = byName.get(candidate) ?? []
+      if (candidateMatches.length > 0) {
+        matches = candidateMatches
+        break
+      }
+    }
+    if (matches.length !== 1) {
+      unresolvedReceipts.push(receipt)
+      continue
+    }
+
+    const blueprint = matches[0]
+    const existingRecord = records[blueprint.id]
+    if (!existingRecord) {
+      records[blueprint.id] = {
+        blueprintId: blueprint.id,
+        source: 'log',
+        acquiredAt: receipt.firstSeenAt
+      }
+    } else if (
+      existingRecord.source === 'log' &&
+      existingRecord.acquiredAt &&
+      Date.parse(receipt.firstSeenAt) < Date.parse(existingRecord.acquiredAt)
+    ) {
+      existingRecord.acquiredAt = receipt.firstSeenAt
+    }
+  }
+
+  const manualStates = new Map<string, boolean>()
   if (profile) {
-    for (const receipt of Object.values(profile.receipts)) {
-      let matches: BlueprintSummary[] = []
-      for (const candidate of blueprintNameCandidates(receipt.name)) {
-        const candidateMatches = byName.get(candidate) ?? []
-        if (candidateMatches.length > 0) {
-          matches = candidateMatches
-          break
-        }
-      }
-      if (matches.length !== 1) {
-        unresolvedReceipts.push(receipt)
-        continue
-      }
-
-      const blueprint = matches[0]
-      if (!records[blueprint.id]) {
-        records[blueprint.id] = {
-          blueprintId: blueprint.id,
-          source: 'log',
-          acquiredAt: receipt.firstSeenAt
-        }
-      }
-    }
-
     for (const manual of Object.values(profile.manualBlueprints)) {
-      const direct = byId.get(manual.blueprintId)
-      const keyMatches = byKey.get(manual.blueprintKey) ?? []
-      const blueprint = direct ?? (keyMatches.length === 1 ? keyMatches[0] : null)
-      if (blueprint && !records[blueprint.id]) {
-        records[blueprint.id] = {
-          blueprintId: blueprint.id,
-          source: 'manual',
-          acquiredAt: null
-        }
-      }
-      if (blueprint) manuallyResolvedNames.add(normalizeBlueprintName(blueprint.outputName))
+      const blueprint = resolveManualBlueprint(manual, byId, byKey)
+      if (blueprint) manualStates.set(blueprint.id, true)
     }
+  }
+  for (const manual of cloud?.manualBlueprints ?? []) {
+    const blueprint = resolveManualBlueprint(manual, byId, byKey)
+    if (blueprint) manualStates.set(blueprint.id, manual.owned)
+  }
+  for (const [blueprintId, owned] of manualStates) {
+    if (!owned) continue
+    const blueprint = byId.get(blueprintId)
+    if (!blueprint) continue
+    if (!records[blueprint.id]) {
+      records[blueprint.id] = {
+        blueprintId: blueprint.id,
+        source: 'manual',
+        acquiredAt: null
+      }
+    }
+    manuallyResolvedNames.add(normalizeBlueprintName(blueprint.outputName))
   }
 
   const unresolvedReceiptNames = unresolvedReceipts
@@ -445,6 +497,16 @@ export function resolveBlueprintOwnership(
       left.localeCompare(right)
     )
   }
+}
+
+function resolveManualBlueprint(
+  manual: OwnershipSyncManualBlueprint,
+  byId: ReadonlyMap<string, BlueprintSummary>,
+  byKey: ReadonlyMap<string, BlueprintSummary[]>
+): BlueprintSummary | null {
+  const direct = byId.get(manual.blueprintId)
+  const keyMatches = byKey.get(manual.blueprintKey) ?? []
+  return direct ?? (keyMatches.length === 1 ? keyMatches[0] : null)
 }
 
 export class BlueprintOwnershipService {
@@ -605,8 +667,11 @@ export class BlueprintOwnershipService {
     } while (generation === this.generation && this.scanQueued)
   }
 
-  getSnapshot(blueprints: readonly BlueprintSummary[]): BlueprintOwnershipSnapshot {
-    const resolution = resolveBlueprintOwnership(blueprints, this.getActiveProfile())
+  getSnapshot(
+    blueprints: readonly BlueprintSummary[],
+    cloud: CloudOwnershipLayer | null = null
+  ): BlueprintOwnershipSnapshot {
+    const resolution = resolveBlueprintOwnership(blueprints, this.getActiveProfile(), cloud)
     const unresolvedCount = resolution.unresolvedReceiptNames.length
     const statusMessage =
       this.status === 'scanning'
@@ -652,7 +717,12 @@ export class BlueprintOwnershipService {
     }
   }
 
-  async setManualOwned(blueprint: BlueprintSummary, owned: boolean): Promise<void> {
+  async setManualOwned(
+    blueprint: BlueprintSummary,
+    owned: boolean,
+    beforePersist?: (profile: OwnershipProfileIdentity) => Promise<void>,
+    keyIsUnique = false
+  ): Promise<OwnershipProfileIdentity> {
     const profile = this.getOrCreateActiveProfile()
     if (owned) {
       profile.manualBlueprints[blueprint.id] = {
@@ -660,15 +730,71 @@ export class BlueprintOwnershipService {
         blueprintKey: blueprint.key
       }
     } else {
-      for (const [id, manual] of Object.entries(profile.manualBlueprints)) {
-        if (id === blueprint.id || manual.blueprintKey === blueprint.key) {
-          delete profile.manualBlueprints[id]
-        }
+      if (profile.manualBlueprints[blueprint.id]) {
+        delete profile.manualBlueprints[blueprint.id]
+      } else if (keyIsUnique) {
+        const keyMatches = Object.entries(profile.manualBlueprints).filter(
+          ([, manual]) => manual.blueprintKey === blueprint.key
+        )
+        if (keyMatches.length === 1) delete profile.manualBlueprints[keyMatches[0][0]]
       }
     }
     this.markDirty()
+    const identity = {
+      channel: profile.channel,
+      accountId: profile.accountId,
+      handle: profile.handle
+    }
+    await beforePersist?.(identity)
     await this.persist()
     this.emitChange()
+    return identity
+  }
+
+  getSyncProfiles(
+    blueprints: readonly BlueprintSummary[] = [],
+    includeManualBlueprints = true
+  ): OwnershipSyncProfile[] {
+    const keyCounts = new Map<string, number>()
+    for (const blueprint of blueprints) {
+      keyCounts.set(blueprint.key, (keyCounts.get(blueprint.key) ?? 0) + 1)
+    }
+    return Object.values(this.store.profiles).map((profile) => ({
+      channel: profile.channel,
+      accountId: profile.accountId,
+      handle: profile.handle,
+      receipts: Object.entries(profile.receipts).map(([normalizedName, receipt]) => ({
+        normalizedName,
+        ...receipt
+      })),
+      manualBlueprints: includeManualBlueprints
+        ? Object.values(profile.manualBlueprints).map((manual) => ({
+            ...manual,
+            keyIsUnique: keyCounts.get(manual.blueprintKey) === 1
+          }))
+        : []
+    }))
+  }
+
+  getActiveProfileIdentity():
+    | (Omit<OwnershipProfileIdentity, 'accountId'> & {
+        accountId: string | null
+      })
+    | null {
+    if (!this.channel) return null
+    if (this.activeIdentity) {
+      return {
+        channel: this.channel,
+        accountId: this.activeIdentity.accountId,
+        handle: this.activeIdentity.handle
+      }
+    }
+    const profile = this.getActiveProfile()
+    return {
+      channel: this.channel,
+      accountId: profile && profile.accountId !== MANUAL_ACCOUNT ? profile.accountId : null,
+      handle: profile?.handle ?? null
+    }
   }
 
   dispose(): void {

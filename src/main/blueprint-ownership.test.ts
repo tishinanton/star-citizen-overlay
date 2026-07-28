@@ -84,6 +84,47 @@ test('a specific manual mark resolves an ambiguous log receipt', () => {
   assert.deepEqual(result.unresolvedReceiptNames, [])
 })
 
+test('cloud tombstones suppress only manual ownership and newer pending state can restore it', () => {
+  const store = parseBlueprintOwnershipStore({
+    schemaVersion: 1,
+    profiles: {
+      'LIVE:123': {
+        channel: 'LIVE',
+        accountId: '123',
+        handle: null,
+        receipts: {},
+        manualBlueprints: {
+          'duplicate-a': {
+            blueprintId: 'duplicate-a',
+            blueprintKey: 'BP_DUPLICATE_A'
+          }
+        }
+      }
+    }
+  })
+  const tombstone = {
+    receipts: [],
+    manualBlueprints: [
+      {
+        blueprintId: 'duplicate-a',
+        blueprintKey: 'BP_DUPLICATE_A',
+        owned: false,
+        changedAt: '2026-07-27T16:55:00.000Z'
+      }
+    ]
+  }
+
+  const cleared = resolveBlueprintOwnership(BLUEPRINTS, store.profiles['LIVE:123'], tombstone)
+  assert.equal(cleared.records['duplicate-a'], undefined)
+  assert.equal(cleared.records['default-id'].source, 'default')
+
+  const restored = resolveBlueprintOwnership(BLUEPRINTS, store.profiles['LIVE:123'], {
+    ...tombstone,
+    manualBlueprints: [{ ...tombstone.manualBlueprints[0], owned: true }]
+  })
+  assert.equal(restored.records['duplicate-a'].source, 'manual')
+})
+
 test('rejects malformed persisted ownership data', () => {
   assert.throws(() => parseBlueprintOwnershipStore({}), /unsupported shape/)
   const repaired = parseBlueprintOwnershipStore({
@@ -265,6 +306,39 @@ test('preserves an unreadable ownership file before rebuilding it', async () => 
     await restored.initialize()
     assert.equal(restored.getSnapshot(BLUEPRINTS).records['duplicate-a'].source, 'manual')
     restored.dispose()
+  } finally {
+    service.dispose()
+    await rm(directory, { recursive: true, force: true })
+  }
+})
+
+test('clearing one manual mark preserves another mark with the same blueprint key', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'rockfall-blueprint-duplicate-key-'))
+  const storePath = join(directory, 'ownership.json')
+  const service = new BlueprintOwnershipService({ storePath, onChange: () => undefined })
+  const duplicateKeyBlueprints = [
+    blueprint('same-key-a', 'SHARED_KEY', 'First output'),
+    blueprint('same-key-b', 'SHARED_KEY', 'Second output')
+  ]
+
+  try {
+    await service.initialize()
+    await service.setManualOwned(duplicateKeyBlueprints[0], true)
+    await service.setManualOwned(duplicateKeyBlueprints[1], true)
+    assert.equal(
+      service.getSyncProfiles(duplicateKeyBlueprints)[0].manualBlueprints[0].keyIsUnique,
+      false
+    )
+    assert.equal(
+      service.getSyncProfiles([duplicateKeyBlueprints[0]])[0].manualBlueprints[0].keyIsUnique,
+      true
+    )
+    assert.deepEqual(service.getSyncProfiles([], false)[0].manualBlueprints, [])
+    await service.setManualOwned(duplicateKeyBlueprints[0], false)
+
+    const snapshot = service.getSnapshot(duplicateKeyBlueprints)
+    assert.equal(snapshot.records['same-key-a'], undefined)
+    assert.equal(snapshot.records['same-key-b'].source, 'manual')
   } finally {
     service.dispose()
     await rm(directory, { recursive: true, force: true })

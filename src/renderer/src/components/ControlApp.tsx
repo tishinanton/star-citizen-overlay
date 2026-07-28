@@ -80,6 +80,12 @@ export default function ControlApp(): React.JSX.Element {
     chooseGameData,
     getMiningLocations,
     setShortcutCapture,
+    beginCloudLogin,
+    completeCloudLogin,
+    cancelCloudLogin,
+    syncCloud,
+    confirmCloudProfileImport,
+    logoutCloud,
     checkForUpdates,
     restartToUpdate
   } = useRockfall()
@@ -770,7 +776,16 @@ export default function ControlApp(): React.JSX.Element {
       {activeTab === 'settings' && (
         <SettingsPage
           fontSize={settings.appFontSize}
+          apiUrl={settings.cloudApiUrl}
+          cloud={snapshot.cloud}
           onFontSizeChange={(appFontSize) => void updateSettings({ appFontSize })}
+          onApiUrlChange={(cloudApiUrl) => void updateSettings({ cloudApiUrl })}
+          onBeginCloudLogin={() => void beginCloudLogin()}
+          onCompleteCloudLogin={(handoffCode) => void completeCloudLogin(handoffCode)}
+          onCancelCloudLogin={() => void cancelCloudLogin()}
+          onSyncCloud={() => void syncCloud()}
+          onConfirmCloudProfileImport={() => void confirmCloudProfileImport()}
+          onLogoutCloud={() => void logoutCloud()}
         />
       )}
 

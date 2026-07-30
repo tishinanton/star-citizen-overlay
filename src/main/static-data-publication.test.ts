@@ -13,7 +13,7 @@ import {
 
 const PNG =
   'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M/wHwAEAQH/7Z1iWQAAAABJRU5ErkJggg=='
-const SYNTHETIC_FIXTURE_SHA256 = '47ed4a0f29c179fc8f0a737ad8966a7a24ded87c74f51d738f01508f4b30f6b9'
+const SYNTHETIC_FIXTURE_SHA256 = 'b71c2c84d82732529fcd6f23d51a2c84be2fbf3811a4d792d11702c16792a06b'
 
 test('creates a byte-stable publication with raw declared PNG assets', () => {
   const first = createStaticDataPublication(fixture())
@@ -32,6 +32,8 @@ test('creates a byte-stable publication with raw declared PNG assets', () => {
   assert.equal(resources.signatures.file, STATIC_DATA_PATHS.signatures)
   assert.equal(resources.blueprints.recordCount, 2)
   assert.equal(first.manifest.contractVersion, 1)
+  assert.equal(first.manifest.gameBuild, '0.0.1-TEST')
+  assert.equal(first.manifest.gameVersion, 'synthetic-branch')
   assert.equal(first.manifest.assets.length, 1)
   assert.equal(first.manifest.assets[0].width, 1)
   assert.equal(first.manifest.assets[0].height, 1)
@@ -58,6 +60,21 @@ test('rejects missing and unreferenced icon declarations', () => {
         icons: { ...input.icons, 'icons/extra.tif': PNG }
       }),
     /image keys do not match/
+  )
+})
+
+test('rejects blueprint records from another game build', () => {
+  const input = fixture()
+  assert.throws(
+    () =>
+      createStaticDataPublication({
+        ...input,
+        blueprints: input.blueprints.map((blueprint) => ({
+          ...blueprint,
+          gameVersion: 'different-build'
+        }))
+      }),
+    /do not match the selected game build/
   )
 })
 
@@ -115,7 +132,7 @@ test('pins the API compatibility fixture byte-for-byte', async () => {
   const archive = await readFile(
     join(process.cwd(), 'test', 'fixtures', 'static-data-v1.synthetic.zip')
   )
-  assert.equal(archive.byteLength, 3_348)
+  assert.equal(archive.byteLength, 3_362)
   assert.equal(createHash('sha256').update(archive).digest('hex'), SYNTHETIC_FIXTURE_SHA256)
 })
 
@@ -124,8 +141,8 @@ function fixture(): Parameters<typeof createStaticDataPublication>[0] {
     releaseId: '33333333-3333-4333-8333-333333333333',
     generatedAt: '2026-07-30T14:00:00.000Z',
     source: {
-      gameBuild: 'synthetic-build',
-      gameVersion: '0.0.1',
+      gameBuild: '0.0.1-TEST',
+      gameVersion: 'synthetic-branch',
       channel: 'TEST',
       archiveBytes: 123_456,
       archiveModifiedAt: '2026-07-30T13:00:00.000Z',
@@ -173,7 +190,7 @@ function blueprint(id: string, imageKey: string | null): BlueprintDetail {
         webUrl: null
       }
     ],
-    gameVersion: '0.0.1',
+    gameVersion: '0.0.1-TEST',
     imageKey,
     webUrl: null,
     requirementGroups: [

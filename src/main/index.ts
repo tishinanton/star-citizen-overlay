@@ -478,8 +478,8 @@ async function refreshStaticDataAvailability(): Promise<void> {
       message: overview.canPublish
         ? overview.currentRelease
           ? sourceMatches
-            ? `Current: the server release matches the selected ${overview.currentRelease.gameVersion} archive.`
-            : `Stale or unknown: the selected archive differs from server release ${overview.currentRelease.gameVersion}.`
+            ? `Current: the server release matches the selected ${overview.currentRelease.gameBuild} archive.`
+            : `Stale or unknown: the selected archive differs from server release ${overview.currentRelease.gameBuild}.`
           : 'Compatible API found. This channel has no published release yet.'
         : 'The current account or API deployment cannot publish this static-data contract.',
       progress: null,
@@ -610,8 +610,8 @@ async function runStaticDataPublication(): Promise<StaticDataSyncState> {
       canPublish: true,
       message:
         result.status === 'alreadyPublished'
-          ? `Already current: ${result.gameVersion} matches the active release.`
-          : `Published ${result.gameVersion} atomically to ${result.channel}.`,
+          ? `Already current: ${result.gameBuild} matches the active release.`
+          : `Published ${result.gameBuild} atomically to ${result.channel}.`,
       progress: null,
       currentRelease
     }

@@ -88,7 +88,7 @@ export async function prepareStaticData(
     throw new Error(`Static-data publication requires installed-game factions. ${factions.message}`)
   }
 
-  const expectedCatalogVersion = `${source.gameVersion}-${source.channel}`
+  const expectedCatalogVersion = source.gameBuild
   const catalogVersions = new Set([blueprints.gameVersion, factions.gameVersion])
   if (catalogVersions.size !== 1 || !catalogVersions.has(expectedCatalogVersion)) {
     throw new Error(
@@ -137,8 +137,9 @@ export async function readPublicationSource(
     })
   }
   const data = readRecord(readRecord(value, 'Game build manifest').Data, 'Game build data')
-  const gameBuild = readNonEmptyString(data.Branch, 'Game build branch', 200)
-  const gameVersion = readNonEmptyString(data.Version, 'Game version', 200)
+  const version = readNonEmptyString(data.Version, 'Game data version', 200)
+  const gameBuild = `${version}-${archive.channel}`
+  const gameVersion = readNonEmptyString(data.Branch, 'Game version branch', 200)
   return {
     gameBuild,
     gameVersion,

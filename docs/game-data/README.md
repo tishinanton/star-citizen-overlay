@@ -249,12 +249,16 @@ deterministically gzipped. Blueprint records reference logical
 extractor warnings, local paths, Wiki locations, ownership state, and logs are
 excluded.
 
-The current build measures 38 signatures (9,433 JSON / 1,991 gzip bytes), 1,591
-blueprints (3,350,576 / 366,548 bytes), and 38 faction records (146,029 / 17,657
-bytes). Its 27 static non-interlaced 64x64 PNGs total 21,056 bytes, range from
-473 to 1,258 bytes, and contain no APNG animation chunk. A complete measured
-release ZIP is 424,741 bytes. These are observations, not future maxima; desktop
-and API limits are enforced independently.
+Publication metadata maps `build_manifest.id` deliberately: manifest `gameBuild`
+and the blueprint/faction resource `gameVersion` use
+`<Data.Version>-<selected channel>`, while manifest `gameVersion` uses
+`Data.Branch`. Data.p4k contributes only its byte length and modification time,
+never its local path.
+
+The current catalogs contain 38 signatures, 1,591 blueprints, and 38 factions.
+Their 27 static non-interlaced 64x64 PNGs total 21,056 bytes, range from 473 to
+1,258 bytes, and contain no APNG animation chunk. These are observations, not
+future maxima; desktop and API limits are enforced independently.
 
 ## Data that this method cannot provide
 

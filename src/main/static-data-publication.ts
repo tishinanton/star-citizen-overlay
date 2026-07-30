@@ -266,7 +266,7 @@ export function createStaticDataPublication(
     blueprints.length,
     {
       schemaVersion: PUBLICATION_SCHEMA_VERSION,
-      gameVersion: input.source.gameVersion,
+      gameVersion: input.source.gameBuild,
       blueprints
     }
   )
@@ -276,7 +276,7 @@ export function createStaticDataPublication(
     input.factions.length,
     {
       schemaVersion: PUBLICATION_SCHEMA_VERSION,
-      gameVersion: input.source.gameVersion,
+      gameVersion: input.source.gameBuild,
       factions: input.factions
         .map(toPublicationFaction)
         .sort((left, right) => left.id.localeCompare(right.id))
@@ -438,6 +438,9 @@ function validateReleaseMetadata(input: StaticDataPublicationInput): void {
     input.factions.length === 0
   ) {
     throw new Error('Every static-data dataset must contain records.')
+  }
+  if (input.blueprints.some((blueprint) => blueprint.gameVersion !== input.source.gameBuild)) {
+    throw new Error('Blueprint records do not match the selected game build.')
   }
 }
 

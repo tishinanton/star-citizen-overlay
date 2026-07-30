@@ -1,13 +1,13 @@
 {
-  "archiveBytes": 3348,
-  "archiveSha256": "47ed4a0f29c179fc8f0a737ad8966a7a24ded87c74f51d738f01508f4b30f6b9",
-  "manifestBytes": 1479,
+  "archiveBytes": 3362,
+  "archiveSha256": "b71c2c84d82732529fcd6f23d51a2c84be2fbf3811a4d792d11702c16792a06b",
+  "manifestBytes": 1485,
   "manifest": {
     "contractVersion": 1,
     "releaseId": "33333333-3333-4333-8333-333333333333",
     "channel": "TEST",
-    "gameBuild": "synthetic-build",
-    "gameVersion": "0.0.1",
+    "gameBuild": "0.0.1-TEST",
+    "gameVersion": "synthetic-branch",
     "generatedAt": "2026-07-30T14:00:00.000Z",
     "sourceAppVersion": "0.2.0",
     "source": {
@@ -22,9 +22,9 @@
         "mediaType": "application/json",
         "contentEncoding": "gzip",
         "recordCount": 2,
-        "uncompressedBytes": 1996,
-        "compressedBytes": 553,
-        "sha256": "335f0ce682fb077ff452c50a24bea4e4b93b87690aa163efe11101b204da22c8"
+        "uncompressedBytes": 2011,
+        "compressedBytes": 557,
+        "sha256": "8967bc57893fa8e3f4349a5892f778d1ed14a85bc844e4e034e0bd22508133f0"
       },
       {
         "name": "faction-reputation",
@@ -33,9 +33,9 @@
         "mediaType": "application/json",
         "contentEncoding": "gzip",
         "recordCount": 1,
-        "uncompressedBytes": 563,
-        "compressedBytes": 283,
-        "sha256": "23e057fcf1e6cd51c035cc2fbe532771a1a64bccd0cfaef29ad944e188c18b9b"
+        "uncompressedBytes": 568,
+        "compressedBytes": 287,
+        "sha256": "18f43c9b3e173b908d7d781fd7a73f6d20e42a3cc5f5a98dd84e5eccaca982fe"
       },
       {
         "name": "signatures",

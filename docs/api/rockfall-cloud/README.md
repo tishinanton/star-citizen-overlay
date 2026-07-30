@@ -969,6 +969,11 @@ canonical JSON. Blueprint `assetKey` values and manifest keys are exactly
 `blueprint-icons/<sha256>.png`; manifest files prefix those keys with `assets/`.
 The declared, referenced, and archived asset sets must be identical.
 
+Manifest `gameBuild` and blueprint/faction resource `gameVersion` are the
+extractor identifier `<build_manifest.id Data.Version>-<selected channel>`.
+Manifest `gameVersion` is `build_manifest.id Data.Branch`. Source metadata sends
+only Data.p4k byte length and modification time, never its local path.
+
 The service stages and validates the complete archive before one serializable
 transaction activates the channel pointer. A failed request leaves the previous
 release active. Identical build/content publication returns
@@ -979,8 +984,8 @@ resources, but only administrators may publish.
 
 The non-proprietary byte fixture is
 [`test/fixtures/static-data-v1.synthetic.zip`](../../../test/fixtures/static-data-v1.synthetic.zip).
-Its pinned size is 3,348 bytes and SHA-256 is
-`47ed4a0f29c179fc8f0a737ad8966a7a24ded87c74f51d738f01508f4b30f6b9`.
+Its pinned size is 3,362 bytes and SHA-256 is
+`b71c2c84d82732529fcd6f23d51a2c84be2fbf3811a4d792d11702c16792a06b`.
 API tests should consume these exact bytes rather than reproduce Node/zlib
 compression.
 

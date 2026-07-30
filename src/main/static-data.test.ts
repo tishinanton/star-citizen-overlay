@@ -17,8 +17,8 @@ test('reads publication metadata without exposing the local archive path', async
   try {
     const source = await readPublicationSource({ path: archivePath, channel: 'TEST' }, '0.2.0')
     assert.deepEqual(source, {
-      gameBuild: 'synthetic-branch',
-      gameVersion: '0.0.1',
+      gameBuild: '0.0.1-TEST',
+      gameVersion: 'synthetic-branch',
       channel: 'TEST',
       archiveBytes: 17,
       archiveModifiedAt: source.archiveModifiedAt,

@@ -32,6 +32,11 @@ const ZIP_UTF8_FLAG = 0x0800
 const ZIP_STORE_METHOD = 0
 const ZIP_DOS_TIME = 0
 const ZIP_DOS_DATE = 33
+export const STATIC_DATA_RESOURCE_RECORD_LIMITS = {
+  signatures: 128,
+  blueprints: 2_500,
+  'faction-reputation': 100
+} as const
 const METHOD_ORDER: Record<MiningMethod, number> = {
   Ship: 0,
   'Ground Vehicle': 1,
@@ -43,17 +48,17 @@ const RESOURCE_LIMITS: Record<
   { records: number; compressedBytes: number; uncompressedBytes: number }
 > = {
   signatures: {
-    records: 128,
+    records: STATIC_DATA_RESOURCE_RECORD_LIMITS.signatures,
     compressedBytes: 2 * 1024 * 1024,
     uncompressedBytes: 8 * 1024 * 1024
   },
   blueprints: {
-    records: 5_000,
+    records: STATIC_DATA_RESOURCE_RECORD_LIMITS.blueprints,
     compressedBytes: 32 * 1024 * 1024,
     uncompressedBytes: 128 * 1024 * 1024
   },
   'faction-reputation': {
-    records: 500,
+    records: STATIC_DATA_RESOURCE_RECORD_LIMITS['faction-reputation'],
     compressedBytes: 8 * 1024 * 1024,
     uncompressedBytes: 32 * 1024 * 1024
   }

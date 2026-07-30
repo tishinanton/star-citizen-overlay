@@ -170,6 +170,48 @@ test('uses the build identifier for versioned dataset roots and blueprint record
   )
 })
 
+test('enforces the frozen API resource record caps', () => {
+  const input = fixture()
+  const blueprintTemplate = input.blueprints.find((blueprint) => blueprint.imageKey !== null)
+  assert.ok(blueprintTemplate)
+  const blueprints = Array.from({ length: 2_500 }, (_, index) => ({
+    ...blueprintTemplate,
+    id: `blueprint-${index}`,
+    key: `BLUEPRINT_${index}`
+  }))
+  const factionTemplate = input.factions[0]
+  assert.ok(factionTemplate)
+  const factions = Array.from({ length: 100 }, (_, index) => ({
+    ...factionTemplate,
+    id: `faction-${index}`,
+    key: `FACTION_${index}`
+  }))
+
+  assert.doesNotThrow(() => createStaticDataPublication({ ...input, blueprints, factions }))
+  assert.throws(
+    () =>
+      createStaticDataPublication({
+        ...input,
+        blueprints: [
+          ...blueprints,
+          { ...blueprintTemplate, id: 'blueprint-over-limit', key: 'BLUEPRINT_OVER_LIMIT' }
+        ]
+      }),
+    /blueprints resource exceeds/
+  )
+  assert.throws(
+    () =>
+      createStaticDataPublication({
+        ...input,
+        factions: [
+          ...factions,
+          { ...factionTemplate, id: 'faction-over-limit', key: 'FACTION_OVER_LIMIT' }
+        ]
+      }),
+    /faction-reputation resource exceeds/
+  )
+})
+
 test('normalizes gzip headers for deterministic output', () => {
   const value = Buffer.from('synthetic fixture')
   const first = createDeterministicGzip(value)

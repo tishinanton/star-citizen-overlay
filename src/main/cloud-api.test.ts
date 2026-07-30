@@ -144,6 +144,7 @@ test('validates every Rockfall Cloud client method', async () => {
 
 test('validates static-data capability and current-release contracts', async () => {
   let useLegacyCapabilities = false
+  let useOldResourceCaps = false
   const server = createServer((request, response) => {
     if (request.url === '/v1/static-data/capabilities') {
       if (useLegacyCapabilities) {
@@ -173,8 +174,16 @@ test('validates static-data capability and current-release contracts', async () 
         },
         requiredResources: [
           { name: 'signatures', schemaVersions: [1], maxRecords: 128 },
-          { name: 'blueprints', schemaVersions: [1], maxRecords: 5_000 },
-          { name: 'faction-reputation', schemaVersions: [1], maxRecords: 500 }
+          {
+            name: 'blueprints',
+            schemaVersions: [1],
+            maxRecords: useOldResourceCaps ? 5_000 : 2_500
+          },
+          {
+            name: 'faction-reputation',
+            schemaVersions: [1],
+            maxRecords: useOldResourceCaps ? 500 : 100
+          }
         ],
         supportedAssetMediaTypes: ['image/png']
       })
@@ -226,6 +235,12 @@ test('validates static-data capability and current-release contracts', async () 
     const current = await client.getCurrentStaticDataRelease('LIVE', 'access-token')
     assert.equal(current.releaseId, RELEASE_ID)
     assert.equal(current.manifestUrl, `/v1/static-data/releases/${RELEASE_ID}`)
+    useOldResourceCaps = true
+    await assert.rejects(
+      client.getStaticDataCapabilities('access-token'),
+      /incompatible static-data resource set/
+    )
+    useOldResourceCaps = false
     useLegacyCapabilities = true
     await assert.rejects(
       client.getStaticDataCapabilities('access-token'),

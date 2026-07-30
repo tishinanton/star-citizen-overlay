@@ -260,6 +260,8 @@ Their 27 static non-interlaced 64x64 PNGs total 21,056 bytes, range from 473 to
 1,258 bytes, and contain no APNG animation chunk. These are observations, not
 future maxima. Publication allows the validated cache ceiling of 200 icons and
 enforces 204 ZIP entries, 128 KiB per raw PNG, and 32 MiB aggregate PNG bytes.
+The shared desktop/API schema-v1 caps are 128 signatures, 2,500 blueprints, and
+100 factions.
 
 ## Data that this method cannot provide
 

@@ -10,6 +10,7 @@ import {
   createStaticDataPublication,
   STATIC_DATA_PATHS
 } from './static-data-publication'
+import { generateSyntheticStaticDataPublication } from '../../test/fixtures/generate-static-data-v1'
 
 const PNG =
   'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M/wHwAEAQH/7Z1iWQAAAABJRU5ErkJggg=='
@@ -132,6 +133,7 @@ test('pins the API compatibility fixture byte-for-byte', async () => {
   const archive = await readFile(
     join(process.cwd(), 'test', 'fixtures', 'static-data-v1.synthetic.zip')
   )
+  assert.deepEqual(archive, generateSyntheticStaticDataPublication().archive)
   assert.equal(archive.byteLength, 3_362)
   assert.equal(createHash('sha256').update(archive).digest('hex'), SYNTHETIC_FIXTURE_SHA256)
 })

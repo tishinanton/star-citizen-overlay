@@ -984,10 +984,11 @@ resources, but only administrators may publish.
 
 The non-proprietary byte fixture is
 [`test/fixtures/static-data-v1.synthetic.zip`](../../../test/fixtures/static-data-v1.synthetic.zip).
-Its pinned size is 3,362 bytes and SHA-256 is
-`b71c2c84d82732529fcd6f23d51a2c84be2fbf3811a4d792d11702c16792a06b`.
+Its pinned size is 3,370 bytes and SHA-256 is
+`35cd4c4c39e8768499963dd5b50844aef758148be1f5ede192d2b867f6d0ab85`.
 API tests should consume these exact bytes rather than reproduce Node/zlib
-compression.
+compression. Regenerate the fixture without proprietary game data using
+`npm run generate:static-data-fixture`.
 
 ## 11. Desktop integration requirements
 

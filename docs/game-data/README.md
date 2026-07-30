@@ -244,7 +244,7 @@ Admin publication reuses the validated loader outputs above; it does not
 reimplement DataForge joins in the API. Schema-v1 resources are exactly
 `signatures`, `blueprints`, and `faction-reputation`. Canonical JSON is
 deterministically gzipped. Blueprint records reference logical
-`blueprint-icons/<png-sha256>` keys, while raw PNG files are separate
+`blueprint-icons/<png-sha256>.png` keys, while raw PNG files are separate
 `assets/blueprint-icons/<png-sha256>.png` ZIP entries. Base64 cache images,
 extractor warnings, local paths, Wiki locations, ownership state, and logs are
 excluded.

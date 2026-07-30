@@ -957,8 +957,9 @@ base64 images.
 The archive contains `manifest.json`, gzip JSON resources named exactly
 `signatures`, `blueprints`, and `faction-reputation`, plus every declared
 `assets/blueprint-icons/<sha256>.png`. Resource hashes cover uncompressed
-canonical JSON. Blueprint `assetKey` values must exactly match manifest keys,
-and the declared, referenced, and archived asset sets must be identical.
+canonical JSON. Blueprint `assetKey` values and manifest keys are exactly
+`blueprint-icons/<sha256>.png`; manifest files prefix those keys with `assets/`.
+The declared, referenced, and archived asset sets must be identical.
 
 The service stages and validates the complete archive before one serializable
 transaction activates the channel pointer. A failed request leaves the previous
@@ -970,8 +971,8 @@ resources, but only administrators may publish.
 
 The non-proprietary byte fixture is
 [`test/fixtures/static-data-v1.synthetic.zip`](../../../test/fixtures/static-data-v1.synthetic.zip).
-Its pinned size is 3,341 bytes and SHA-256 is
-`86ed57f86d02658c3dab190adc4549204cf43bec6a6211f2066482bdc8e17711`.
+Its pinned size is 3,348 bytes and SHA-256 is
+`47ed4a0f29c179fc8f0a737ad8966a7a24ded87c74f51d738f01508f4b30f6b9`.
 API tests should consume these exact bytes rather than reproduce Node/zlib
 compression.
 

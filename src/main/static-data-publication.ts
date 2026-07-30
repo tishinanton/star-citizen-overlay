@@ -505,8 +505,8 @@ function adaptBlueprints(
       throw new RangeError(`Blueprint icon ${imageKey} exceeds the API size limit.`)
     }
     const digest = sha256(bytes)
-    const key = `blueprint-icons/${digest}`
-    const file = `assets/${key}.png`
+    const key = `blueprint-icons/${digest}.png`
+    const file = `assets/${key}`
     keyByImage.set(imageKey, key)
     if (!assetsByKey.has(key)) {
       const dimensions = readPngDimensions(bytes, imageKey)

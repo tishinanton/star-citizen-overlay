@@ -13,7 +13,7 @@ import {
 
 const PNG =
   'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M/wHwAEAQH/7Z1iWQAAAABJRU5ErkJggg=='
-const SYNTHETIC_FIXTURE_SHA256 = '86ed57f86d02658c3dab190adc4549204cf43bec6a6211f2066482bdc8e17711'
+const SYNTHETIC_FIXTURE_SHA256 = '47ed4a0f29c179fc8f0a737ad8966a7a24ded87c74f51d738f01508f4b30f6b9'
 
 test('creates a byte-stable publication with raw declared PNG assets', () => {
   const first = createStaticDataPublication(fixture())
@@ -35,7 +35,9 @@ test('creates a byte-stable publication with raw declared PNG assets', () => {
   assert.equal(first.manifest.assets.length, 1)
   assert.equal(first.manifest.assets[0].width, 1)
   assert.equal(first.manifest.assets[0].height, 1)
+  assert.match(first.manifest.assets[0].key, /^blueprint-icons\/[a-f0-9]{64}\.png$/)
   assert.match(first.manifest.assets[0].file, /^assets\/blueprint-icons\/[a-f0-9]{64}\.png$/)
+  assert.equal(first.manifest.assets[0].file, `assets/${first.manifest.assets[0].key}`)
   assert.equal(first.archive.includes(Buffer.from('data:image/png;base64,')), false)
   assert.equal(
     first.archive.includes(Buffer.from(PNG.slice('data:image/png;base64,'.length))),
@@ -113,7 +115,7 @@ test('pins the API compatibility fixture byte-for-byte', async () => {
   const archive = await readFile(
     join(process.cwd(), 'test', 'fixtures', 'static-data-v1.synthetic.zip')
   )
-  assert.equal(archive.byteLength, 3_341)
+  assert.equal(archive.byteLength, 3_348)
   assert.equal(createHash('sha256').update(archive).digest('hex'), SYNTHETIC_FIXTURE_SHA256)
 })
 

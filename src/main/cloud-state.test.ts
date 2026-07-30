@@ -142,6 +142,30 @@ test('persists stable pending operations and blocks cross-user profile import', 
   }
 })
 
+test('migrates persisted sessions without a role as non-admin and rejects unknown roles', () => {
+  const state = createCloudState(INSTALLATION_ID)
+  state.session = {
+    apiUrl: 'http://127.0.0.1:5050',
+    user: {
+      id: USER_A,
+      discordUserId: '80351110224678912',
+      displayName: 'Nelly',
+      avatarHash: null,
+      role: 'admin'
+    },
+    encryptedRefreshToken: null,
+    refreshExpiresAt: '2026-08-27T16:55:00.000Z'
+  }
+  const persisted = JSON.parse(JSON.stringify(state)) as {
+    session: { user: { role?: string } }
+  }
+  delete persisted.session.user.role
+  assert.equal(parseCloudState(persisted).session?.user.role, 'user')
+
+  persisted.session.user.role = 'owner'
+  assert.throws(() => parseCloudState(persisted), /unsupported role/)
+})
+
 test('applies acknowledgements, changes, and poison-operation quarantine atomically', () => {
   const state = createCloudState(INSTALLATION_ID)
   state.lastUserId = USER_A

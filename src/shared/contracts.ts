@@ -305,6 +305,7 @@ export type CloudSyncStatus =
 export interface CloudUserSummary {
   id: string
   displayName: string
+  role: 'user' | 'admin'
 }
 
 export interface CloudSyncState {
@@ -319,6 +320,48 @@ export interface CloudSyncState {
   refreshTokenPersistent: boolean
 }
 
+export type StaticDataSyncStatus =
+  | 'unavailable'
+  | 'checking'
+  | 'ready'
+  | 'preparing'
+  | 'confirming'
+  | 'uploading'
+  | 'validating'
+  | 'published'
+  | 'already-current'
+  | 'error'
+
+export interface StaticDataReleaseSummary {
+  releaseId: string
+  contractVersion: 1
+  channel: string
+  gameBuild: string
+  gameVersion: string
+  contentSetSha256: string
+  publishedAt: string
+  current: boolean
+  manifestUrl: string
+}
+
+export interface StaticDataPublicationResult extends StaticDataReleaseSummary {
+  status: 'published' | 'alreadyPublished'
+}
+
+export interface StaticDataProgress {
+  phase: string
+  completed: number
+  total: number
+}
+
+export interface StaticDataSyncState {
+  status: StaticDataSyncStatus
+  canPublish: boolean
+  message: string
+  progress: StaticDataProgress | null
+  currentRelease: StaticDataReleaseSummary | null
+}
+
 export interface AppSnapshot {
   materials: MiningMaterial[]
   bestMiningLocations: Record<string, BestMiningLocationState>
@@ -327,6 +370,7 @@ export interface AppSnapshot {
   shortcuts: ShortcutStatus[]
   appUpdate: AppUpdateState
   cloud: CloudSyncState
+  staticData: StaticDataSyncState
   warning: string | null
 }
 
@@ -357,6 +401,7 @@ export interface RockfallApi {
   syncCloud: () => Promise<CloudSyncState>
   confirmCloudProfileImport: () => Promise<CloudSyncState>
   logoutCloud: () => Promise<CloudSyncState>
+  publishStaticData: () => Promise<StaticDataSyncState>
   checkForUpdates: () => Promise<AppSnapshot>
   restartToUpdate: () => Promise<void>
   onSnapshot: (listener: (snapshot: AppSnapshot) => void) => () => void
@@ -384,6 +429,7 @@ export const IPC_CHANNELS = {
   syncCloud: 'rockfall:cloud:sync',
   confirmCloudProfileImport: 'rockfall:cloud:import:confirm',
   logoutCloud: 'rockfall:cloud:logout',
+  publishStaticData: 'rockfall:static-data:publish',
   checkForUpdates: 'rockfall:updates:check',
   restartToUpdate: 'rockfall:updates:restart',
   snapshotChanged: 'rockfall:snapshot:changed'

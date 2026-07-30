@@ -1,9 +1,17 @@
-import type { CloudSyncState, CloudSyncStatus, CloudUserSummary } from '../shared/contracts'
+import type {
+  CloudSyncState,
+  CloudSyncStatus,
+  CloudUserSummary,
+  StaticDataPublicationResult,
+  StaticDataReleaseSummary
+} from '../shared/contracts'
 import {
   CloudApiClient,
   CloudApiError,
   CloudNetworkError,
   type CloudAuthenticatedUser,
+  type CloudStaticDataCurrentRelease,
+  type CloudStaticDataPublishResult,
   type CloudSyncOperation,
   type CloudTokenPair,
   isTransientCloudError
@@ -45,6 +53,9 @@ type CloudClient = Pick<
   | 'logout'
   | 'getOwnershipSnapshot'
   | 'syncOwnership'
+  | 'getStaticDataCapabilities'
+  | 'getCurrentStaticDataRelease'
+  | 'publishStaticDataRelease'
 >
 
 export interface RefreshTokenProtector {
@@ -88,6 +99,12 @@ class CloudAuthenticationExpiredError extends Error {}
 export interface CloudLoginCallback {
   loginRequestId: string
   handoffCode: string
+}
+
+export interface StaticDataOverview {
+  canPublish: boolean
+  currentRelease: StaticDataReleaseSummary | null
+  source: CloudStaticDataCurrentRelease['source'] | null
 }
 
 export class CloudSyncController {
@@ -337,6 +354,96 @@ export class CloudSyncController {
     return this.enqueue(async () => {
       await this.performSync()
       return this.getSnapshot()
+    })
+  }
+
+  getStaticDataOverview(channel: string): Promise<StaticDataOverview> {
+    return this.enqueue(async () => {
+      if (!this.state.session) throw new Error('Sign in before checking static data.')
+      try {
+        const capabilities = await this.withAuthenticatedRetry((accessToken, signal) =>
+          this.api.getStaticDataCapabilities(accessToken, signal)
+        )
+        await this.applyAuthoritativeRole(capabilities.role)
+        let current: CloudStaticDataCurrentRelease | null = null
+        try {
+          current = await this.withAuthenticatedRetry((accessToken, signal) =>
+            this.api.getCurrentStaticDataRelease(channel, accessToken, signal)
+          )
+        } catch (error) {
+          if (!(error instanceof CloudApiError) || error.status !== 404) throw error
+        }
+        return {
+          canPublish: capabilities.role === 'admin' && capabilities.canPublish,
+          currentRelease: current
+            ? {
+                releaseId: current.releaseId,
+                contractVersion: current.contractVersion,
+                channel: current.channel,
+                gameBuild: current.gameBuild,
+                gameVersion: current.gameVersion,
+                contentSetSha256: current.contentSetSha256,
+                publishedAt: current.publishedAt,
+                current: true,
+                manifestUrl: current.manifestUrl
+              }
+            : null,
+          source: current?.source ?? null
+        }
+      } catch (error) {
+        if (isAuthenticationError(error)) {
+          await this.clearSession('Cloud authentication expired. Sign in again to publish data.')
+          this.status = 'auth-expired'
+          this.emitState()
+        }
+        throw error
+      }
+    })
+  }
+
+  publishStaticDataRelease(
+    archive: Buffer,
+    onUploadProgress?: (sentBytes: number, totalBytes: number) => void
+  ): Promise<StaticDataPublicationResult> {
+    return this.enqueue(async () => {
+      const session = this.state.session
+      if (!session) throw new Error('Sign in before publishing static data.')
+      if (session.user.role !== 'admin') {
+        throw new CloudApiError('An administrator role is required to publish static data.', {
+          status: 403,
+          code: 'static_data_admin_required'
+        })
+      }
+      try {
+        const result = await this.withAuthenticatedRetry((accessToken, signal) =>
+          this.api.publishStaticDataRelease(accessToken, archive, onUploadProgress, signal)
+        )
+        return toStaticDataPublishResult(result)
+      } catch (error) {
+        if (error instanceof CloudApiError && error.status === 403) {
+          try {
+            const capabilities = await this.withAuthenticatedRetry((accessToken, signal) =>
+              this.api.getStaticDataCapabilities(accessToken, signal)
+            )
+            await this.applyAuthoritativeRole(capabilities.role)
+          } catch (refreshError) {
+            if (isAuthenticationError(refreshError)) {
+              await this.clearSession(
+                'Cloud authentication expired. Sign in again to publish data.'
+              )
+              this.status = 'auth-expired'
+              this.emitState()
+            }
+            throw refreshError
+          }
+        }
+        if (isAuthenticationError(error)) {
+          await this.clearSession('Cloud authentication expired. Sign in again to publish data.')
+          this.status = 'auth-expired'
+          this.emitState()
+        }
+        throw error
+      }
     })
   }
 
@@ -676,6 +783,15 @@ export class CloudSyncController {
     await this.commit(next)
   }
 
+  private async applyAuthoritativeRole(role: 'user' | 'admin'): Promise<void> {
+    const session = this.state.session
+    if (!session || session.user.role === role) return
+    const next = cloneCloudState(this.state)
+    if (!next.session) return
+    next.session.user = { ...next.session.user, role }
+    await this.commit(next)
+  }
+
   private async clearPersistedRefreshToken(): Promise<string | null> {
     const encryptedRefreshToken = this.state.session?.encryptedRefreshToken ?? null
     if (!encryptedRefreshToken) return null
@@ -831,7 +947,24 @@ function abortableSleep(milliseconds: number, signal: AbortSignal): Promise<void
 }
 
 function sanitizeUser(user: CloudAuthenticatedUser): CloudUserSummary {
-  return { id: user.id, displayName: user.displayName }
+  return { id: user.id, displayName: user.displayName, role: user.role }
+}
+
+function toStaticDataPublishResult(
+  result: CloudStaticDataPublishResult
+): StaticDataPublicationResult {
+  return {
+    status: result.status,
+    releaseId: result.releaseId,
+    contractVersion: result.contractVersion,
+    channel: result.channel,
+    gameBuild: result.gameBuild,
+    gameVersion: result.gameVersion,
+    contentSetSha256: result.contentSetSha256,
+    publishedAt: result.publishedAt,
+    current: result.current,
+    manifestUrl: result.manifestUrl
+  }
 }
 
 function isAuthenticationError(error: unknown): boolean {

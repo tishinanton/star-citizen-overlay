@@ -6,6 +6,8 @@ import { isLoopbackCloudUrl, normalizeCloudApiUrl } from './cloud-url'
 const DEFAULT_REQUEST_TIMEOUT_MS = 15_000
 const MAX_RESPONSE_BYTES = 8 * 1024 * 1024
 const MAX_OWNERSHIP_SNAPSHOT_BYTES = 768 * 1024 * 1024
+const STATIC_DATA_UPLOAD_TIMEOUT_MS = 10 * 60 * 1_000
+const STATIC_DATA_UPLOAD_CHUNK_BYTES = 64 * 1024
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
 
 export interface CloudAuthenticatedUser {
@@ -13,6 +15,7 @@ export interface CloudAuthenticatedUser {
   discordUserId: string
   displayName: string
   avatarHash: string | null
+  role: 'user' | 'admin'
 }
 
 export interface CloudTokenPair {
@@ -173,6 +176,40 @@ export interface CloudAccountExport {
   exportedAt: string
 }
 
+export interface CloudStaticDataPublishResult {
+  status: 'published' | 'alreadyPublished'
+  releaseId: string
+  contractVersion: 1
+  channel: string
+  gameBuild: string
+  gameVersion: string
+  contentSetSha256: string
+  publishedAt: string
+  current: boolean
+  manifestUrl: string
+}
+
+export interface CloudStaticDataCapabilities {
+  contractVersion: 1
+  role: 'user' | 'admin'
+  canPublish: boolean
+}
+
+export interface CloudStaticDataCurrentRelease {
+  releaseId: string
+  contractVersion: 1
+  channel: string
+  gameBuild: string
+  gameVersion: string
+  contentSetSha256: string
+  publishedAt: string
+  manifestUrl: string
+  source: {
+    dataP4kBytes: number
+    dataP4kLastWriteAt: string
+  }
+}
+
 export class CloudApiError extends Error {
   readonly status: number
   readonly code: string
@@ -204,8 +241,12 @@ interface CloudRequestOptions {
   method: 'GET' | 'POST' | 'DELETE'
   accessToken?: string
   body?: unknown
+  rawBody?: Buffer
+  contentType?: string
   signal?: AbortSignal
   maxResponseBytes?: number
+  timeoutMs?: number
+  onUploadProgress?: (sentBytes: number, totalBytes: number) => void
 }
 
 interface CloudApiClientOptions {
@@ -341,14 +382,72 @@ export class CloudApiClient {
     )
   }
 
+  async getStaticDataCapabilities(
+    accessToken: string,
+    signal?: AbortSignal
+  ): Promise<CloudStaticDataCapabilities> {
+    return parseStaticDataCapabilities(
+      await this.request('/v1/static-data/capabilities', {
+        method: 'GET',
+        accessToken,
+        signal
+      })
+    )
+  }
+
+  async getCurrentStaticDataRelease(
+    channel: string,
+    accessToken: string,
+    signal?: AbortSignal
+  ): Promise<CloudStaticDataCurrentRelease> {
+    const normalizedChannel = readChannel(channel, 'Static-data channel')
+    return parseCurrentStaticDataRelease(
+      await this.request(
+        `/v1/static-data/channels/${encodeURIComponent(normalizedChannel)}/current`,
+        {
+          method: 'GET',
+          accessToken,
+          signal
+        }
+      )
+    )
+  }
+
+  async publishStaticDataRelease(
+    accessToken: string,
+    archive: Buffer,
+    onUploadProgress?: (sentBytes: number, totalBytes: number) => void,
+    signal?: AbortSignal
+  ): Promise<CloudStaticDataPublishResult> {
+    if (archive.byteLength === 0 || archive.byteLength > 128 * 1024 * 1024) {
+      throw new RangeError('Static-data release archive size is outside the supported range.')
+    }
+    return parseStaticDataPublishResult(
+      await this.request('/v1/admin/static-data/releases', {
+        method: 'POST',
+        accessToken,
+        rawBody: archive,
+        contentType: 'application/zip',
+        signal,
+        timeoutMs: STATIC_DATA_UPLOAD_TIMEOUT_MS,
+        onUploadProgress
+      })
+    )
+  }
+
   private async request(path: string, options: CloudRequestOptions): Promise<unknown> {
     const url = new URL(path, this.baseUrl)
-    const body = options.body === undefined ? null : Buffer.from(JSON.stringify(options.body))
+    if (options.body !== undefined && options.rawBody !== undefined) {
+      throw new TypeError('A cloud request cannot have both JSON and raw bodies.')
+    }
+    const body =
+      options.rawBody ??
+      (options.body === undefined ? null : Buffer.from(JSON.stringify(options.body)))
     const headers: Record<string, string> = {
       Accept: 'application/json'
     }
     if (body) {
-      headers['Content-Type'] = 'application/json'
+      headers['Content-Type'] = options.contentType ?? 'application/json'
       headers['Content-Length'] = String(body.byteLength)
     }
     if (options.accessToken) {
@@ -450,7 +549,7 @@ export class CloudApiClient {
         }
       )
 
-      request.setTimeout(this.timeoutMs, () => {
+      request.setTimeout(options.timeoutMs ?? this.timeoutMs, () => {
         request.destroy(new CloudNetworkError('The cloud request timed out.', 'ETIMEDOUT'))
       })
       request.on('error', (reason: Error & { code?: string }) => {
@@ -470,8 +569,11 @@ export class CloudApiClient {
         return
       }
       options.signal?.addEventListener('abort', abort, { once: true })
-      if (body) request.write(body)
-      request.end()
+      if (body) {
+        writeRequestBody(request, body, options.onUploadProgress)
+      } else {
+        request.end()
+      }
     })
   }
 }
@@ -521,11 +623,120 @@ function parseTokenPair(value: unknown): CloudTokenPair {
 
 function parseAuthenticatedUser(value: unknown): CloudAuthenticatedUser {
   const record = readRecord(value, 'Authenticated user')
+  const role = readNonEmptyString(record.role, 'User role', 50)
+  if (role !== 'user' && role !== 'admin') {
+    throw new TypeError('Authenticated user has an unsupported role.')
+  }
+
   return {
     id: readUuid(record.id, 'User ID'),
     discordUserId: readNonEmptyString(record.discordUserId, 'Discord user ID', 100),
     displayName: readNonEmptyString(record.displayName, 'Display name', 200),
-    avatarHash: readNullableString(record.avatarHash, 'Avatar hash', 500)
+    avatarHash: readNullableString(record.avatarHash, 'Avatar hash', 500),
+    role
+  }
+}
+
+function parseStaticDataPublishResult(value: unknown): CloudStaticDataPublishResult {
+  const record = readRecord(value, 'Static-data publication result')
+  const status = readNonEmptyString(record.status, 'Publication status', 50)
+  if (status !== 'published' && status !== 'alreadyPublished') {
+    throw new TypeError('Static-data publication result has an unsupported status.')
+  }
+
+  const contractVersion = readPositiveInteger(record.contractVersion, 'Contract version')
+  if (contractVersion !== 1) {
+    throw new TypeError('Static-data publication result has an unsupported contract version.')
+  }
+  return {
+    status,
+    releaseId: readUuid(record.releaseId, 'Published release ID'),
+    contractVersion,
+    channel: readNonEmptyString(record.channel, 'Published channel', 32),
+    gameBuild: readNonEmptyString(record.gameBuild, 'Published game build', 200),
+    gameVersion: readNonEmptyString(record.gameVersion, 'Published game version', 200),
+    contentSetSha256: readSha256(record.contentSetSha256, 'Published content-set hash'),
+    publishedAt: readTimestamp(record.publishedAt, 'Publication time'),
+    current: readBoolean(record.current, 'Published release current state'),
+    manifestUrl: readApiPath(record.manifestUrl, 'Published manifest URL')
+  }
+}
+
+function parseStaticDataCapabilities(value: unknown): CloudStaticDataCapabilities {
+  const record = readRecord(value, 'Static-data capabilities')
+  const contractVersion = readPositiveInteger(record.contractVersion, 'Contract version')
+  if (contractVersion !== 1) {
+    throw new TypeError('The cloud service does not support static-data contract version 1.')
+  }
+  const role = readRole(record.role, 'Authoritative user role')
+  const requiredResources = readRecord(record.requiredResources, 'Required static-data resources')
+  const expectedResources = ['signatures', 'blueprints', 'faction-reputation'] as const
+  if (
+    Object.keys(requiredResources).length !== expectedResources.length ||
+    expectedResources.some(
+      (name) => !hasExactVersion(requiredResources[name], 1, `Required ${name} schemas`)
+    )
+  ) {
+    throw new TypeError('The cloud service requires an incompatible static-data resource set.')
+  }
+  const mediaTypes = readArray(record.assetMediaTypes, 'Static-data asset media types')
+  if (mediaTypes.length !== 1 || mediaTypes[0] !== 'image/png') {
+    throw new TypeError('The cloud service requires incompatible static-data asset types.')
+  }
+  readRecord(record.limits, 'Static-data limits')
+  return {
+    contractVersion,
+    role,
+    canPublish: readBoolean(record.canPublish, 'Static-data publication capability')
+  }
+}
+
+function parseCurrentStaticDataRelease(value: unknown): CloudStaticDataCurrentRelease {
+  const record = readRecord(value, 'Current static-data release')
+  const contractVersion = readPositiveInteger(record.contractVersion, 'Contract version')
+  if (contractVersion !== 1) {
+    throw new TypeError('Current static-data release uses an unsupported contract version.')
+  }
+  const releaseId = readUuid(record.releaseId, 'Current release ID')
+  const resources = readArray(record.resources, 'Current static-data resources')
+  const resourceNames = resources.map((resource) => {
+    const resourceRecord = readRecord(resource, 'Current static-data resource')
+    const schemaVersion = readPositiveInteger(
+      resourceRecord.schemaVersion,
+      'Resource schema version'
+    )
+    if (schemaVersion !== 1) {
+      throw new TypeError('Current static-data release uses an unsupported resource schema.')
+    }
+    readPositiveInteger(resourceRecord.recordCount, 'Resource record count')
+    readSha256(resourceRecord.sha256, 'Resource hash')
+    return readNonEmptyString(resourceRecord.name, 'Resource name', 100)
+  })
+  const expectedNames = ['blueprints', 'faction-reputation', 'signatures']
+  if (
+    resourceNames.length !== expectedNames.length ||
+    [...resourceNames].sort().some((name, index) => name !== expectedNames[index])
+  ) {
+    throw new TypeError('Current static-data release has an incompatible resource set.')
+  }
+  const source = readRecord(record.source, 'Current static-data source')
+  readArray(record.assets, 'Current static-data assets')
+  return {
+    releaseId,
+    contractVersion,
+    channel: readChannel(record.channel, 'Current release channel'),
+    gameBuild: readNonEmptyString(record.gameBuild, 'Current game build', 200),
+    gameVersion: readNonEmptyString(record.gameVersion, 'Current game version', 200),
+    contentSetSha256: readSha256(record.contentSetSha256, 'Current content-set hash'),
+    publishedAt: readTimestamp(record.publishedAt, 'Current publication time'),
+    manifestUrl: `/v1/static-data/releases/${releaseId}`,
+    source: {
+      dataP4kBytes: readPositiveInteger(source.dataP4kBytes, 'Current source archive bytes'),
+      dataP4kLastWriteAt: readTimestamp(
+        source.dataP4kLastWriteAt,
+        'Current source archive modification time'
+      )
+    }
   }
 }
 
@@ -780,6 +991,50 @@ function readBoolean(value: unknown, label: string): boolean {
   return value
 }
 
+function readRole(value: unknown, label: string): 'user' | 'admin' {
+  const role = readNonEmptyString(value, label, 50)
+  if (role !== 'user' && role !== 'admin') {
+    throw new TypeError(`${label} must be "user" or "admin".`)
+  }
+  return role
+}
+
+function readChannel(value: unknown, label: string): string {
+  const channel = readNonEmptyString(value, label, 32)
+  if (!/^[A-Za-z0-9_-]+$/.test(channel)) {
+    throw new TypeError(`${label} contains unsupported characters.`)
+  }
+  return channel
+}
+
+function hasExactVersion(value: unknown, version: number, label: string): boolean {
+  const versions = readArray(value, label)
+  return versions.length === 1 && versions[0] === version
+}
+
+function readPositiveInteger(value: unknown, label: string): number {
+  if (typeof value !== 'number' || !Number.isSafeInteger(value) || value <= 0) {
+    throw new TypeError(`${label} must be a positive integer.`)
+  }
+  return value
+}
+
+function readSha256(value: unknown, label: string): string {
+  const candidate = readNonEmptyString(value, label, 64)
+  if (!/^[0-9a-f]{64}$/.test(candidate)) {
+    throw new TypeError(`${label} must be a lowercase SHA-256 hash.`)
+  }
+  return candidate
+}
+
+function readApiPath(value: unknown, label: string): string {
+  const candidate = readNonEmptyString(value, label, 2_048)
+  if (!candidate.startsWith('/v1/') || candidate.includes('\\')) {
+    throw new TypeError(`${label} must be a versioned API path.`)
+  }
+  return candidate
+}
+
 function readTimestamp(value: unknown, label: string): string {
   const candidate = readNonEmptyString(value, label, 100)
   if (!Number.isFinite(Date.parse(candidate))) throw new TypeError(`${label} must be a timestamp.`)
@@ -794,6 +1049,31 @@ function readUuid(value: unknown, label: string): string {
 
 function assertUuid(value: string, label: string): void {
   if (!UUID_PATTERN.test(value)) throw new TypeError(`${label} must be a UUID.`)
+}
+
+function writeRequestBody(
+  request: import('node:http').ClientRequest,
+  body: Buffer,
+  onProgress?: (sentBytes: number, totalBytes: number) => void
+): void {
+  let offset = 0
+  onProgress?.(0, body.byteLength)
+
+  const writeNext = (): void => {
+    if (request.destroyed) return
+    if (offset >= body.byteLength) {
+      request.end()
+      return
+    }
+    const end = Math.min(offset + STATIC_DATA_UPLOAD_CHUNK_BYTES, body.byteLength)
+    request.write(body.subarray(offset, end), () => {
+      offset = end
+      onProgress?.(offset, body.byteLength)
+      writeNext()
+    })
+  }
+
+  writeNext()
 }
 
 function readUrl(value: unknown, label: string): string {

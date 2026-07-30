@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from 'react'
 import {
   Cloud,
+  Database,
   Info,
   Link,
   LogIn,
@@ -19,13 +20,16 @@ import {
   DEFAULT_APP_FONT_SIZE,
   MAX_APP_FONT_SIZE,
   MIN_APP_FONT_SIZE,
-  type CloudSyncState
+  type CloudSyncState,
+  type StaticDataSyncState
 } from '../../../shared/contracts'
+import { canShowStaticDataSync } from '../lib/static-data-visibility'
 
 interface SettingsPageProps {
   fontSize: number
   apiUrl: string
   cloud: CloudSyncState
+  staticData: StaticDataSyncState
   onFontSizeChange: (fontSize: number) => void
   onApiUrlChange: (apiUrl: string) => void
   onBeginCloudLogin: () => void
@@ -34,12 +38,14 @@ interface SettingsPageProps {
   onSyncCloud: () => void
   onConfirmCloudProfileImport: () => void
   onLogoutCloud: () => void
+  onPublishStaticData: () => void
 }
 
 export default function SettingsPage({
   fontSize,
   apiUrl,
   cloud,
+  staticData,
   onFontSizeChange,
   onApiUrlChange,
   onBeginCloudLogin,
@@ -47,7 +53,8 @@ export default function SettingsPage({
   onCancelCloudLogin,
   onSyncCloud,
   onConfirmCloudProfileImport,
-  onLogoutCloud
+  onLogoutCloud,
+  onPublishStaticData
 }: SettingsPageProps): React.JSX.Element {
   const scalePercentage = Math.round((fontSize / DEFAULT_APP_FONT_SIZE) * 100)
   const [apiUrlDraft, setApiUrlDraft] = useState<string | null>(null)
@@ -57,6 +64,14 @@ export default function SettingsPage({
   }>({ loginExpiresAt: null, value: '' })
   const waitingForBrowser = cloud.status === 'waiting-for-browser'
   const busy = ['connecting', 'restoring', 'syncing'].includes(cloud.status)
+  const staticDataBusy = [
+    'checking',
+    'preparing',
+    'confirming',
+    'uploading',
+    'validating'
+  ].includes(staticData.status)
+  const interactionBusy = busy || staticDataBusy
   const displayedApiUrl = apiUrlDraft ?? apiUrl
   const handoffCode = handoffDraft.loginExpiresAt === cloud.loginExpiresAt ? handoffDraft.value : ''
   const endpointChanged = apiUrlDraft !== null && apiUrlDraft.trim() !== apiUrl
@@ -157,7 +172,11 @@ export default function SettingsPage({
                   {cloud.blockedProfileCount === 1 ? ' is' : 's are'} linked to another Discord
                   account.
                 </span>
-                <button type="button" disabled={busy} onClick={onConfirmCloudProfileImport}>
+                <button
+                  type="button"
+                  disabled={interactionBusy}
+                  onClick={onConfirmCloudProfileImport}
+                >
                   Review import
                 </button>
               </div>
@@ -166,7 +185,7 @@ export default function SettingsPage({
             <div className="cloud-actions">
               {cloud.user ? (
                 <>
-                  <button type="button" disabled={busy} onClick={onSyncCloud}>
+                  <button type="button" disabled={interactionBusy} onClick={onSyncCloud}>
                     <RefreshCw
                       size={15}
                       aria-hidden="true"
@@ -177,7 +196,7 @@ export default function SettingsPage({
                   <button
                     className="cloud-actions__secondary"
                     type="button"
-                    disabled={busy}
+                    disabled={interactionBusy}
                     onClick={onLogoutCloud}
                   >
                     <LogOut size={15} aria-hidden="true" />
@@ -197,7 +216,7 @@ export default function SettingsPage({
                   Cancel sign-in
                 </button>
               ) : (
-                <button type="button" disabled={busy} onClick={onBeginCloudLogin}>
+                <button type="button" disabled={interactionBusy} onClick={onBeginCloudLogin}>
                   <LogIn size={15} aria-hidden="true" />
                   Sign in with Discord
                 </button>
@@ -252,13 +271,13 @@ export default function SettingsPage({
                   inputMode="url"
                   spellCheck={false}
                   value={displayedApiUrl}
-                  disabled={busy}
+                  disabled={interactionBusy}
                   onChange={(event) => setApiUrlDraft(event.target.value)}
                   placeholder="https://localhost:7065"
                 />
                 <button
                   type="submit"
-                  disabled={busy || !endpointChanged || !displayedApiUrl.trim()}
+                  disabled={interactionBusy || !endpointChanged || !displayedApiUrl.trim()}
                 >
                   Apply
                 </button>
@@ -271,6 +290,92 @@ export default function SettingsPage({
             </form>
           </div>
         </section>
+
+        {canShowStaticDataSync(cloud) && (
+          <section className="settings-section" aria-labelledby="static-data-title">
+            <div className="settings-section__heading">
+              <Database size={18} aria-hidden="true" />
+              <div>
+                <h2 id="static-data-title">Static data</h2>
+                <p>Publish one atomic mobile catalog from this PC&apos;s installed game build.</p>
+              </div>
+            </div>
+
+            <div className="static-data-settings">
+              <div className="cloud-connection__header">
+                <div>
+                  <span className="setting-label">Mobile catalog release</span>
+                  <span className="setting-help" role="status" aria-live="polite">
+                    {staticData.message}
+                  </span>
+                </div>
+                <StaticDataStatus status={staticData.status} />
+              </div>
+
+              <dl className="cloud-telemetry">
+                <div>
+                  <dt>Game build</dt>
+                  <dd>{staticData.currentRelease?.gameBuild ?? 'Not published'}</dd>
+                </div>
+                <div>
+                  <dt>Game version</dt>
+                  <dd>{staticData.currentRelease?.gameVersion ?? '—'}</dd>
+                </div>
+                <div>
+                  <dt>Channel</dt>
+                  <dd>{staticData.currentRelease?.channel ?? '—'}</dd>
+                </div>
+                <div>
+                  <dt>Published</dt>
+                  <dd>{formatSyncTime(staticData.currentRelease?.publishedAt ?? null)}</dd>
+                </div>
+                <div>
+                  <dt>Content</dt>
+                  <dd>
+                    {staticData.currentRelease
+                      ? staticData.currentRelease.contentSetSha256.slice(0, 12)
+                      : '—'}
+                  </dd>
+                </div>
+              </dl>
+
+              {staticData.progress && (
+                <div className="static-data-progress" aria-label={staticData.progress.phase}>
+                  <div>
+                    <span>{staticData.progress.phase}</span>
+                    <span>
+                      {staticData.progress.completed} / {staticData.progress.total}
+                    </span>
+                  </div>
+                  <progress max={staticData.progress.total} value={staticData.progress.completed} />
+                </div>
+              )}
+
+              {staticData.status === 'error' && (
+                <div className="cloud-notice cloud-notice--danger" role="alert">
+                  <TriangleAlert size={16} aria-hidden="true" />
+                  <span>{staticData.message}</span>
+                </div>
+              )}
+
+              <div className="cloud-actions static-data-actions">
+                <button type="button" disabled={interactionBusy} onClick={onPublishStaticData}>
+                  <RefreshCw
+                    size={15}
+                    aria-hidden="true"
+                    className={
+                      ['preparing', 'uploading', 'validating'].includes(staticData.status)
+                        ? 'is-spinning'
+                        : ''
+                    }
+                  />
+                  {staticData.status === 'unavailable' ? 'Check compatibility' : 'Sync game data'}
+                </button>
+                <span>Requires a fresh extraction and replaces all resources together.</span>
+              </div>
+            </div>
+          </section>
+        )}
 
         <section className="settings-section" aria-labelledby="appearance-title">
           <div className="settings-section__heading">
@@ -333,6 +438,39 @@ export default function SettingsPage({
         </section>
       </div>
     </main>
+  )
+}
+
+function StaticDataStatus({
+  status
+}: {
+  status: StaticDataSyncState['status']
+}): React.JSX.Element {
+  const label =
+    status === 'already-current'
+      ? 'Current'
+      : status === 'published'
+        ? 'Published'
+        : status === 'ready'
+          ? 'Ready'
+          : status === 'error'
+            ? 'Publish error'
+            : status === 'unavailable'
+              ? 'Unavailable'
+              : status === 'checking'
+                ? 'Checking'
+                : status === 'confirming'
+                  ? 'Confirming'
+                  : status === 'preparing'
+                    ? 'Preparing'
+                    : status === 'uploading'
+                      ? 'Uploading'
+                      : 'Validating'
+  return (
+    <span className={`cloud-status static-data-status--${status}`}>
+      <span aria-hidden="true" />
+      {label}
+    </span>
   )
 }
 

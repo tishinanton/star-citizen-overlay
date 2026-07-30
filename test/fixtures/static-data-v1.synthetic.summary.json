@@ -1,0 +1,64 @@
+{
+  "archiveBytes": 3341,
+  "archiveSha256": "86ed57f86d02658c3dab190adc4549204cf43bec6a6211f2066482bdc8e17711",
+  "manifestBytes": 1475,
+  "manifest": {
+    "contractVersion": 1,
+    "releaseId": "33333333-3333-4333-8333-333333333333",
+    "channel": "TEST",
+    "gameBuild": "synthetic-build",
+    "gameVersion": "0.0.1",
+    "generatedAt": "2026-07-30T14:00:00.000Z",
+    "sourceAppVersion": "0.2.0",
+    "source": {
+      "dataP4kBytes": 123456,
+      "dataP4kLastWriteAt": "2026-07-30T13:00:00.000Z"
+    },
+    "resources": [
+      {
+        "name": "blueprints",
+        "schemaVersion": 1,
+        "file": "datasets/blueprints.json.gz",
+        "mediaType": "application/json",
+        "contentEncoding": "gzip",
+        "recordCount": 2,
+        "uncompressedBytes": 1992,
+        "compressedBytes": 550,
+        "sha256": "cf2b23755472fbd5ebd4122f1713f965726cf88659876d86434e74b40e12e578"
+      },
+      {
+        "name": "faction-reputation",
+        "schemaVersion": 1,
+        "file": "datasets/faction-reputation.json.gz",
+        "mediaType": "application/json",
+        "contentEncoding": "gzip",
+        "recordCount": 1,
+        "uncompressedBytes": 563,
+        "compressedBytes": 283,
+        "sha256": "23e057fcf1e6cd51c035cc2fbe532771a1a64bccd0cfaef29ad944e188c18b9b"
+      },
+      {
+        "name": "signatures",
+        "schemaVersion": 1,
+        "file": "datasets/signatures.json.gz",
+        "mediaType": "application/json",
+        "contentEncoding": "gzip",
+        "recordCount": 1,
+        "uncompressedBytes": 243,
+        "compressedBytes": 175,
+        "sha256": "fa0b53547fcb8e808a19c2ce5ddc2395c5fb1e0070b41f7ee3052825dca8e14c"
+      }
+    ],
+    "assets": [
+      {
+        "key": "blueprint-icons/43d579424c7f66897cdf4742aaee0a16838ffb79f328e7a4bebf1cd1c373235f",
+        "file": "assets/blueprint-icons/43d579424c7f66897cdf4742aaee0a16838ffb79f328e7a4bebf1cd1c373235f.png",
+        "mediaType": "image/png",
+        "byteLength": 70,
+        "sha256": "43d579424c7f66897cdf4742aaee0a16838ffb79f328e7a4bebf1cd1c373235f",
+        "width": 1,
+        "height": 1
+      }
+    ]
+  }
+}

@@ -22,6 +22,7 @@ interface RockfallState {
   syncCloud: () => Promise<void>
   confirmCloudProfileImport: () => Promise<void>
   logoutCloud: () => Promise<void>
+  publishStaticData: () => Promise<void>
   checkForUpdates: () => Promise<void>
   restartToUpdate: () => Promise<void>
 }
@@ -149,6 +150,16 @@ export function useRockfall(): RockfallState {
     [runCloudAction]
   )
 
+  const publishStaticData = useCallback(async (): Promise<void> => {
+    try {
+      setError(null)
+      const staticData = await window.rockfall.publishStaticData()
+      setSnapshot((current) => (current ? { ...current, staticData } : current))
+    } catch (reason) {
+      setError(getErrorMessage(reason))
+    }
+  }, [])
+
   useEffect(() => {
     const handleOnline = (): void => {
       void syncCloud()
@@ -189,6 +200,7 @@ export function useRockfall(): RockfallState {
     syncCloud,
     confirmCloudProfileImport,
     logoutCloud,
+    publishStaticData,
     checkForUpdates,
     restartToUpdate
   }

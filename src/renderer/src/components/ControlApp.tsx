@@ -88,6 +88,7 @@ export default function ControlApp(): React.JSX.Element {
     syncCloud,
     confirmCloudProfileImport,
     logoutCloud,
+    publishStaticData,
     checkForUpdates,
     restartToUpdate
   } = useRockfall()
@@ -794,6 +795,7 @@ export default function ControlApp(): React.JSX.Element {
           fontSize={settings.appFontSize}
           apiUrl={settings.cloudApiUrl}
           cloud={snapshot.cloud}
+          staticData={snapshot.staticData}
           onFontSizeChange={(appFontSize) => void updateSettings({ appFontSize })}
           onApiUrlChange={(cloudApiUrl) => void updateSettings({ cloudApiUrl })}
           onBeginCloudLogin={() => void beginCloudLogin()}
@@ -802,6 +804,7 @@ export default function ControlApp(): React.JSX.Element {
           onSyncCloud={() => void syncCloud()}
           onConfirmCloudProfileImport={() => void confirmCloudProfileImport()}
           onLogoutCloud={() => void logoutCloud()}
+          onPublishStaticData={() => void publishStaticData()}
         />
       )}
 

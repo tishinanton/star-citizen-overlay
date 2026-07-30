@@ -38,6 +38,7 @@ const rockfallApi: RockfallApi = {
   syncCloud: () => ipcRenderer.invoke(IPC_CHANNELS.syncCloud),
   confirmCloudProfileImport: () => ipcRenderer.invoke(IPC_CHANNELS.confirmCloudProfileImport),
   logoutCloud: () => ipcRenderer.invoke(IPC_CHANNELS.logoutCloud),
+  publishStaticData: () => ipcRenderer.invoke(IPC_CHANNELS.publishStaticData),
   checkForUpdates: () => ipcRenderer.invoke(IPC_CHANNELS.checkForUpdates),
   restartToUpdate: () => ipcRenderer.invoke(IPC_CHANNELS.restartToUpdate),
   onSnapshot: (listener: (snapshot: AppSnapshot) => void) => {

@@ -14,6 +14,7 @@ import {
 } from 'electron'
 import { hostname } from 'node:os'
 import { join, resolve } from 'node:path'
+import { stat } from 'node:fs/promises'
 
 import { electronApp, is, optimizer } from '@electron-toolkit/utils'
 import { autoUpdater } from 'electron-updater'
@@ -38,7 +39,9 @@ import {
   type OverlayPlacement,
   type OverlaySettings,
   type OverlaySettingsPatch,
-  type ShortcutStatus
+  type ShortcutStatus,
+  type StaticDataReleaseSummary,
+  type StaticDataSyncState
 } from '../shared/contracts'
 import {
   getOverlayFallbackLayout,
@@ -60,6 +63,11 @@ import {
 import { loadMiningData } from './mining-data'
 import { loadMiningLocations } from './mining-locations'
 import { DEFAULT_SETTINGS, loadSettings, mergeSettings, saveSettings } from './settings-store'
+import {
+  prepareStaticData,
+  type PreparedStaticData,
+  type StaticDataPreparationProgress
+} from './static-data'
 
 const SCREEN_MARGIN = 24
 const ROCKFALL_PROTOCOL = 'rockfall'
@@ -144,6 +152,15 @@ let cloudSync: CloudSyncState = {
   loginExpiresAt: null,
   refreshTokenPersistent: false
 }
+let staticData: StaticDataSyncState = {
+  status: 'unavailable',
+  canPublish: false,
+  message: 'Sign in as an administrator to publish static data.',
+  progress: null,
+  currentRelease: null
+}
+let staticDataPublication: Promise<StaticDataSyncState> | null = null
+let gameDataSelectionActive = false
 let shortcutStatuses: ShortcutStatus[] = []
 let warning: string | null = null
 let settingsPath = ''
@@ -193,6 +210,7 @@ function getSnapshot(): AppSnapshot {
     shortcuts: shortcutStatuses,
     appUpdate,
     cloud: cloudSync,
+    staticData,
     warning
   }
 }
@@ -420,6 +438,274 @@ async function updateSettings(patch: OverlaySettingsPatch): Promise<AppSnapshot>
   return getSnapshot()
 }
 
+async function refreshStaticDataAvailability(): Promise<void> {
+  const controller = cloudSyncController
+  const archive = gameDataArchive
+  const channel = archive?.channel
+  if (!controller || cloudSync.user?.role !== 'admin' || !channel) {
+    staticData = {
+      status: 'unavailable',
+      canPublish: false,
+      message: channel
+        ? 'Sign in as an administrator to publish static data.'
+        : 'Select a valid Star Citizen game archive before publishing.',
+      progress: null,
+      currentRelease: null
+    }
+    broadcastSnapshot()
+    return
+  }
+
+  const previousRelease = staticData.currentRelease
+  staticData = {
+    ...staticData,
+    status: 'checking',
+    canPublish: false,
+    message: 'Checking the static-data contract and current release…',
+    progress: null
+  }
+  broadcastSnapshot()
+  try {
+    const archiveStat = await stat(archive.path)
+    const overview = await controller.getStaticDataOverview(channel)
+    const sourceMatches =
+      overview.source !== null &&
+      overview.source.dataP4kBytes === archiveStat.size &&
+      Date.parse(overview.source.dataP4kLastWriteAt) === archiveStat.mtime.getTime()
+    staticData = {
+      status: overview.canPublish ? 'ready' : 'unavailable',
+      canPublish: overview.canPublish,
+      message: overview.canPublish
+        ? overview.currentRelease
+          ? sourceMatches
+            ? `Current: the server release matches the selected ${overview.currentRelease.gameVersion} archive.`
+            : `Stale or unknown: the selected archive differs from server release ${overview.currentRelease.gameVersion}.`
+          : 'Compatible API found. This channel has no published release yet.'
+        : 'The current account or API deployment cannot publish this static-data contract.',
+      progress: null,
+      currentRelease: overview.currentRelease
+    }
+  } catch (error) {
+    staticData = {
+      status: 'unavailable',
+      canPublish: false,
+      message: `Static-data compatibility could not be checked: ${getErrorMessage(error)}`,
+      progress: null,
+      currentRelease: previousRelease
+    }
+  }
+  broadcastSnapshot()
+}
+
+function publishStaticData(): Promise<StaticDataSyncState> {
+  if (staticDataPublication) {
+    return Promise.reject(new Error('A static-data publication is already in progress.'))
+  }
+  const request = runStaticDataPublication().finally(() => {
+    if (staticDataPublication === request) staticDataPublication = null
+  })
+  staticDataPublication = request
+  return request
+}
+
+async function runStaticDataPublication(): Promise<StaticDataSyncState> {
+  const controller = cloudSyncController
+  if (!controller || cloudSync.user?.role !== 'admin') {
+    throw new Error('An active administrator session is required to publish static data.')
+  }
+  const archive = gameDataArchive
+  if (!archive) throw new Error('Select a valid Star Citizen game archive before publishing.')
+  if (
+    gameDataSelectionActive ||
+    dataStatus.state === 'loading' ||
+    pendingBlueprintData ||
+    pendingFactionData
+  ) {
+    throw new Error('Wait for the current game-data operation to finish before publishing.')
+  }
+
+  const priorRelease = staticData.currentRelease
+  try {
+    await refreshStaticDataAvailability()
+    if (!staticData.canPublish || cloudSync.user?.role !== 'admin') {
+      throw new Error(staticData.message)
+    }
+
+    setStaticDataProgress({
+      phase: 'validating',
+      completed: 0,
+      total: 6,
+      message: 'Validating the selected game archive…'
+    })
+    const prepared = await prepareStaticData({
+      gameDataArchive: archive,
+      miningCachePath: cachePath,
+      blueprintCachePath: blueprintCatalogCachePath,
+      factionCachePath: factionCatalogCachePath,
+      extractorPath,
+      desktopVersion: app.getVersion(),
+      onProgress: setStaticDataProgress
+    })
+    applyPreparedStaticData(prepared)
+
+    staticData = {
+      ...staticData,
+      status: 'confirming',
+      canPublish: false,
+      message: 'Review the prepared release before publishing.',
+      progress: null
+    }
+    broadcastSnapshot()
+    const confirmed = await confirmStaticDataPublication(prepared)
+    if (!confirmed) {
+      staticData = {
+        ...staticData,
+        status: 'ready',
+        canPublish: true,
+        message: 'Static-data publication was cancelled.',
+        progress: null
+      }
+      broadcastSnapshot()
+      return staticData
+    }
+
+    const preUpload = await controller.getStaticDataOverview(archive.channel)
+    if (!preUpload.canPublish || cloudSync.user?.role !== 'admin') {
+      throw new Error('Administrator access changed before upload. Sign in again if needed.')
+    }
+    staticData = {
+      ...staticData,
+      status: 'uploading',
+      canPublish: false,
+      message: 'Uploading the complete static-data release…',
+      progress: {
+        phase: 'Uploading release',
+        completed: 0,
+        total: prepared.publication.archive.byteLength
+      }
+    }
+    broadcastSnapshot()
+    const result = await controller.publishStaticDataRelease(
+      prepared.publication.archive,
+      (sentBytes, totalBytes) => {
+        staticData = {
+          ...staticData,
+          status: sentBytes >= totalBytes ? 'validating' : 'uploading',
+          message:
+            sentBytes >= totalBytes
+              ? 'Upload complete. The server is validating and activating the release…'
+              : 'Uploading the complete static-data release…',
+          progress: {
+            phase: sentBytes >= totalBytes ? 'Validating and publishing' : 'Uploading release',
+            completed: sentBytes,
+            total: totalBytes
+          }
+        }
+        broadcastSnapshot()
+      }
+    )
+    const currentRelease: StaticDataReleaseSummary = result
+    staticData = {
+      status: result.status === 'alreadyPublished' ? 'already-current' : 'published',
+      canPublish: true,
+      message:
+        result.status === 'alreadyPublished'
+          ? `Already current: ${result.gameVersion} matches the active release.`
+          : `Published ${result.gameVersion} atomically to ${result.channel}.`,
+      progress: null,
+      currentRelease
+    }
+    broadcastSnapshot()
+    return staticData
+  } catch (error) {
+    staticData = {
+      status: 'error',
+      canPublish: cloudSync.user?.role === 'admin',
+      message: `Static-data publication failed: ${getErrorMessage(error)}`,
+      progress: null,
+      currentRelease: priorRelease
+    }
+    broadcastSnapshot()
+    throw error
+  }
+}
+
+function setStaticDataProgress(progress: StaticDataPreparationProgress): void {
+  staticData = {
+    ...staticData,
+    status: 'preparing',
+    canPublish: false,
+    message: progress.message,
+    progress: {
+      phase: progress.message,
+      completed: progress.completed,
+      total: progress.total
+    }
+  }
+  broadcastSnapshot()
+}
+
+function applyPreparedStaticData(prepared: PreparedStaticData): void {
+  miningLocationGeneration += 1
+  miningLocationResults.clear()
+  pendingLocationRequests.clear()
+  bestMiningLocations = {}
+  materials = prepared.mining.materials
+  dataStatus = prepared.mining.status
+  blueprintDataGeneration += 1
+  pendingBlueprintData = null
+  blueprintDataResult = prepared.blueprints
+  factionDataGeneration += 1
+  pendingFactionData = null
+  factionDataResult = prepared.factions
+  broadcastBlueprintOwnership()
+  broadcastSnapshot()
+  queueSelectedMiningLocations()
+}
+
+async function confirmStaticDataPublication(prepared: PreparedStaticData): Promise<boolean> {
+  if (!controlWindow || controlWindow.isDestroyed()) {
+    throw new Error('The Rockfall control window is unavailable.')
+  }
+  const resource = Object.fromEntries(
+    prepared.publication.manifest.resources.map((entry) => [entry.name, entry])
+  )
+  const warningCount = prepared.warningCount
+  const detail = [
+    `API: ${settings.cloudApiUrl}`,
+    `Game: ${prepared.source.gameBuild} / ${prepared.source.gameVersion} (${prepared.source.channel})`,
+    `Signatures: ${resource.signatures.recordCount} records, ${formatBytes(resource.signatures.compressedBytes)} gzip`,
+    `Blueprints: ${resource.blueprints.recordCount} records, ${formatBytes(resource.blueprints.compressedBytes)} gzip`,
+    `Factions: ${resource['faction-reputation'].recordCount} records, ${formatBytes(resource['faction-reputation'].compressedBytes)} gzip`,
+    `Icons: ${prepared.publication.manifest.assets.length}`,
+    `Archive: ${formatBytes(prepared.publication.archive.byteLength)} · SHA-256 ${prepared.publication.archiveSha256.slice(0, 16)}…`,
+    `Extractor warnings: ${warningCount}`,
+    '',
+    'The server will validate every resource and icon before atomically replacing the authenticated current release.'
+  ].join('\n')
+  const result = await dialog.showMessageBox(controlWindow, {
+    type: 'warning',
+    title: 'Publish static game data',
+    message: 'Publish this complete static-data release?',
+    detail,
+    buttons: ['Cancel', 'Publish release'],
+    defaultId: 0,
+    cancelId: 0,
+    noLink: true
+  })
+  return result.response === 1
+}
+
+function formatBytes(bytes: number): string {
+  if (bytes < 1_024) return `${bytes} B`
+  if (bytes < 1_048_576) return `${(bytes / 1_024).toFixed(1)} KiB`
+  return `${(bytes / 1_048_576).toFixed(1)} MiB`
+}
+
+function getErrorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error)
+}
+
 async function cycleSpotlight(): Promise<void> {
   const selected = settings.selectedMaterialIds
   if (selected.length === 0) {
@@ -435,6 +721,9 @@ async function cycleSpotlight(): Promise<void> {
 }
 
 async function refreshMaterials(): Promise<AppSnapshot> {
+  if (staticDataPublication) {
+    throw new Error('Mining signatures cannot be refreshed during static-data publication.')
+  }
   miningLocationGeneration += 1
   miningLocationResults.clear()
   pendingLocationRequests.clear()
@@ -471,36 +760,54 @@ async function refreshMaterials(): Promise<AppSnapshot> {
 }
 
 async function chooseGameData(): Promise<GameDataSelectionResult> {
+  if (staticDataPublication) {
+    throw new Error('Game files cannot be changed during static-data publication.')
+  }
+  if (gameDataSelectionActive) {
+    throw new Error('Game-file selection is already in progress.')
+  }
   if (!controlWindow || controlWindow.isDestroyed()) {
     throw new Error('The Rockfall control window is unavailable.')
   }
 
-  const result = await dialog.showOpenDialog(controlWindow, {
-    title: 'Choose Star Citizen game data',
-    defaultPath: gameDataArchive?.path,
-    buttonLabel: 'Use game data',
-    properties: ['openFile'],
-    filters: [{ name: 'Star Citizen data archive', extensions: ['p4k'] }]
-  })
-  if (result.canceled || result.filePaths.length === 0) {
-    return { snapshot: getSnapshot(), changed: false }
-  }
+  gameDataSelectionActive = true
+  try {
+    const result = await dialog.showOpenDialog(controlWindow, {
+      title: 'Choose Star Citizen game data',
+      defaultPath: gameDataArchive?.path,
+      buttonLabel: 'Use game data',
+      properties: ['openFile'],
+      filters: [{ name: 'Star Citizen data archive', extensions: ['p4k'] }]
+    })
+    if (result.canceled || result.filePaths.length === 0) {
+      return { snapshot: getSnapshot(), changed: false }
+    }
 
-  const archive = await validateGameDataArchive(result.filePaths[0])
-  await saveGameDataPreference(gameDataPreferencePath, archive.path)
-  gameDataArchive = archive
-  blueprintDataGeneration += 1
-  blueprintDataResult = null
-  factionDataGeneration += 1
-  factionDataResult = null
-  const ownershipService = blueprintOwnershipService
-  if (ownershipService) {
-    runInBackground(
-      'Blueprint log monitoring could not be changed',
-      ownershipService.configure(archive)
-    )
+    const archive = await validateGameDataArchive(result.filePaths[0])
+    await saveGameDataPreference(gameDataPreferencePath, archive.path)
+    gameDataArchive = archive
+    blueprintDataGeneration += 1
+    blueprintDataResult = null
+    factionDataGeneration += 1
+    factionDataResult = null
+    const ownershipService = blueprintOwnershipService
+    if (ownershipService) {
+      runInBackground(
+        'Blueprint log monitoring could not be changed',
+        ownershipService.configure(archive)
+      )
+    }
+    const snapshot = await refreshMaterials()
+    if (cloudSync.user?.role === 'admin') {
+      runInBackground(
+        'Static-data compatibility could not be checked',
+        refreshStaticDataAvailability()
+      )
+    }
+    return { snapshot, changed: true }
+  } finally {
+    gameDataSelectionActive = false
   }
-  return { snapshot: await refreshMaterials(), changed: true }
 }
 
 async function getMiningLocations(materialId: unknown): Promise<MiningLocationResult> {
@@ -606,6 +913,9 @@ async function getBlueprintCatalog(refresh: unknown = false): Promise<BlueprintC
   if (typeof refresh !== 'boolean') {
     throw new TypeError('Blueprint refresh state must be a boolean.')
   }
+  if (staticDataPublication && (refresh || !blueprintDataResult)) {
+    throw new Error('Blueprint data cannot be refreshed during static-data publication.')
+  }
   const generation = blueprintDataGeneration
   if (pendingBlueprintData?.generation === generation) {
     return (await pendingBlueprintData.request).catalog
@@ -642,6 +952,9 @@ async function getBlueprintCatalog(refresh: unknown = false): Promise<BlueprintC
 async function getFactionCatalog(refresh: unknown = false): Promise<FactionCatalogResult> {
   if (typeof refresh !== 'boolean') {
     throw new TypeError('Faction refresh state must be a boolean.')
+  }
+  if (staticDataPublication && (refresh || !factionDataResult)) {
+    throw new Error('Faction data cannot be refreshed during static-data publication.')
   }
   const generation = factionDataGeneration
   if (pendingFactionData?.generation === generation) {
@@ -1083,6 +1396,10 @@ function registerIpcHandlers(): void {
     if (!cloudSyncController) throw new Error('Cloud sync is not initialized.')
     return cloudSyncController.logout()
   })
+  ipcMain.handle(IPC_CHANNELS.publishStaticData, (event) => {
+    assertControlWindowSender(event)
+    return publishStaticData()
+  })
   ipcMain.handle(IPC_CHANNELS.checkForUpdates, async (event) => {
     assertControlWindowSender(event)
     if (!appUpdater) throw new Error('The application updater is not initialized.')
@@ -1187,7 +1504,23 @@ if (!hasSingleInstanceLock) {
       getActiveProfile: () => blueprintOwnershipService?.getActiveProfileIdentity() ?? null,
       openExternal: (url) => shell.openExternal(url),
       onStateChange: (state) => {
+        const wasAdmin = cloudSync.user?.role === 'admin'
         cloudSync = state
+        const isAdmin = state.user?.role === 'admin'
+        if (!isAdmin) {
+          staticData = {
+            status: 'unavailable',
+            canPublish: false,
+            message: 'Sign in as an administrator to publish static data.',
+            progress: null,
+            currentRelease: staticData.currentRelease
+          }
+        } else if (!wasAdmin && !staticDataPublication) {
+          runInBackground(
+            'Static-data compatibility could not be checked',
+            refreshStaticDataAvailability()
+          )
+        }
         broadcastSnapshot([controlWindow])
       },
       onOwnershipChange: broadcastBlueprintOwnership

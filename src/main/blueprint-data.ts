@@ -49,6 +49,8 @@ export interface BlueprintDataOptions {
 export interface BlueprintDataResult {
   catalog: BlueprintCatalogResult
   details: Record<string, BlueprintDetail>
+  gameVersion: string
+  warnings: string[]
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -419,7 +421,9 @@ function toResult(
       message,
       updatedAt
     },
-    details: Object.fromEntries(extraction.details.map((blueprint) => [blueprint.id, blueprint]))
+    details: Object.fromEntries(extraction.details.map((blueprint) => [blueprint.id, blueprint])),
+    gameVersion: extraction.gameVersion,
+    warnings: [...extraction.warnings]
   }
 }
 

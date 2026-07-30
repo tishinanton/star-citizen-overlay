@@ -1,0 +1,64 @@
+{
+  "archiveBytes": 3369,
+  "archiveSha256": "968234c4d4a1c443b5928a416cd1e3e0faa015e74a0e063cb53cc662379579b0",
+  "manifestBytes": 1486,
+  "manifest": {
+    "contractVersion": 1,
+    "releaseId": "33333333-3333-4333-8333-333333333333",
+    "channel": "TEST",
+    "gameBuild": "0.0.1-TEST",
+    "gameVersion": "synthetic-branch",
+    "generatedAt": "2026-07-30T14:00:00.000Z",
+    "sourceAppVersion": "0.2.0",
+    "source": {
+      "dataP4kBytes": 123456,
+      "dataP4kLastWriteAt": "2026-07-30T13:00:00.000Z"
+    },
+    "resources": [
+      {
+        "name": "blueprints",
+        "schemaVersion": 1,
+        "file": "datasets/blueprints.json.gz",
+        "mediaType": "application/json",
+        "contentEncoding": "gzip",
+        "recordCount": 2,
+        "uncompressedBytes": 1956,
+        "compressedBytes": 537,
+        "sha256": "d5df75e2d9bf19c2d665bc6b15f43eab50e77204fdca81acc305158ac19efc50"
+      },
+      {
+        "name": "faction-reputation",
+        "schemaVersion": 1,
+        "file": "datasets/faction-reputation.json.gz",
+        "mediaType": "application/json",
+        "contentEncoding": "gzip",
+        "recordCount": 2,
+        "uncompressedBytes": 1028,
+        "compressedBytes": 301,
+        "sha256": "11a02bbee3be4f2181f0e2fd0ba6f3c0ae96b46a14181462c031b8b0b96bce52"
+      },
+      {
+        "name": "signatures",
+        "schemaVersion": 1,
+        "file": "datasets/signatures.json.gz",
+        "mediaType": "application/json",
+        "contentEncoding": "gzip",
+        "recordCount": 2,
+        "uncompressedBytes": 372,
+        "compressedBytes": 189,
+        "sha256": "f0858459250c11186a9ccd859cfa3e02bfc756f2f7e39a7dde4d6117e6bdacd5"
+      }
+    ],
+    "assets": [
+      {
+        "key": "blueprint-icons/2aa4fa20701cdd6d8d56046069001186b5267e3ee7d0ef618ad2f4a683723e11.png",
+        "file": "assets/blueprint-icons/2aa4fa20701cdd6d8d56046069001186b5267e3ee7d0ef618ad2f4a683723e11.png",
+        "mediaType": "image/png",
+        "byteLength": 68,
+        "sha256": "2aa4fa20701cdd6d8d56046069001186b5267e3ee7d0ef618ad2f4a683723e11",
+        "width": 1,
+        "height": 1
+      }
+    ]
+  }
+}

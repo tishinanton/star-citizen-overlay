@@ -6,11 +6,14 @@ import test from 'node:test'
 
 import type {
   CloudOwnershipSnapshot,
+  CloudStaticDataCapabilities,
+  CloudStaticDataCurrentRelease,
+  CloudStaticDataPublishResult,
   CloudSyncOperation,
   CloudSyncResponse,
   CloudTokenPair
 } from './cloud-api'
-import { CloudNetworkError } from './cloud-api'
+import { CloudApiError, CloudNetworkError } from './cloud-api'
 import type { OwnershipSyncProfile } from './blueprint-ownership'
 import { createCloudState, loadCloudState, saveCloudState } from './cloud-state'
 import {
@@ -81,6 +84,17 @@ test('completes split-secret login, imports local ownership, and restores the se
     assert.equal(synced.pendingOperationCount, 0)
     assert.equal(api.exchanged?.requestSecret, 'request-secret')
     assert.equal(api.syncedOperations.length, 2)
+    const publication = await first.publishStaticDataRelease(Buffer.from('archive'))
+    assert.equal(publication.status, 'published')
+    api.role = 'user'
+    api.publicationError = new CloudApiError('Administrator access changed.', {
+      status: 403,
+      code: 'static_data_admin_required'
+    })
+    await assert.rejects(first.publishStaticDataRelease(Buffer.from('archive')))
+    assert.equal(first.getSnapshot().user?.role, 'user')
+    api.role = 'admin'
+    api.publicationError = null
     assert.equal(
       first.getOwnershipLayer()?.receipts.some((receipt) => receipt.name === 'QuadraCell'),
       true
@@ -313,6 +327,47 @@ test('keeps cross-user import confirmation active across every capture chunk', a
   }
 })
 
+test('blocks static publication for a non-admin session before transport', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'rockfall-cloud-sync-user-'))
+  const api = new FakeCloudApi()
+  api.role = 'user'
+  const controller = new CloudSyncController({
+    storePath: join(directory, 'cloud-state.json'),
+    apiUrl: 'http://127.0.0.1:5050',
+    appVersion: '0.1.11',
+    deviceName: 'Gaming PC',
+    tokenProtector: protector(),
+    getLocalProfiles: () => [],
+    getActiveProfile: () => null,
+    openExternal: () => Promise.resolve(),
+    onStateChange: () => undefined,
+    onOwnershipChange: () => undefined,
+    apiFactory: () => api,
+    now: () => new Date(NOW),
+    sleep: () => Promise.resolve(),
+    syncIntervalMs: 60 * 60 * 1_000
+  })
+
+  try {
+    await controller.initialize()
+    await controller.beginLogin()
+    await controller.completeLoginCode('handoff-code')
+    const overview = await controller.getStaticDataOverview('LIVE')
+    assert.equal(overview.canPublish, false)
+    assert.equal(controller.getSnapshot().user?.role, 'user')
+    await assert.rejects(
+      controller.publishStaticDataRelease(Buffer.from('archive')),
+      (reason: unknown) =>
+        reason instanceof Error &&
+        reason.message === 'An administrator role is required to publish static data.'
+    )
+    assert.equal(api.publicationCount, 0)
+  } finally {
+    controller.dispose()
+    await rm(directory, { recursive: true, force: true })
+  }
+})
+
 class FakeCloudApi {
   createdLoginRequest: {
     installationId: string
@@ -322,6 +377,9 @@ class FakeCloudApi {
   exchanged: { requestSecret: string; handoffCode: string } | null = null
   syncedOperations: CloudSyncOperation[] = []
   refreshCount = 0
+  publicationCount = 0
+  publicationError: Error | null = null
+  role: 'user' | 'admin' = 'admin'
   refreshError: Error | null = null
   snapshotProfiles: CloudOwnershipSnapshot['profiles'] = []
   private cursor = 0
@@ -350,13 +408,13 @@ class FakeCloudApi {
     input: { requestSecret: string; handoffCode: string }
   ): Promise<CloudTokenPair> {
     this.exchanged = input
-    return tokenPair()
+    return tokenPair(this.role)
   }
 
   async refresh(): Promise<CloudTokenPair> {
     this.refreshCount += 1
     if (this.refreshError) throw this.refreshError
-    return tokenPair()
+    return tokenPair(this.role)
   }
 
   logout(): Promise<void> {
@@ -411,9 +469,37 @@ class FakeCloudApi {
       serverTime: NOW
     }
   }
+
+  async publishStaticDataRelease(): Promise<CloudStaticDataPublishResult> {
+    this.publicationCount += 1
+    if (this.publicationError) throw this.publicationError
+    return {
+      status: 'published',
+      releaseId: '71807306-2f44-44c2-ac7b-cf005fb0c962',
+      contractVersion: 1,
+      channel: 'LIVE',
+      gameBuild: '4.9.187.47267-LIVE',
+      gameVersion: 'sc-alpha-4.9.0',
+      contentSetSha256: 'a'.repeat(64),
+      publishedAt: NOW,
+      current: true,
+      manifestUrl: '/v1/static-data/releases/71807306-2f44-44c2-ac7b-cf005fb0c962'
+    }
+  }
+
+  async getStaticDataCapabilities(): Promise<CloudStaticDataCapabilities> {
+    return { contractVersion: 1, role: this.role, canPublish: this.role === 'admin' }
+  }
+
+  async getCurrentStaticDataRelease(): Promise<CloudStaticDataCurrentRelease> {
+    throw new CloudApiError('No release has been published.', {
+      status: 404,
+      code: 'static_data_not_published'
+    })
+  }
 }
 
-function tokenPair(): CloudTokenPair {
+function tokenPair(role: 'user' | 'admin' = 'admin'): CloudTokenPair {
   return {
     tokenType: 'Bearer',
     accessToken: 'access-token',
@@ -424,7 +510,8 @@ function tokenPair(): CloudTokenPair {
       id: USER_ID,
       discordUserId: '80351110224678912',
       displayName: 'Nelly',
-      avatarHash: null
+      avatarHash: null,
+      role
     }
   }
 }

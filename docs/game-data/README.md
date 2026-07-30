@@ -209,6 +209,21 @@ blueprints.
 Output entities reference 27 distinct browser-convertible loadout icons used by
 853 entries.
 
+Faction reputation extraction follows a third DataForge path:
+
+```text
+Data.p4k
+  -> Data/Game2.dcb
+  -> libs/foundry/records/factions/factionreputation/*
+  -> reputation contexts + primary/additional scopes
+  -> standing maps
+  -> Data/Localization/english/global.ini
+```
+
+The measured build produces 38 factions, 100 scopes, and 638 standings. The
+parser retains faction identity/profile fields, alignment and visibility flags,
+scope thresholds, standing drift/gates, and localized perk descriptions.
+
 These icons are UI silhouettes, not universal item renders. Most ship
 components expose geometry and material assets but no pre-rendered preview;
 rendering those models would require CGF/CGA and material decoders plus a
@@ -219,7 +234,36 @@ The implementation lives in:
 - [`tools\game-data-extractor`](../../tools/game-data-extractor/);
 - [`src\main\game-data.ts`](../../src/main/game-data.ts);
 - [`src\main\blueprint-data.ts`](../../src/main/blueprint-data.ts); and
-- [`src\main\mining-data.ts`](../../src/main/mining-data.ts).
+- [`src\main\mining-data.ts`](../../src/main/mining-data.ts);
+- [`src\main\faction-data.ts`](../../src/main/faction-data.ts); and
+- [`src\main\static-data-publication.ts`](../../src/main/static-data-publication.ts).
+
+### Static publication boundary
+
+Admin publication reuses the validated loader outputs above; it does not
+reimplement DataForge joins in the API. Schema-v1 resources are exactly
+`signatures`, `blueprints`, and `faction-reputation`. Canonical JSON is
+deterministically gzipped. Blueprint records reference logical
+`blueprint-icons/<png-sha256>.png` keys, while raw PNG files are separate
+`assets/blueprint-icons/<png-sha256>.png` ZIP entries. Base64 cache images,
+extractor warnings, local paths, Wiki locations, ownership state, and logs are
+excluded.
+
+Publication metadata maps `build_manifest.id` deliberately: manifest `gameBuild`
+and the blueprint/faction resource `gameVersion` use
+`<Data.Version>-<selected channel>`, while manifest `gameVersion` uses
+`Data.Branch`. Data.p4k contributes only its byte length and modification time,
+never its local path.
+
+The current catalogs contain 38 signatures, 1,591 blueprints, and 38 factions.
+Their 27 static non-interlaced 64x64 PNGs total 21,056 bytes, range from 473 to
+1,258 bytes, and contain no APNG animation chunk. These are observations, not
+future maxima. Publication allows the validated cache ceiling of 200 icons and
+enforces every PNG chunk CRC and complete IDAT zlib stream, 204 ZIP entries,
+128 KiB per raw PNG, and 32 MiB aggregate PNG bytes.
+The shared desktop/API schema-v1 caps are 128 signatures, 2,500 blueprints, and
+100 factions. Aggregate resource payloads are capped at 48 MiB compressed and
+128 MiB uncompressed.
 
 ## Data that this method cannot provide
 

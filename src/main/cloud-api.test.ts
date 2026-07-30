@@ -19,6 +19,7 @@ const INSTALLATION_ID = 'a555284b-bf65-4558-a63b-a445477aec7f'
 const PROFILE_ID = '22280eef-dce1-48ca-964f-8f11ddaf5e65'
 const RECEIPT_OPERATION_ID = '2cb9a205-5f55-4eb7-a090-29d7179af37b'
 const MANUAL_OPERATION_ID = 'dcce9004-989e-458f-b0a2-2359347b94a7'
+const RELEASE_ID = '71807306-2f44-44c2-ac7b-cf005fb0c962'
 const NOW = '2026-07-27T16:55:00.000Z'
 
 test('normalizes service, Swagger, and local development URLs', () => {
@@ -44,6 +45,7 @@ test('validates every Rockfall Cloud client method', async () => {
       path: request.url ?? '',
       body
     })
+
     handleRequest(request, response, body)
   })
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
@@ -108,12 +110,21 @@ test('validates every Rockfall Cloud client method', async () => {
     assert.equal(synced.changes[0].kind, 'profile.upsert')
     assert.equal(synced.changes[1].kind, 'receipt.upsert')
     assert.equal(synced.changes[2].kind, 'manual.set')
+    const archive = Buffer.from([0x50, 0x4b, 0x03, 0x04])
+    const progress: number[] = []
+    const published = await client.publishStaticDataRelease(
+      refreshed.accessToken,
+      archive,
+      (sentBytes) => progress.push(sentBytes)
+    )
+    assert.equal(published.status, 'published')
+    assert.deepEqual(progress, [0, archive.byteLength])
 
     await client.logout('refresh-token')
     await client.logoutAll(refreshed.accessToken)
     await client.deleteAccount(refreshed.accessToken)
 
-    assert.equal(calls.length, 12)
+    assert.equal(calls.length, 13)
     assert.deepEqual(calls[0].body, {
       installationId: INSTALLATION_ID,
       deviceName: 'Gaming PC',
@@ -123,6 +134,118 @@ test('validates every Rockfall Cloud client method', async () => {
       cursor: '4219',
       operations: [receiptOperation, manualOperation]
     })
+    assert.deepEqual(calls[9].body, archive)
+  } finally {
+    await new Promise<void>((resolve, reject) =>
+      server.close((error) => (error ? reject(error) : resolve()))
+    )
+  }
+})
+
+test('validates static-data capability and current-release contracts', async () => {
+  let useLegacyCapabilities = false
+  let useOldResourceCaps = false
+  const server = createServer((request, response) => {
+    if (request.url === '/v1/static-data/capabilities') {
+      if (useLegacyCapabilities) {
+        writeJson(response, 200, {
+          contractVersion: 1,
+          role: 'admin',
+          canPublish: true,
+          requiredResources: {
+            signatures: [1],
+            blueprints: [1],
+            'faction-reputation': [1]
+          },
+          assetMediaTypes: ['image/png'],
+          limits: {}
+        })
+        return
+      }
+      writeJson(response, 200, {
+        contractVersion: 1,
+        role: 'admin',
+        canPublish: true,
+        upload: {
+          method: 'POST',
+          path: '/v1/admin/static-data/releases',
+          mediaType: 'application/zip',
+          maxArchiveBytes: 134_217_728
+        },
+        requiredResources: [
+          { name: 'signatures', schemaVersions: [1], maxRecords: 128 },
+          {
+            name: 'blueprints',
+            schemaVersions: [1],
+            maxRecords: useOldResourceCaps ? 5_000 : 2_500
+          },
+          {
+            name: 'faction-reputation',
+            schemaVersions: [1],
+            maxRecords: useOldResourceCaps ? 500 : 100
+          }
+        ],
+        supportedAssetMediaTypes: ['image/png']
+      })
+      return
+    }
+    if (request.url === '/v1/static-data/channels/LIVE/current') {
+      writeJson(response, 200, {
+        releaseId: RELEASE_ID,
+        contractVersion: 1,
+        channel: 'LIVE',
+        gameBuild: '4.9.187.47267-LIVE',
+        gameVersion: 'sc-alpha-4.9.0',
+        generatedAt: NOW,
+        sourceAppVersion: '0.2.0',
+        contentSetSha256: 'a'.repeat(64),
+        publishedAt: NOW,
+        source: {
+          dataP4kBytes: 158_000_000_000,
+          dataP4kLastWriteAt: NOW
+        },
+        resources: [
+          resource('signatures', 38),
+          resource('blueprints', 1_591),
+          resource('faction-reputation', 38)
+        ],
+        assets: [
+          {
+            key: `blueprint-icons/${'c'.repeat(64)}.png`,
+            mediaType: 'image/png',
+            sha256: 'c'.repeat(64),
+            byteLength: 70,
+            width: 1,
+            height: 1,
+            url: `/v1/static-data/assets/${'c'.repeat(64)}.png`
+          }
+        ]
+      })
+      return
+    }
+    writeJson(response, 404, { code: 'not_found' })
+  })
+  await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
+
+  try {
+    const { port } = server.address() as AddressInfo
+    const client = new CloudApiClient(`http://127.0.0.1:${port}`)
+    const capabilities = await client.getStaticDataCapabilities('access-token')
+    assert.equal(capabilities.canPublish, true)
+    const current = await client.getCurrentStaticDataRelease('LIVE', 'access-token')
+    assert.equal(current.releaseId, RELEASE_ID)
+    assert.equal(current.manifestUrl, `/v1/static-data/releases/${RELEASE_ID}`)
+    useOldResourceCaps = true
+    await assert.rejects(
+      client.getStaticDataCapabilities('access-token'),
+      /incompatible static-data resource set/
+    )
+    useOldResourceCaps = false
+    useLegacyCapabilities = true
+    await assert.rejects(
+      client.getStaticDataCapabilities('access-token'),
+      /must contain exactly the documented fields/
+    )
   } finally {
     await new Promise<void>((resolve, reject) =>
       server.close((error) => (error ? reject(error) : resolve()))
@@ -322,6 +445,22 @@ function handleRequest(request: IncomingMessage, response: ServerResponse, body:
     })
     return
   }
+  if (request.method === 'POST' && path === '/v1/admin/static-data/releases') {
+    assert.equal(request.headers['content-type'], 'application/zip')
+    writeJson(response, 201, {
+      status: 'published',
+      releaseId: RELEASE_ID,
+      contractVersion: 1,
+      channel: 'LIVE',
+      gameBuild: '4.9.187.47267-LIVE',
+      gameVersion: 'sc-alpha-4.9.0',
+      contentSetSha256: 'a'.repeat(64),
+      publishedAt: NOW,
+      current: true,
+      manifestUrl: `/v1/static-data/releases/${RELEASE_ID}`
+    })
+    return
+  }
   writeJson(response, 404, { title: 'Not found', code: 'not_found' })
 }
 
@@ -336,7 +475,8 @@ function tokenPair(): Record<string, unknown> & { user: Record<string, unknown> 
       id: USER_ID,
       discordUserId: '80351110224678912',
       displayName: 'Nelly',
-      avatarHash: null
+      avatarHash: null,
+      role: 'admin'
     }
   }
 }
@@ -378,10 +518,26 @@ function ownershipSnapshot(): Record<string, unknown> {
   }
 }
 
+function resource(name: string, recordCount: number): Record<string, unknown> {
+  return {
+    name,
+    schemaVersion: 1,
+    mediaType: 'application/json',
+    contentEncoding: 'gzip',
+    sha256: 'b'.repeat(64),
+    compressedBytes: 1,
+    uncompressedBytes: 1,
+    recordCount,
+    url: `/v1/static-data/releases/${RELEASE_ID}/resources/${name}`
+  }
+}
+
 async function readBody(request: IncomingMessage): Promise<unknown> {
   const chunks: Buffer[] = []
   for await (const chunk of request) chunks.push(Buffer.from(chunk))
-  const text = Buffer.concat(chunks).toString('utf8')
+  const contents = Buffer.concat(chunks)
+  if (request.headers['content-type'] === 'application/zip') return contents
+  const text = contents.toString('utf8')
   return text.length > 0 ? (JSON.parse(text) as unknown) : null
 }
 

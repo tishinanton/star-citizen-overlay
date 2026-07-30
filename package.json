@@ -12,6 +12,7 @@
     "typecheck:web": "tsc --noEmit -p tsconfig.web.json --composite false",
     "typecheck": "npm run typecheck:node && npm run typecheck:web",
     "test": "tsx --test src/shared/*.test.ts src/main/*.test.ts src/renderer/src/lib/*.test.ts",
+    "generate:static-data-fixture": "tsx test/fixtures/generate-static-data-v1.ts",
     "build:extractor": "dotnet publish tools\\game-data-extractor\\GameDataExtractor.csproj --configuration Release --runtime win-x64 --self-contained true --nologo --verbosity quiet",
     "predev": "npm run build:extractor",
     "start": "electron-vite preview",

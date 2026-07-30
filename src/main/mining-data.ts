@@ -50,6 +50,7 @@ export interface MiningDataOptions {
   cachePath: string
   extractorPath: string
   gameDataArchive: GameDataArchive | null
+  forceRefresh?: boolean
 }
 
 export interface MiningDataResult {
@@ -325,6 +326,7 @@ export async function loadMiningData(options: MiningDataOptions): Promise<Mining
     try {
       const archiveFingerprint = await getGameArchiveFingerprint(options.gameDataArchive.path)
       if (
+        !options.forceRefresh &&
         cache?.schemaVersion === MINING_CACHE_VERSION &&
         cache.source?.kind === 'game' &&
         cache.source.archiveFingerprint === archiveFingerprint &&

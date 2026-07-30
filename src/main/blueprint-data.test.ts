@@ -10,7 +10,7 @@ import { loadBlueprintData, parseGameBlueprint, parseGameBlueprintPayload } from
 const GAME_VERSION = '4.9.187.47267-LIVE'
 const ICON_KEY = 'ui/textures/ea/loadouticons/heavy_armour_64.tif'
 const ICON_DATA =
-  'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M/wHwAEAQH/7Z1iWQAAAABJRU5ErkJggg=='
+  'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M/wHwAEAQH/p171jwAAAABJRU5ErkJggg=='
 
 test('parses installed blueprint requirements, missions, and icons', () => {
   const extraction = parseGameBlueprintPayload(extractorPayload())

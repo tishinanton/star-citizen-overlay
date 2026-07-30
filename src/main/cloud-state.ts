@@ -743,13 +743,20 @@ function parseSession(value: unknown): CloudSessionRecord {
 
 function parseUser(value: unknown): CloudAuthenticatedUser {
   const record = readRecord(value, 'Cloud user')
+  const role = record.role === undefined ? 'user' : readCloudRole(record.role)
   return {
     id: readUuid(record.id, 'Cloud user ID'),
     discordUserId: readNonEmptyString(record.discordUserId, 'Discord user ID', 100),
     displayName: readNonEmptyString(record.displayName, 'Cloud display name', 200),
     avatarHash:
-      record.avatarHash === null ? null : readString(record.avatarHash, 'Discord avatar hash', 500)
+      record.avatarHash === null ? null : readString(record.avatarHash, 'Discord avatar hash', 500),
+    role
   }
+}
+
+function readCloudRole(value: unknown): CloudAuthenticatedUser['role'] {
+  if (value === 'user' || value === 'admin') return value
+  throw new TypeError('Cloud user has an unsupported role.')
 }
 
 function parseNamespace(value: unknown): CloudUserNamespace {

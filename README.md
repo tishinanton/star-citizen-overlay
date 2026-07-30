@@ -78,6 +78,13 @@ the refresh token is encrypted with Windows credential protection before it is
 saved. Local ownership remains available while signed out or offline, and
 pending changes are durably queued until the service returns.
 
+Server administrators also receive a **Static data** control in Settings. It
+forces a fresh extraction of signatures, blueprints, blueprint PNG icons, and
+faction reputation from the selected game archive, validates the Cloud v1
+capability contract, then confirms and atomically publishes one release. The
+control is absent for ordinary users. Wiki location data and local ownership or
+log state are never included.
+
 The **Sites** action loads the selected material's detailed deposit data and
 ranks up to five distinct locations by the estimated chance of a 50% or higher
 quality roll. The estimate combines the reported spawn-group probability,
@@ -125,6 +132,11 @@ Swagger page, or OpenAPI document; Rockfall normalizes documentation URLs to
 their service origin. Changing endpoints clears the current local cloud session.
 Loopback HTTP and self-signed HTTPS certificates are accepted only for local
 development.
+
+When the signed-in account has the server-provided `admin` role, Settings also
+shows static-catalog compatibility, the current release build/version/hash, and
+publication progress. Extraction, ZIP creation, and upload are single-flight;
+authentication expiry or server-side demotion removes the privileged control.
 
 Drag the overlay's cyan header to place it anywhere on screen. The header
 captures the mouse for dragging; the remaining overlay area stays click-through.

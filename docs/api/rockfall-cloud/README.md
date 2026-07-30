@@ -25,9 +25,9 @@ deployment and secrets are isolated from desktop releases. This specification
 remains in the desktop repository because it defines the shared contract.
 
 The Electron app remains authoritative while offline. The cloud service stores
-only user identity, Star Citizen profile metadata, log-derived receipts, manual
-ownership state, devices, and synchronization metadata. It does not store the
-blueprint catalog.
+user identity, Star Citizen profile metadata, log-derived receipts, manual
+ownership state, devices, synchronization metadata, and immutable authenticated
+static-data releases published by an administrator.
 
 ## 2. Goals
 
@@ -48,7 +48,8 @@ blueprint catalog.
 - Authenticating users with a Star Citizen account.
 - Treating the account ID parsed from `Game.log` as proof of identity.
 - Reading or reconstructing the complete server-side Star Citizen inventory.
-- Storing the static blueprint catalog, item details, icons, or game archives.
+- Storing raw game archives or any static data outside the three validated v1
+  publication resources and their referenced blueprint PNG icons.
 - Synchronizing mining settings or overlay layout in version 1.
 - Real-time push notifications. Clients synchronize at defined local events and
   on a bounded timer.
@@ -254,10 +255,11 @@ Access tokens:
 
 - JWT signed with RS256;
 - 10-minute lifetime;
-- claims: `sub`, `sid`, `device_id`, `jti`, `iss`, and `aud`;
+- claims: `sub`, `sid`, `device_id`, `role`, `jti`, `iss`, and `aud`;
 - `sid` is the stable refresh-token `FamilyId`, not an individual rotated token
   row ID;
-- no username, handle, account ID, or blueprint data;
+- no username, handle, account ID, or blueprint data; `role` is the canonical
+  lowercase `user` or `admin` value;
 - validated for signature, issuer, audience, lifetime, and signing key ID;
 - allowed clock skew no greater than two minutes.
 
@@ -676,25 +678,31 @@ release.
 
 ### 10.2 Endpoint inventory
 
-| Method   | Path                                             | Auth                   | Purpose                          |
-| -------- | ------------------------------------------------ | ---------------------- | -------------------------------- |
-| `POST`   | `/v1/auth/discord/login-requests`                | Public                 | Create browser login request     |
-| `GET`    | `/v1/auth/discord/login-requests/{id}/authorize` | Browser                | Start Discord challenge          |
-| `GET`    | `/signin-discord`                                | Discord callback       | OAuth middleware callback        |
-| `GET`    | `/v1/auth/discord/complete`                      | Temporary cookie       | Complete browser handoff         |
-| `POST`   | `/v1/auth/discord/login-requests/{id}/exchange`  | Split handoff secrets  | Exchange once                    |
-| `POST`   | `/v1/auth/refresh`                               | Refresh token          | Rotate token pair                |
-| `POST`   | `/v1/auth/logout`                                | Bearer + refresh token | Revoke current family            |
-| `POST`   | `/v1/auth/logout-all`                            | Bearer                 | Revoke all device families       |
-| `GET`    | `/v1/account`                                    | Bearer                 | Current Rockfall account         |
-| `GET`    | `/v1/account/devices`                            | Bearer                 | List signed-in devices           |
-| `DELETE` | `/v1/account/devices/{id}`                       | Bearer                 | Revoke another device            |
-| `GET`    | `/v1/account/export`                             | Bearer                 | Download complete user data      |
-| `DELETE` | `/v1/account`                                    | Bearer                 | Delete account and cloud data    |
-| `GET`    | `/v1/ownership/snapshot`                         | Bearer                 | Full authoritative cloud state   |
-| `POST`   | `/v1/ownership/sync`                             | Bearer                 | Push operations and pull changes |
-| `GET`    | `/health/live`                                   | Public                 | Process liveness                 |
-| `GET`    | `/health/ready`                                  | Public                 | SQL Server readiness             |
+| Method   | Path                                                    | Auth                   | Purpose                          |
+| -------- | ------------------------------------------------------- | ---------------------- | -------------------------------- |
+| `POST`   | `/v1/auth/discord/login-requests`                       | Public                 | Create browser login request     |
+| `GET`    | `/v1/auth/discord/login-requests/{id}/authorize`        | Browser                | Start Discord challenge          |
+| `GET`    | `/signin-discord`                                       | Discord callback       | OAuth middleware callback        |
+| `GET`    | `/v1/auth/discord/complete`                             | Temporary cookie       | Complete browser handoff         |
+| `POST`   | `/v1/auth/discord/login-requests/{id}/exchange`         | Split handoff secrets  | Exchange once                    |
+| `POST`   | `/v1/auth/refresh`                                      | Refresh token          | Rotate token pair                |
+| `POST`   | `/v1/auth/logout`                                       | Bearer + refresh token | Revoke current family            |
+| `POST`   | `/v1/auth/logout-all`                                   | Bearer                 | Revoke all device families       |
+| `GET`    | `/v1/account`                                           | Bearer                 | Current Rockfall account         |
+| `GET`    | `/v1/account/devices`                                   | Bearer                 | List signed-in devices           |
+| `DELETE` | `/v1/account/devices/{id}`                              | Bearer                 | Revoke another device            |
+| `GET`    | `/v1/account/export`                                    | Bearer                 | Download complete user data      |
+| `DELETE` | `/v1/account`                                           | Bearer                 | Delete account and cloud data    |
+| `GET`    | `/v1/ownership/snapshot`                                | Bearer                 | Full authoritative cloud state   |
+| `POST`   | `/v1/ownership/sync`                                    | Bearer                 | Push operations and pull changes |
+| `GET`    | `/v1/static-data/capabilities`                          | Bearer                 | Read contract and capability     |
+| `GET`    | `/v1/static-data/channels/{channel}/current`            | Bearer                 | Read current release manifest    |
+| `GET`    | `/v1/static-data/releases/{releaseId}`                  | Bearer                 | Read immutable release manifest  |
+| `GET`    | `/v1/static-data/releases/{releaseId}/resources/{name}` | Bearer                 | Stream immutable gzip JSON       |
+| `GET`    | `/v1/static-data/assets/{sha256}.png`                   | Bearer                 | Stream immutable PNG             |
+| `POST`   | `/v1/admin/static-data/releases`                        | Admin                  | Atomically publish one release   |
+| `GET`    | `/health/live`                                          | Public                 | Process liveness                 |
+| `GET`    | `/health/ready`                                         | Public                 | SQL Server readiness             |
 
 ### 10.3 Create login request
 
@@ -937,6 +945,58 @@ Account deletion:
 - returns `204 No Content`;
 - is idempotent from the user's perspective;
 - must be described in the privacy notice and completion UI.
+
+### 10.8 Static-data releases
+
+Static publication is contract version 1 and requires a DB-authoritative
+`admin` role. `GET /v1/static-data/capabilities` is the deployment compatibility
+signal. The desktop then uploads one bounded `application/zip` to
+`POST /v1/admin/static-data/releases`; it never sends multipart requests or
+base64 images.
+
+The capability DTO declares an `upload` object, an array of
+`requiredResources` entries (`name`, `schemaVersions`, and `maxRecords`), and
+`supportedAssetMediaTypes`. Desktop parsing is exact and fail-closed: the route,
+media type, 128 MiB limit, three schema-v1 resource caps, PNG support, role, and
+`canPublish` must all match. Current-release parsing likewise validates every
+resource/asset hash, encoding, content-addressed URL, and logical key. Only a
+404 with code `static_data_not_published` represents an empty channel.
+The frozen schema-v1 record caps are 128 signatures, 2,500 blueprints, and 100
+faction-reputation records.
+Compressed/uncompressed resource caps are 2/4 MiB for signatures, 32/64 MiB for
+blueprints, and 16/32 MiB for faction reputation, with aggregate caps of 48/128
+MiB.
+
+The archive contains `manifest.json`, gzip JSON resources named exactly
+`signatures`, `blueprints`, and `faction-reputation`, plus every declared
+`assets/blueprint-icons/<sha256>.png`. Resource hashes cover uncompressed
+canonical JSON. Blueprint `assetKey` values and manifest keys are exactly
+`blueprint-icons/<sha256>.png`; manifest files prefix those keys with `assets/`.
+The declared, referenced, and archived asset sets must be identical.
+Before upload, desktop verifies every PNG chunk CRC and fully inflates the
+concatenated IDAT zlib stream, including its Adler-32 trailer and exact stream
+length.
+
+Manifest `gameBuild` and blueprint/faction resource `gameVersion` are the
+extractor identifier `<build_manifest.id Data.Version>-<selected channel>`.
+Manifest `gameVersion` is `build_manifest.id Data.Branch`. Source metadata sends
+only Data.p4k byte length and modification time, never its local path.
+
+The service stages and validates the complete archive before one serializable
+transaction activates the channel pointer. A failed request leaves the previous
+release active. Identical build/content publication returns
+`alreadyPublished`; immutable manifests/resources/assets use content ETags and
+private immutable caching, while the authenticated current manifest
+revalidates after 60 seconds. Ordinary authenticated users may read static
+resources, but only administrators may publish.
+
+The non-proprietary byte fixture is
+[`test/fixtures/static-data-v1.synthetic.zip`](../../../test/fixtures/static-data-v1.synthetic.zip).
+Its pinned size is 3,369 bytes and SHA-256 is
+`968234c4d4a1c443b5928a416cd1e3e0faa015e74a0e063cb53cc662379579b0`.
+API tests should consume these exact bytes rather than reproduce Node/zlib
+compression. Regenerate the fixture without proprietary game data using
+`npm run generate:static-data-fixture`.
 
 ## 11. Desktop integration requirements
 

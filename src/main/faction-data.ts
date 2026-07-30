@@ -27,6 +27,10 @@ interface FactionExtraction {
   warnings: string[]
 }
 
+export interface FactionDataResult extends FactionCatalogResult {
+  warnings: string[]
+}
+
 interface FactionCache extends FactionExtraction {
   schemaVersion: number
   savedAt: string
@@ -330,13 +334,14 @@ function toResult(
   state: FactionCatalogResult['state'],
   message: string,
   updatedAt: string
-): FactionCatalogResult {
+): FactionDataResult {
   return {
     factions: extraction.factions,
     gameVersion: extraction.gameVersion,
     state,
     message,
-    updatedAt
+    updatedAt,
+    warnings: [...extraction.warnings]
   }
 }
 
@@ -350,7 +355,7 @@ export async function loadFactionData(
     extractorPath: string,
     archivePath: string
   ) => Promise<FactionExtraction> = extractGameFactions
-): Promise<FactionCatalogResult> {
+): Promise<FactionDataResult> {
   let cache: FactionCache | null = null
   let cacheError: string | null = null
   try {

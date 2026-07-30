@@ -961,6 +961,11 @@ media type, 128 MiB limit, three schema-v1 resource caps, PNG support, role, and
 `canPublish` must all match. Current-release parsing likewise validates every
 resource/asset hash, encoding, content-addressed URL, and logical key. Only a
 404 with code `static_data_not_published` represents an empty channel.
+The frozen schema-v1 record caps are 128 signatures, 2,500 blueprints, and 100
+faction-reputation records.
+Compressed/uncompressed resource caps are 2/4 MiB for signatures, 32/64 MiB for
+blueprints, and 16/32 MiB for faction reputation, with aggregate caps of 48/128
+MiB.
 
 The archive contains `manifest.json`, gzip JSON resources named exactly
 `signatures`, `blueprints`, and `faction-reputation`, plus every declared

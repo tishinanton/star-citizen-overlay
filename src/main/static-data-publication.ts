@@ -22,8 +22,6 @@ const MAX_ARCHIVE_ENTRIES = 204
 const MAX_ASSET_COUNT = 200
 const MAX_ASSET_BYTES = 128 * 1024
 const MAX_ASSET_TOTAL_BYTES = 32 * 1024 * 1024
-const MAX_RESOURCE_GZIP_BYTES = 48 * 1024 * 1024
-const MAX_RESOURCE_JSON_BYTES = 192 * 1024 * 1024
 const MAX_IMAGE_DIMENSION = 2_048
 const MAX_IMAGE_PIXELS = 4_194_304
 const PNG_SIGNATURE = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10])
@@ -32,6 +30,29 @@ const ZIP_UTF8_FLAG = 0x0800
 const ZIP_STORE_METHOD = 0
 const ZIP_DOS_TIME = 0
 const ZIP_DOS_DATE = 33
+export const STATIC_DATA_RESOURCE_RECORD_LIMITS = {
+  signatures: 128,
+  blueprints: 2_500,
+  'faction-reputation': 100
+} as const
+export const STATIC_DATA_RESOURCE_BYTE_LIMITS = {
+  signatures: {
+    compressedBytes: 2 * 1024 * 1024,
+    uncompressedBytes: 4 * 1024 * 1024
+  },
+  blueprints: {
+    compressedBytes: 32 * 1024 * 1024,
+    uncompressedBytes: 64 * 1024 * 1024
+  },
+  'faction-reputation': {
+    compressedBytes: 16 * 1024 * 1024,
+    uncompressedBytes: 32 * 1024 * 1024
+  }
+} as const
+export const STATIC_DATA_AGGREGATE_RESOURCE_BYTE_LIMITS = {
+  compressedBytes: 48 * 1024 * 1024,
+  uncompressedBytes: 128 * 1024 * 1024
+} as const
 const METHOD_ORDER: Record<MiningMethod, number> = {
   Ship: 0,
   'Ground Vehicle': 1,
@@ -43,19 +64,16 @@ const RESOURCE_LIMITS: Record<
   { records: number; compressedBytes: number; uncompressedBytes: number }
 > = {
   signatures: {
-    records: 128,
-    compressedBytes: 2 * 1024 * 1024,
-    uncompressedBytes: 8 * 1024 * 1024
+    records: STATIC_DATA_RESOURCE_RECORD_LIMITS.signatures,
+    ...STATIC_DATA_RESOURCE_BYTE_LIMITS.signatures
   },
   blueprints: {
-    records: 5_000,
-    compressedBytes: 32 * 1024 * 1024,
-    uncompressedBytes: 128 * 1024 * 1024
+    records: STATIC_DATA_RESOURCE_RECORD_LIMITS.blueprints,
+    ...STATIC_DATA_RESOURCE_BYTE_LIMITS.blueprints
   },
   'faction-reputation': {
-    records: 500,
-    compressedBytes: 8 * 1024 * 1024,
-    uncompressedBytes: 32 * 1024 * 1024
+    records: STATIC_DATA_RESOURCE_RECORD_LIMITS['faction-reputation'],
+    ...STATIC_DATA_RESOURCE_BYTE_LIMITS['faction-reputation']
   }
 }
 
@@ -292,8 +310,8 @@ export function createStaticDataPublication(
     0
   )
   if (
-    aggregateCompressedBytes > MAX_RESOURCE_GZIP_BYTES ||
-    aggregateUncompressedBytes > MAX_RESOURCE_JSON_BYTES
+    aggregateCompressedBytes > STATIC_DATA_AGGREGATE_RESOURCE_BYTE_LIMITS.compressedBytes ||
+    aggregateUncompressedBytes > STATIC_DATA_AGGREGATE_RESOURCE_BYTE_LIMITS.uncompressedBytes
   ) {
     throw new RangeError('The static-data resources exceed the aggregate API size limits.')
   }

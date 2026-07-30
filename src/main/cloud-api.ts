@@ -2,6 +2,7 @@ import { request as requestHttp } from 'node:http'
 import { request as requestHttps } from 'node:https'
 
 import { isLoopbackCloudUrl, normalizeCloudApiUrl } from './cloud-url'
+import { STATIC_DATA_RESOURCE_RECORD_LIMITS } from './static-data-publication'
 
 const DEFAULT_REQUEST_TIMEOUT_MS = 15_000
 const MAX_RESPONSE_BYTES = 8 * 1024 * 1024
@@ -724,15 +725,8 @@ function parseStaticDataCapabilities(value: unknown): CloudStaticDataCapabilitie
     throw new TypeError('The cloud service exposes an incompatible static-data upload contract.')
   }
 
-  const expectedResources = new Map([
-    ['signatures', 128],
-    ['blueprints', 5_000],
-    ['faction-reputation', 500]
-  ])
-  const requiredResources = readArray(
-    record.requiredResources,
-    'Required static-data resources'
-  )
+  const expectedResources = new Map(Object.entries(STATIC_DATA_RESOURCE_RECORD_LIMITS))
+  const requiredResources = readArray(record.requiredResources, 'Required static-data resources')
   if (requiredResources.length !== expectedResources.size) {
     throw new TypeError('The cloud service requires an incompatible static-data resource set.')
   }
@@ -758,10 +752,7 @@ function parseStaticDataCapabilities(value: unknown): CloudStaticDataCapabilitie
     seenResources.add(name)
   }
 
-  const mediaTypes = readArray(
-    record.supportedAssetMediaTypes,
-    'Static-data asset media types'
-  )
+  const mediaTypes = readArray(record.supportedAssetMediaTypes, 'Static-data asset media types')
   if (mediaTypes.length !== 1 || mediaTypes[0] !== 'image/png') {
     throw new TypeError('The cloud service requires incompatible static-data asset types.')
   }
@@ -825,7 +816,10 @@ function parseCurrentStaticDataRelease(value: unknown): CloudStaticDataCurrentRe
     if (schemaVersion !== 1) {
       throw new TypeError('Current static-data release uses an unsupported resource schema.')
     }
-    if (resourceRecord.mediaType !== 'application/json' || resourceRecord.contentEncoding !== 'gzip') {
+    if (
+      resourceRecord.mediaType !== 'application/json' ||
+      resourceRecord.contentEncoding !== 'gzip'
+    ) {
       throw new TypeError('Current static-data release uses an unsupported resource encoding.')
     }
     readNonNegativeInteger(resourceRecord.recordCount, 'Resource record count')
@@ -851,11 +845,7 @@ function parseCurrentStaticDataRelease(value: unknown): CloudStaticDataCurrentRe
     throw new TypeError('Current static-data release has an incompatible resource set.')
   }
   const source = readRecord(record.source, 'Current static-data source')
-  assertExactKeys(
-    source,
-    ['dataP4kBytes', 'dataP4kLastWriteAt'],
-    'Current static-data source'
-  )
+  assertExactKeys(source, ['dataP4kBytes', 'dataP4kLastWriteAt'], 'Current static-data source')
   const seenAssetKeys = new Set<string>()
   for (const asset of readArray(record.assets, 'Current static-data assets')) {
     const assetRecord = readRecord(asset, 'Current static-data asset')

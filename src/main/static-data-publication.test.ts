@@ -5,16 +5,20 @@ import { join } from 'node:path'
 import test from 'node:test'
 import { gunzipSync } from 'node:zlib'
 
+import type { BlueprintDetail, FactionReputation, MiningMaterial } from '../shared/contracts'
+import {
+  createDeterministicGzip,
+  createStaticDataPublication,
+  STATIC_DATA_AGGREGATE_RESOURCE_BYTE_LIMITS,
+  STATIC_DATA_PATHS,
+  STATIC_DATA_RESOURCE_BYTE_LIMITS
+} from './static-data-publication'
 import {
   createSyntheticStaticDataInput,
   SYNTHETIC_PNG
 } from '../../test/fixtures/generate-static-data-v1'
-import {
-  createDeterministicGzip,
-  createStaticDataPublication,
-  STATIC_DATA_PATHS
-} from './static-data-publication'
 
+const PNG = SYNTHETIC_PNG
 const SYNTHETIC_FIXTURE_SHA256 = '35cd4c4c39e8768499963dd5b50844aef758148be1f5ede192d2b867f6d0ab85'
 
 test('creates a byte-stable publication with raw declared PNG assets', () => {
@@ -34,6 +38,8 @@ test('creates a byte-stable publication with raw declared PNG assets', () => {
   assert.equal(resources.signatures.file, STATIC_DATA_PATHS.signatures)
   assert.equal(resources.blueprints.recordCount, 2)
   assert.equal(first.manifest.contractVersion, 1)
+  assert.equal(first.manifest.gameBuild, '0.0.1-TEST')
+  assert.equal(first.manifest.gameVersion, 'synthetic-branch')
   assert.equal(first.manifest.assets.length, 1)
   assert.equal(first.manifest.assets[0].width, 1)
   assert.equal(first.manifest.assets[0].height, 1)
@@ -42,7 +48,7 @@ test('creates a byte-stable publication with raw declared PNG assets', () => {
   assert.equal(first.manifest.assets[0].file, `assets/${first.manifest.assets[0].key}`)
   assert.equal(first.archive.includes(Buffer.from('data:image/png;base64,')), false)
   assert.equal(
-    first.archive.includes(Buffer.from(SYNTHETIC_PNG.slice('data:image/png;base64,'.length))),
+    first.archive.includes(Buffer.from(PNG.slice('data:image/png;base64,'.length))),
     false
   )
 })
@@ -57,15 +63,30 @@ test('rejects missing and unreferenced icon declarations', () => {
     () =>
       createStaticDataPublication({
         ...input,
-        icons: { ...input.icons, 'icons/extra.tif': SYNTHETIC_PNG }
+        icons: { ...input.icons, 'icons/extra.tif': PNG }
       }),
     /image keys do not match/
   )
 })
 
-test('rejects PNG animation, interlacing, and data after IEND before upload', () => {
+test('rejects blueprint records from another game build', () => {
   const input = fixture()
-  const bytes = Buffer.from(SYNTHETIC_PNG.slice('data:image/png;base64,'.length), 'base64')
+  assert.throws(
+    () =>
+      createStaticDataPublication({
+        ...input,
+        blueprints: input.blueprints.map((blueprint) => ({
+          ...blueprint,
+          gameVersion: 'different-build'
+        }))
+      }),
+    /expected build 0\.0\.1-TEST/
+  )
+})
+
+test('rejects PNG checksum, animation, interlacing, and data after IEND before upload', () => {
+  const input = fixture()
+  const bytes = Buffer.from(PNG.slice('data:image/png;base64,'.length), 'base64')
 
   const interlaced = Buffer.from(bytes)
   interlaced[28] = 1
@@ -93,6 +114,17 @@ test('rejects PNG animation, interlacing, and data after IEND before upload', ()
     /unsupported PNG animation/
   )
 
+  const invalidChecksum = Buffer.from(bytes)
+  invalidChecksum[54] ^= 0xff
+  assert.throws(
+    () =>
+      createStaticDataPublication({
+        ...input,
+        icons: { 'icons/test.tif': toPngDataUrl(invalidChecksum) }
+      }),
+    /invalid IDAT chunk CRC/
+  )
+
   assert.throws(
     () =>
       createStaticDataPublication({
@@ -105,7 +137,7 @@ test('rejects PNG animation, interlacing, and data after IEND before upload', ()
 
 test('rejects corrupted PNG chunk CRCs before upload', () => {
   const input = fixture()
-  const bytes = Buffer.from(SYNTHETIC_PNG.slice('data:image/png;base64,'.length), 'base64')
+  const bytes = Buffer.from(PNG.slice('data:image/png;base64,'.length), 'base64')
 
   for (const type of ['IHDR', 'IDAT', 'IEND']) {
     const corrupted = Buffer.from(bytes)
@@ -118,12 +150,12 @@ test('rejects corrupted PNG chunk CRCs before upload', () => {
           ...input,
           icons: { 'icons/test.tif': toPngDataUrl(corrupted) }
         }),
-      new RegExp(`invalid ${type} chunk CRC`)
+      /invalid (?:IHDR|IDAT|IEND) chunk CRC/
     )
   }
 })
 
-test('uses the build identifier for versioned datasets and blueprint records', () => {
+test('uses the build identifier for versioned dataset roots and blueprint records', () => {
   const publication = createStaticDataPublication(fixture())
   const blueprintDataset = readGzipJsonEntry<{
     gameVersion: string
@@ -134,8 +166,6 @@ test('uses the build identifier for versioned datasets and blueprint records', (
     STATIC_DATA_PATHS.factionReputation
   )
 
-  assert.equal(publication.manifest.gameBuild, '0.0.1-TEST')
-  assert.equal(publication.manifest.gameVersion, 'synthetic-branch')
   assert.equal(blueprintDataset.gameVersion, '0.0.1-TEST')
   assert.equal(factionDataset.gameVersion, '0.0.1-TEST')
   assert.deepEqual(
@@ -144,21 +174,67 @@ test('uses the build identifier for versioned datasets and blueprint records', (
   )
 })
 
-test('rejects blueprint records from a different build', () => {
+test('enforces the frozen API resource record caps', () => {
   const input = fixture()
-  const mismatched = {
-    ...input.blueprints[0],
-    gameVersion: input.source.gameVersion
-  }
+  const blueprintTemplate = input.blueprints.find((blueprint) => blueprint.imageKey !== null)
+  assert.ok(blueprintTemplate)
+  const blueprints = Array.from({ length: 2_500 }, (_, index) => ({
+    ...blueprintTemplate,
+    id: `blueprint-${index}`,
+    key: `BLUEPRINT_${index}`
+  }))
+  const factionTemplate = input.factions[0]
+  assert.ok(factionTemplate)
+  const factions = Array.from({ length: 100 }, (_, index) => ({
+    ...factionTemplate,
+    id: `faction-${index}`,
+    key: `FACTION_${index}`
+  }))
 
+  assert.doesNotThrow(() => createStaticDataPublication({ ...input, blueprints, factions }))
   assert.throws(
     () =>
       createStaticDataPublication({
         ...input,
-        blueprints: [mismatched, ...input.blueprints.slice(1)]
+        blueprints: [
+          ...blueprints,
+          { ...blueprintTemplate, id: 'blueprint-over-limit', key: 'BLUEPRINT_OVER_LIMIT' }
+        ]
       }),
-    /expected build 0\.0\.1-TEST/
+    /blueprints resource exceeds/
   )
+  assert.throws(
+    () =>
+      createStaticDataPublication({
+        ...input,
+        factions: [
+          ...factions,
+          { ...factionTemplate, id: 'faction-over-limit', key: 'FACTION_OVER_LIMIT' }
+        ]
+      }),
+    /faction-reputation resource exceeds/
+  )
+})
+
+test('pins the frozen API resource byte limits', () => {
+  assert.deepEqual(STATIC_DATA_RESOURCE_BYTE_LIMITS, {
+    signatures: {
+      compressedBytes: 2 * 1024 * 1024,
+      uncompressedBytes: 4 * 1024 * 1024
+    },
+    blueprints: {
+      compressedBytes: 32 * 1024 * 1024,
+      uncompressedBytes: 64 * 1024 * 1024
+    },
+    'faction-reputation': {
+      compressedBytes: 16 * 1024 * 1024,
+      uncompressedBytes: 32 * 1024 * 1024
+    }
+  })
+  assert.deepEqual(STATIC_DATA_AGGREGATE_RESOURCE_BYTE_LIMITS, {
+    compressedBytes: 48 * 1024 * 1024,
+    uncompressedBytes: 128 * 1024 * 1024
+  })
 })
 
 test('normalizes gzip headers for deterministic output', () => {
@@ -180,7 +256,7 @@ test('pins the API compatibility fixture byte-for-byte', async () => {
       'utf8'
     )
   ) as unknown
-  const generated = createStaticDataPublication(fixture())
+  const generated = createStaticDataPublication(createSyntheticStaticDataInput())
   assert.deepEqual(archive, generated.archive)
   assert.deepEqual(summary, {
     archiveBytes: generated.archive.byteLength,
@@ -193,7 +269,22 @@ test('pins the API compatibility fixture byte-for-byte', async () => {
 })
 
 function fixture(): Parameters<typeof createStaticDataPublication>[0] {
-  return createSyntheticStaticDataInput()
+  return {
+    releaseId: '33333333-3333-4333-8333-333333333333',
+    generatedAt: '2026-07-30T14:00:00.000Z',
+    source: {
+      gameBuild: '0.0.1-TEST',
+      gameVersion: 'synthetic-branch',
+      channel: 'TEST',
+      archiveBytes: 123_456,
+      archiveModifiedAt: '2026-07-30T13:00:00.000Z',
+      desktopVersion: '0.2.0'
+    },
+    materials: [material('ore-b'), material('ore-a')],
+    blueprints: [blueprint('blueprint-b', null), blueprint('blueprint-a', 'icons/test.tif')],
+    icons: { 'icons/test.tif': PNG },
+    factions: [faction('faction-b'), faction('faction-a')]
+  }
 }
 
 function readGzipJsonEntry<T>(archive: Buffer, path: string): T {
@@ -249,6 +340,114 @@ function crc32(value: Buffer): number {
     }
   }
   return (crc ^ 0xffffffff) >>> 0
+}
+
+function material(id: string): MiningMaterial {
+  return {
+    id,
+    commodityId: id,
+    name: id,
+    displayName: id.toUpperCase(),
+    signature: 4_000,
+    methods: ['FPS', 'Ship'],
+    sourceUrl: `https://example.test/commodities/${id}`
+  }
+}
+
+function blueprint(id: string, imageKey: string | null): BlueprintDetail {
+  return {
+    id,
+    key: id.toUpperCase(),
+    outputName: id,
+    outputClass: `${id}-class`,
+    outputType: 'Synthetic',
+    outputTypeLabel: 'Synthetic item',
+    outputGrade: null,
+    craftTimeSeconds: 60,
+    craftTimeLabel: '1 minute',
+    availableByDefault: false,
+    ingredientCount: 1,
+    unlockingMissionCount: 1,
+    ingredients: [
+      {
+        name: 'Synthetic alloy',
+        kind: 'resource',
+        quantity: 10,
+        quantityScu: 0.1,
+        webUrl: null
+      }
+    ],
+    gameVersion: '0.0.1-TEST',
+    imageKey,
+    webUrl: null,
+    requirementGroups: [
+      {
+        key: 'group-a',
+        name: 'Group A',
+        requiredCount: 1,
+        ingredients: [
+          {
+            name: 'Synthetic alloy',
+            kind: 'resource',
+            quantity: 10,
+            quantityScu: 0.1,
+            webUrl: null,
+            minQuality: 0.5
+          }
+        ]
+      }
+    ],
+    unlockingMissions: [
+      {
+        id: 'mission-a',
+        title: 'Synthetic mission',
+        missionType: 'Test',
+        contractType: null,
+        provider: null,
+        minimumReputation: null,
+        reputationVaries: false,
+        starSystems: ['System B', 'System A'],
+        chance: 1,
+        webUrl: null
+      }
+    ]
+  }
+}
+
+function faction(id: string): FactionReputation {
+  return {
+    id,
+    key: id.toUpperCase(),
+    name: id,
+    description: null,
+    alignment: 'unknown',
+    isNpc: false,
+    hidden: false,
+    headquarters: null,
+    focus: null,
+    scopeCount: 1,
+    standingCount: 1,
+    scopes: [
+      {
+        id: `${id}-scope`,
+        name: 'Synthetic scope',
+        description: null,
+        initialReputation: 0,
+        reputationCeiling: 10_000,
+        standings: [
+          {
+            id: `${id}-standing`,
+            name: 'Synthetic standing',
+            minReputation: 0,
+            driftReputation: 0,
+            driftTimeHours: 0,
+            gated: false,
+            perkDescription: null
+          }
+        ]
+      }
+    ]
+  }
 }
 
 function toPngDataUrl(bytes: Buffer): string {

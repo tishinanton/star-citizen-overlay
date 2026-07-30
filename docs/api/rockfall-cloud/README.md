@@ -987,8 +987,8 @@ The non-proprietary byte fixture is
 Regenerate it with
 [`test/fixtures/generate-static-data-v1.ts`](../../../test/fixtures/generate-static-data-v1.ts)
 by running `npx tsx test/fixtures/generate-static-data-v1.ts`.
-Its pinned size is 3,362 bytes and SHA-256 is
-`b71c2c84d82732529fcd6f23d51a2c84be2fbf3811a4d792d11702c16792a06b`.
+Its pinned size is 3,359 bytes and SHA-256 is
+`e49a5b8973a2f1d49eb274f4b6e79e5216a1d697b8325c815e86e67602b83996`.
 API tests should consume these exact bytes rather than reproduce Node/zlib
 compression.
 

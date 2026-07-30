@@ -723,6 +723,11 @@ function readPngDimensions(bytes: Buffer, imageKey: string): { width: number; he
     if (type === 'acTL') {
       throw new TypeError(`Blueprint icon ${imageKey} uses unsupported PNG animation.`)
     }
+    const expectedCrc = bytes.readUInt32BE(offset + 8 + length)
+    const actualCrc = crc32(bytes.subarray(offset + 4, offset + 8 + length))
+    if (expectedCrc !== actualCrc) {
+      throw new TypeError(`Blueprint icon ${imageKey} has an invalid PNG chunk checksum.`)
+    }
     if (type === 'IEND') {
       if (length !== 0 || end !== bytes.byteLength) {
         throw new TypeError(`Blueprint icon ${imageKey} has an invalid PNG ending.`)

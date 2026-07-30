@@ -1,6 +1,6 @@
 {
-  "archiveBytes": 3362,
-  "archiveSha256": "b71c2c84d82732529fcd6f23d51a2c84be2fbf3811a4d792d11702c16792a06b",
+  "archiveBytes": 3359,
+  "archiveSha256": "e49a5b8973a2f1d49eb274f4b6e79e5216a1d697b8325c815e86e67602b83996",
   "manifestBytes": 1485,
   "manifest": {
     "contractVersion": 1,
@@ -23,8 +23,8 @@
         "contentEncoding": "gzip",
         "recordCount": 2,
         "uncompressedBytes": 2011,
-        "compressedBytes": 557,
-        "sha256": "8967bc57893fa8e3f4349a5892f778d1ed14a85bc844e4e034e0bd22508133f0"
+        "compressedBytes": 554,
+        "sha256": "cd1b60949169c5fea29900ca6137ca1b4c311f5433e84fdefdb66565c576a128"
       },
       {
         "name": "faction-reputation",
@@ -51,11 +51,11 @@
     ],
     "assets": [
       {
-        "key": "blueprint-icons/43d579424c7f66897cdf4742aaee0a16838ffb79f328e7a4bebf1cd1c373235f.png",
-        "file": "assets/blueprint-icons/43d579424c7f66897cdf4742aaee0a16838ffb79f328e7a4bebf1cd1c373235f.png",
+        "key": "blueprint-icons/2c775d80dec8e656aac3f60bb10afbd0148b43c4528032b75ab8e65bc03ba854.png",
+        "file": "assets/blueprint-icons/2c775d80dec8e656aac3f60bb10afbd0148b43c4528032b75ab8e65bc03ba854.png",
         "mediaType": "image/png",
         "byteLength": 70,
-        "sha256": "43d579424c7f66897cdf4742aaee0a16838ffb79f328e7a4bebf1cd1c373235f",
+        "sha256": "2c775d80dec8e656aac3f60bb10afbd0148b43c4528032b75ab8e65bc03ba854",
         "width": 1,
         "height": 1
       }

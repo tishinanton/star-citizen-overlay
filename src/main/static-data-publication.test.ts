@@ -13,8 +13,8 @@ import {
 import { generateSyntheticStaticDataPublication } from '../../test/fixtures/generate-static-data-v1'
 
 const PNG =
-  'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M/wHwAEAQH/7Z1iWQAAAABJRU5ErkJggg=='
-const SYNTHETIC_FIXTURE_SHA256 = 'b71c2c84d82732529fcd6f23d51a2c84be2fbf3811a4d792d11702c16792a06b'
+  'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M/wHwAEAQH/p171jwAAAABJRU5ErkJggg=='
+const SYNTHETIC_FIXTURE_SHA256 = 'e49a5b8973a2f1d49eb274f4b6e79e5216a1d697b8325c815e86e67602b83996'
 
 test('creates a byte-stable publication with raw declared PNG assets', () => {
   const first = createStaticDataPublication(fixture())
@@ -79,7 +79,7 @@ test('rejects blueprint records from another game build', () => {
   )
 })
 
-test('rejects PNG animation, interlacing, and data after IEND before upload', () => {
+test('rejects PNG checksum, animation, interlacing, and data after IEND before upload', () => {
   const input = fixture()
   const bytes = Buffer.from(PNG.slice('data:image/png;base64,'.length), 'base64')
 
@@ -110,6 +110,17 @@ test('rejects PNG animation, interlacing, and data after IEND before upload', ()
     /unsupported PNG animation/
   )
 
+  const invalidChecksum = Buffer.from(bytes)
+  invalidChecksum[54] ^= 0xff
+  assert.throws(
+    () =>
+      createStaticDataPublication({
+        ...input,
+        icons: { 'icons/test.tif': toPngDataUrl(invalidChecksum) }
+      }),
+    /invalid PNG chunk checksum/
+  )
+
   assert.throws(
     () =>
       createStaticDataPublication({
@@ -134,7 +145,7 @@ test('pins the API compatibility fixture byte-for-byte', async () => {
     join(process.cwd(), 'test', 'fixtures', 'static-data-v1.synthetic.zip')
   )
   assert.deepEqual(archive, generateSyntheticStaticDataPublication().archive)
-  assert.equal(archive.byteLength, 3_362)
+  assert.equal(archive.byteLength, 3_359)
   assert.equal(createHash('sha256').update(archive).digest('hex'), SYNTHETIC_FIXTURE_SHA256)
 })
 

@@ -2,6 +2,7 @@ import { request as requestHttp } from 'node:http'
 import { request as requestHttps } from 'node:https'
 
 import { isLoopbackCloudUrl, normalizeCloudApiUrl } from './cloud-url'
+import { STATIC_DATA_RESOURCE_RECORD_LIMITS } from './static-data-publication'
 
 const DEFAULT_REQUEST_TIMEOUT_MS = 15_000
 const MAX_RESPONSE_BYTES = 8 * 1024 * 1024
@@ -724,11 +725,7 @@ function parseStaticDataCapabilities(value: unknown): CloudStaticDataCapabilitie
     throw new TypeError('The cloud service exposes an incompatible static-data upload contract.')
   }
 
-  const expectedResources = new Map([
-    ['signatures', 128],
-    ['blueprints', 5_000],
-    ['faction-reputation', 500]
-  ])
+  const expectedResources = new Map(Object.entries(STATIC_DATA_RESOURCE_RECORD_LIMITS))
   const requiredResources = readArray(
     record.requiredResources,
     'Required static-data resources'

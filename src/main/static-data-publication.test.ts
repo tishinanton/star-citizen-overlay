@@ -19,7 +19,7 @@ import {
 } from '../../test/fixtures/generate-static-data-v1'
 
 const PNG = SYNTHETIC_PNG
-const SYNTHETIC_FIXTURE_SHA256 = '35cd4c4c39e8768499963dd5b50844aef758148be1f5ede192d2b867f6d0ab85'
+const SYNTHETIC_FIXTURE_SHA256 = '968234c4d4a1c443b5928a416cd1e3e0faa015e74a0e063cb53cc662379579b0'
 
 test('creates a byte-stable publication with raw declared PNG assets', () => {
   const first = createStaticDataPublication(fixture())
@@ -155,6 +155,46 @@ test('rejects corrupted PNG chunk CRCs before upload', () => {
   }
 })
 
+test('validates concatenated PNG IDAT zlib streams before upload', () => {
+  const input = fixture()
+  const bytes = Buffer.from(PNG.slice('data:image/png;base64,'.length), 'base64')
+  const imageData = readPngChunkData(bytes, 'IDAT')
+  const splitImageData = replacePngChunk(
+    bytes,
+    'IDAT',
+    Buffer.concat([
+      createPngChunk('IDAT', imageData.subarray(0, 5)),
+      createPngChunk('IDAT', imageData.subarray(5))
+    ])
+  )
+  assert.doesNotThrow(() =>
+    createStaticDataPublication({
+      ...input,
+      icons: { 'icons/test.tif': toPngDataUrl(splitImageData) }
+    })
+  )
+
+  const invalidAdler = replacePngChunkData(bytes, 'IDAT', (data) => {
+    const corrupted = Buffer.from(data)
+    corrupted[corrupted.byteLength - 1] ^= 0xff
+    return corrupted
+  })
+  const truncated = replacePngChunkData(bytes, 'IDAT', (data) => data.subarray(0, -1))
+  const trailing = replacePngChunkData(bytes, 'IDAT', (data) =>
+    Buffer.concat([data, Buffer.from([0])])
+  )
+  for (const invalid of [invalidAdler, truncated, trailing]) {
+    assert.throws(
+      () =>
+        createStaticDataPublication({
+          ...input,
+          icons: { 'icons/test.tif': toPngDataUrl(invalid) }
+        }),
+      /invalid PNG image data/
+    )
+  }
+})
+
 test('uses the build identifier for versioned dataset roots and blueprint records', () => {
   const publication = createStaticDataPublication(fixture())
   const blueprintDataset = readGzipJsonEntry<{
@@ -264,7 +304,7 @@ test('pins the API compatibility fixture byte-for-byte', async () => {
     manifestBytes: generated.manifestBytes,
     manifest: generated.manifest
   })
-  assert.equal(archive.byteLength, 3_370)
+  assert.equal(archive.byteLength, 3_369)
   assert.equal(createHash('sha256').update(archive).digest('hex'), SYNTHETIC_FIXTURE_SHA256)
 })
 
@@ -319,6 +359,26 @@ function rewritePngChunkCrc(bytes: Buffer, type: string): void {
   const offset = findPngChunk(bytes, type)
   const length = bytes.readUInt32BE(offset)
   bytes.writeUInt32BE(crc32(bytes.subarray(offset + 4, offset + 8 + length)), offset + 8 + length)
+}
+
+function readPngChunkData(bytes: Buffer, type: string): Buffer {
+  const offset = findPngChunk(bytes, type)
+  const length = bytes.readUInt32BE(offset)
+  return bytes.subarray(offset + 8, offset + 8 + length)
+}
+
+function replacePngChunkData(
+  bytes: Buffer,
+  type: string,
+  transform: (data: Buffer) => Buffer
+): Buffer {
+  return replacePngChunk(bytes, type, createPngChunk(type, transform(readPngChunkData(bytes, type))))
+}
+
+function replacePngChunk(bytes: Buffer, type: string, replacement: Buffer): Buffer {
+  const offset = findPngChunk(bytes, type)
+  const length = bytes.readUInt32BE(offset)
+  return Buffer.concat([bytes.subarray(0, offset), replacement, bytes.subarray(offset + 12 + length)])
 }
 
 function findPngChunk(bytes: Buffer, expectedType: string): number {

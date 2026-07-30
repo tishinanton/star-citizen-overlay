@@ -1,6 +1,7 @@
 import { writeFile } from 'node:fs/promises'
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { deflateSync } from 'node:zlib'
 
 import type { BlueprintDetail, FactionReputation, MiningMaterial } from '../../src/shared/contracts'
 import {
@@ -8,8 +9,8 @@ import {
   type StaticDataPublicationInput
 } from '../../src/main/static-data-publication'
 
-export const SYNTHETIC_PNG =
-  'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mMwTpv5HwAENAIyhHMY8AAAAABJRU5ErkJggg=='
+const PNG_SIGNATURE = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10])
+export const SYNTHETIC_PNG = createSyntheticPngDataUrl()
 
 export function createSyntheticStaticDataInput(): StaticDataPublicationInput {
   return {
@@ -157,6 +158,43 @@ function faction(id: string): FactionReputation {
       }
     ]
   }
+}
+
+function createSyntheticPngDataUrl(): string {
+  const header = Buffer.alloc(13)
+  header.writeUInt32BE(1, 0)
+  header.writeUInt32BE(1, 4)
+  header[8] = 8
+  header[9] = 6
+  const imageData = deflateSync(Buffer.from([0, 0, 0, 0, 0]), { level: 9 })
+  const png = Buffer.concat([
+    PNG_SIGNATURE,
+    createPngChunk('IHDR', header),
+    createPngChunk('IDAT', imageData),
+    createPngChunk('IEND', Buffer.alloc(0))
+  ])
+  return `data:image/png;base64,${png.toString('base64')}`
+}
+
+function createPngChunk(type: string, data: Buffer): Buffer {
+  const typeBytes = Buffer.from(type, 'ascii')
+  const chunk = Buffer.alloc(12 + data.byteLength)
+  chunk.writeUInt32BE(data.byteLength, 0)
+  typeBytes.copy(chunk, 4)
+  data.copy(chunk, 8)
+  chunk.writeUInt32BE(crc32(Buffer.concat([typeBytes, data])), 8 + data.byteLength)
+  return chunk
+}
+
+function crc32(value: Buffer): number {
+  let crc = 0xffffffff
+  for (const byte of value) {
+    crc ^= byte
+    for (let bit = 0; bit < 8; bit += 1) {
+      crc = (crc >>> 1) ^ (crc & 1 ? 0xedb88320 : 0)
+    }
+  }
+  return (crc ^ 0xffffffff) >>> 0
 }
 
 if (process.argv[1] && fileURLToPath(import.meta.url) === resolve(process.argv[1])) {

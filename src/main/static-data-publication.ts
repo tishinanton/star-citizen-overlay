@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto'
-import { gzipSync } from 'node:zlib'
+import { gzipSync, inflateSync } from 'node:zlib'
 
 import type {
   BlueprintDetail,
@@ -715,6 +715,9 @@ function readPngDimensions(bytes: Buffer, imageKey: string): { width: number; he
   }
   const width = bytes.readUInt32BE(16)
   const height = bytes.readUInt32BE(20)
+  const bitDepth = bytes[24]
+  const colorType = bytes[25]
+  const bitsPerPixel = readPngBitsPerPixel(bitDepth, colorType)
   if (
     width <= 0 ||
     height <= 0 ||
@@ -724,12 +727,18 @@ function readPngDimensions(bytes: Buffer, imageKey: string): { width: number; he
   ) {
     throw new TypeError(`Blueprint icon ${imageKey} has invalid dimensions.`)
   }
+  if (bitsPerPixel === null || bytes[26] !== 0 || bytes[27] !== 0) {
+    throw new TypeError(`Blueprint icon ${imageKey} has an unsupported PNG format.`)
+  }
   if (bytes[28] !== 0) {
     throw new TypeError(`Blueprint icon ${imageKey} uses unsupported PNG interlacing.`)
   }
   let offset = 8
   let chunkIndex = 0
   let foundEnd = false
+  let foundImageData = false
+  let imageDataEnded = false
+  const imageDataChunks: Buffer[] = []
   while (offset < bytes.byteLength) {
     if (offset + 12 > bytes.byteLength) {
       throw new TypeError(`Blueprint icon ${imageKey} has an invalid PNG chunk.`)
@@ -751,6 +760,15 @@ function readPngDimensions(bytes: Buffer, imageKey: string): { width: number; he
     if (type === 'acTL') {
       throw new TypeError(`Blueprint icon ${imageKey} uses unsupported PNG animation.`)
     }
+    if (type === 'IDAT') {
+      if (imageDataEnded) {
+        throw new TypeError(`Blueprint icon ${imageKey} has invalid PNG image data ordering.`)
+      }
+      foundImageData = true
+      imageDataChunks.push(bytes.subarray(offset + 8, offset + 8 + length))
+    } else if (foundImageData && type !== 'IEND') {
+      imageDataEnded = true
+    }
     if (type === 'IEND') {
       if (length !== 0 || end !== bytes.byteLength) {
         throw new TypeError(`Blueprint icon ${imageKey} has an invalid PNG ending.`)
@@ -762,7 +780,78 @@ function readPngDimensions(bytes: Buffer, imageKey: string): { width: number; he
     chunkIndex += 1
   }
   if (!foundEnd) throw new TypeError(`Blueprint icon ${imageKey} has no terminal PNG ending.`)
+  if (!foundImageData) throw new TypeError(`Blueprint icon ${imageKey} has no PNG image data.`)
+  validatePngImageData(
+    Buffer.concat(imageDataChunks),
+    width,
+    height,
+    bitsPerPixel,
+    imageKey
+  )
   return { width, height }
+}
+
+function readPngBitsPerPixel(bitDepth: number, colorType: number): number | null {
+  const channels =
+    colorType === 0 ? 1 : colorType === 2 ? 3 : colorType === 3 ? 1 : colorType === 4 ? 2 : 4
+  const allowedDepths =
+    colorType === 0
+      ? [1, 2, 4, 8, 16]
+      : colorType === 2 || colorType === 4 || colorType === 6
+        ? [8, 16]
+        : colorType === 3
+          ? [1, 2, 4, 8]
+          : []
+  return allowedDepths.includes(bitDepth) ? channels * bitDepth : null
+}
+
+function validatePngImageData(
+  compressed: Buffer,
+  width: number,
+  height: number,
+  bitsPerPixel: number,
+  imageKey: string
+): void {
+  const scanlineBytes = Math.ceil((width * bitsPerPixel) / 8)
+  const expectedBytes = (scanlineBytes + 1) * height
+  let decoded: Buffer
+  let consumedBytes: number
+  try {
+    const result: unknown = inflateSync(compressed, { info: true, maxOutputLength: expectedBytes })
+    if (!isInflateInfoResult(result)) {
+      throw new TypeError('The PNG inflater did not return stream consumption metadata.')
+    }
+    decoded = result.buffer
+    consumedBytes = result.engine.bytesWritten
+  } catch (error: unknown) {
+    throw new TypeError(`Blueprint icon ${imageKey} has invalid PNG image data.`, {
+      cause: error
+    })
+  }
+  if (consumedBytes !== compressed.byteLength || decoded.byteLength !== expectedBytes) {
+    throw new TypeError(`Blueprint icon ${imageKey} has invalid PNG image data.`)
+  }
+  for (let row = 0; row < height; row += 1) {
+    if (decoded[row * (scanlineBytes + 1)] > 4) {
+      throw new TypeError(`Blueprint icon ${imageKey} has an invalid PNG scanline filter.`)
+    }
+  }
+
+  function isInflateInfoResult(
+    value: unknown
+  ): value is { buffer: Buffer; engine: { bytesWritten: number } } {
+    if (typeof value !== 'object' || value === null || !('buffer' in value) || !('engine' in value)) {
+      return false
+    }
+    const engine = value.engine
+    return (
+      Buffer.isBuffer(value.buffer) &&
+      typeof engine === 'object' &&
+      engine !== null &&
+      'bytesWritten' in engine &&
+      typeof engine.bytesWritten === 'number'
+    )
+  }
 }
 
 function assertEqualSets(

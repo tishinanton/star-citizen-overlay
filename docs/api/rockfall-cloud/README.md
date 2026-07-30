@@ -973,6 +973,14 @@ The archive contains `manifest.json`, gzip JSON resources named exactly
 canonical JSON. Blueprint `assetKey` values and manifest keys are exactly
 `blueprint-icons/<sha256>.png`; manifest files prefix those keys with `assets/`.
 The declared, referenced, and archived asset sets must be identical.
+Before upload, desktop verifies every PNG chunk CRC and fully inflates the
+concatenated IDAT zlib stream, including its Adler-32 trailer and exact stream
+length.
+
+Manifest `gameBuild` and blueprint/faction resource `gameVersion` are the
+extractor identifier `<build_manifest.id Data.Version>-<selected channel>`.
+Manifest `gameVersion` is `build_manifest.id Data.Branch`. Source metadata sends
+only Data.p4k byte length and modification time, never its local path.
 
 The service stages and validates the complete archive before one serializable
 transaction activates the channel pointer. A failed request leaves the previous
@@ -984,8 +992,8 @@ resources, but only administrators may publish.
 
 The non-proprietary byte fixture is
 [`test/fixtures/static-data-v1.synthetic.zip`](../../../test/fixtures/static-data-v1.synthetic.zip).
-Its pinned size is 3,370 bytes and SHA-256 is
-`35cd4c4c39e8768499963dd5b50844aef758148be1f5ede192d2b867f6d0ab85`.
+Its pinned size is 3,369 bytes and SHA-256 is
+`968234c4d4a1c443b5928a416cd1e3e0faa015e74a0e063cb53cc662379579b0`.
 API tests should consume these exact bytes rather than reproduce Node/zlib
 compression. Regenerate the fixture without proprietary game data using
 `npm run generate:static-data-fixture`.

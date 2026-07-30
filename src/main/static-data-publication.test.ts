@@ -9,7 +9,9 @@ import type { BlueprintDetail, FactionReputation, MiningMaterial } from '../shar
 import {
   createDeterministicGzip,
   createStaticDataPublication,
-  STATIC_DATA_PATHS
+  STATIC_DATA_AGGREGATE_RESOURCE_BYTE_LIMITS,
+  STATIC_DATA_PATHS,
+  STATIC_DATA_RESOURCE_BYTE_LIMITS
 } from './static-data-publication'
 import { generateSyntheticStaticDataPublication } from '../../test/fixtures/generate-static-data-v1'
 
@@ -210,6 +212,27 @@ test('enforces the frozen API resource record caps', () => {
       }),
     /faction-reputation resource exceeds/
   )
+})
+
+test('pins the frozen API resource byte limits', () => {
+  assert.deepEqual(STATIC_DATA_RESOURCE_BYTE_LIMITS, {
+    signatures: {
+      compressedBytes: 2 * 1024 * 1024,
+      uncompressedBytes: 4 * 1024 * 1024
+    },
+    blueprints: {
+      compressedBytes: 32 * 1024 * 1024,
+      uncompressedBytes: 64 * 1024 * 1024
+    },
+    'faction-reputation': {
+      compressedBytes: 16 * 1024 * 1024,
+      uncompressedBytes: 32 * 1024 * 1024
+    }
+  })
+  assert.deepEqual(STATIC_DATA_AGGREGATE_RESOURCE_BYTE_LIMITS, {
+    compressedBytes: 48 * 1024 * 1024,
+    uncompressedBytes: 128 * 1024 * 1024
+  })
 })
 
 test('normalizes gzip headers for deterministic output', () => {

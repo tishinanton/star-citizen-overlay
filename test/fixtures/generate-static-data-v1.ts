@@ -1,70 +1,18 @@
 import { writeFile } from 'node:fs/promises'
-import { dirname, join, resolve } from 'node:path'
+import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
-import type {
-  BlueprintDetail,
-  FactionReputation,
-  MiningMaterial
-} from '../../src/shared/contracts'
+import type { BlueprintDetail, FactionReputation, MiningMaterial } from '../../src/shared/contracts'
 import {
   createStaticDataPublication,
-  type StaticDataPublication
+  type StaticDataPublicationInput
 } from '../../src/main/static-data-publication'
 
-const PNG =
-  'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M/wHwAEAQH/p171jwAAAABJRU5ErkJggg=='
+export const SYNTHETIC_PNG =
+  'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mMwTpv5HwAENAIyhHMY8AAAAABJRU5ErkJggg=='
 
-const materials: MiningMaterial[] = [
-  {
-    id: 'synthetic-ore',
-    commodityId: 'synthetic-ore',
-    name: 'Synthetic Ore',
-    displayName: 'Synthetic Ore',
-    signature: 4_000,
-    methods: ['Ship', 'FPS'],
-    sourceUrl: 'https://example.test/commodities/synthetic-ore'
-  }
-]
-
-const factions: FactionReputation[] = [
-  {
-    id: 'synthetic-faction',
-    key: 'SYNTHETIC_FACTION',
-    name: 'Synthetic Faction',
-    description: null,
-    alignment: 'unknown',
-    isNpc: false,
-    hidden: false,
-    headquarters: null,
-    focus: null,
-    scopeCount: 1,
-    standingCount: 1,
-    scopes: [
-      {
-        id: 'synthetic-scope',
-        name: 'Synthetic Scope',
-        description: null,
-        initialReputation: 0,
-        reputationCeiling: 10_000,
-        standings: [
-          {
-            id: 'synthetic-standing',
-            name: 'Synthetic Standing',
-            minReputation: 0,
-            driftReputation: 0,
-            driftTimeHours: 0,
-            gated: false,
-            perkDescription: null
-          }
-        ]
-      }
-    ]
-  }
-]
-
-export function generateSyntheticStaticDataPublication(): StaticDataPublication {
-  return createStaticDataPublication({
+export function createSyntheticStaticDataInput(): StaticDataPublicationInput {
+  return {
     releaseId: '33333333-3333-4333-8333-333333333333',
     generatedAt: '2026-07-30T14:00:00.000Z',
     source: {
@@ -75,41 +23,52 @@ export function generateSyntheticStaticDataPublication(): StaticDataPublication 
       archiveModifiedAt: '2026-07-30T13:00:00.000Z',
       desktopVersion: '0.2.0'
     },
-    materials,
-    blueprints: [
-      blueprint('synthetic-blueprint-null', null),
-      blueprint('synthetic-blueprint-icon', 'icons/synthetic.tif')
-    ],
-    icons: { 'icons/synthetic.tif': PNG },
-    factions
-  })
+    materials: [material('ore-b'), material('ore-a')],
+    blueprints: [blueprint('blueprint-b', null), blueprint('blueprint-a', 'icons/test.tif')],
+    icons: { 'icons/test.tif': SYNTHETIC_PNG },
+    factions: [faction('faction-b'), faction('faction-a')]
+  }
 }
 
-export async function writeSyntheticStaticDataFixture(): Promise<void> {
-  const publication = generateSyntheticStaticDataPublication()
-  const outputDirectory = dirname(fileURLToPath(import.meta.url))
-  await writeFile(join(outputDirectory, 'static-data-v1.synthetic.zip'), publication.archive)
-  await writeFile(
-    join(outputDirectory, 'static-data-v1.synthetic.summary.json'),
-    `${JSON.stringify(
-      {
-        archiveBytes: publication.archive.byteLength,
-        archiveSha256: publication.archiveSha256,
-        manifestBytes: publication.manifestBytes,
-        manifest: publication.manifest
-      },
-      null,
-      2
-    )}\n`
-  )
+export async function generateSyntheticStaticDataFixture(): Promise<void> {
+  const publication = createStaticDataPublication(createSyntheticStaticDataInput())
+  const fixtureDirectory = dirname(fileURLToPath(import.meta.url))
+  await Promise.all([
+    writeFile(resolve(fixtureDirectory, 'static-data-v1.synthetic.zip'), publication.archive),
+    writeFile(
+      resolve(fixtureDirectory, 'static-data-v1.synthetic.summary.json'),
+      `${JSON.stringify(
+        {
+          archiveBytes: publication.archive.byteLength,
+          archiveSha256: publication.archiveSha256,
+          manifestBytes: publication.manifestBytes,
+          manifest: publication.manifest
+        },
+        null,
+        2
+      )}\n`
+    )
+  ])
+}
+
+function material(id: string): MiningMaterial {
+  return {
+    id,
+    commodityId: id,
+    name: id,
+    displayName: id.toUpperCase(),
+    signature: 4_000,
+    methods: ['FPS', 'Ship'],
+    sourceUrl: `https://example.test/commodities/${id}`
+  }
 }
 
 function blueprint(id: string, imageKey: string | null): BlueprintDetail {
   return {
     id,
     key: id.toUpperCase(),
-    outputName: id === 'synthetic-blueprint-icon' ? 'Synthetic Beacon' : 'Synthetic Relay',
-    outputClass: 'SyntheticClass',
+    outputName: id,
+    outputClass: `${id}-class`,
     outputType: 'Synthetic',
     outputTypeLabel: 'Synthetic item',
     outputGrade: null,
@@ -164,8 +123,44 @@ function blueprint(id: string, imageKey: string | null): BlueprintDetail {
   }
 }
 
-if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
-  void writeSyntheticStaticDataFixture().catch((error: unknown) => {
+function faction(id: string): FactionReputation {
+  return {
+    id,
+    key: id.toUpperCase(),
+    name: id,
+    description: null,
+    alignment: 'unknown',
+    isNpc: false,
+    hidden: false,
+    headquarters: null,
+    focus: null,
+    scopeCount: 1,
+    standingCount: 1,
+    scopes: [
+      {
+        id: `${id}-scope`,
+        name: 'Synthetic scope',
+        description: null,
+        initialReputation: 0,
+        reputationCeiling: 10_000,
+        standings: [
+          {
+            id: `${id}-standing`,
+            name: 'Synthetic standing',
+            minReputation: 0,
+            driftReputation: 0,
+            driftTimeHours: 0,
+            gated: false,
+            perkDescription: null
+          }
+        ]
+      }
+    ]
+  }
+}
+
+if (process.argv[1] && fileURLToPath(import.meta.url) === resolve(process.argv[1])) {
+  generateSyntheticStaticDataFixture().catch((error: unknown) => {
     console.error(error)
     process.exitCode = 1
   })

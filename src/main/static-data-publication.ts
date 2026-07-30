@@ -439,8 +439,13 @@ function validateReleaseMetadata(input: StaticDataPublicationInput): void {
   ) {
     throw new Error('Every static-data dataset must contain records.')
   }
-  if (input.blueprints.some((blueprint) => blueprint.gameVersion !== input.source.gameBuild)) {
-    throw new Error('Blueprint records do not match the selected game build.')
+  const mismatchedBlueprint = input.blueprints.find(
+    (blueprint) => blueprint.gameVersion !== input.source.gameBuild
+  )
+  if (mismatchedBlueprint) {
+    throw new Error(
+      `Blueprint ${mismatchedBlueprint.id} targets ${mismatchedBlueprint.gameVersion}; expected build ${input.source.gameBuild}.`
+    )
   }
 }
 
@@ -717,16 +722,16 @@ function readPngDimensions(bytes: Buffer, imageKey: string): { width: number; he
       throw new TypeError(`Blueprint icon ${imageKey} has an invalid PNG chunk length.`)
     }
     const type = bytes.toString('ascii', offset + 4, offset + 8)
+    const expectedChecksum = bytes.readUInt32BE(offset + 8 + length)
+    const actualChecksum = crc32(bytes.subarray(offset + 4, offset + 8 + length))
+    if (actualChecksum !== expectedChecksum) {
+      throw new TypeError(`Blueprint icon ${imageKey} has an invalid ${type} chunk CRC.`)
+    }
     if (chunkIndex === 0 && (type !== 'IHDR' || length !== 13)) {
       throw new TypeError(`Blueprint icon ${imageKey} has an invalid first PNG chunk.`)
     }
     if (type === 'acTL') {
       throw new TypeError(`Blueprint icon ${imageKey} uses unsupported PNG animation.`)
-    }
-    const expectedCrc = bytes.readUInt32BE(offset + 8 + length)
-    const actualCrc = crc32(bytes.subarray(offset + 4, offset + 8 + length))
-    if (expectedCrc !== actualCrc) {
-      throw new TypeError(`Blueprint icon ${imageKey} has an invalid PNG chunk checksum.`)
     }
     if (type === 'IEND') {
       if (length !== 0 || end !== bytes.byteLength) {

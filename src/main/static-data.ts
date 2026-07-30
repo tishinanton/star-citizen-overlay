@@ -137,9 +137,9 @@ export async function readPublicationSource(
     })
   }
   const data = readRecord(readRecord(value, 'Game build manifest').Data, 'Game build data')
-  const version = readNonEmptyString(data.Version, 'Game data version', 200)
-  const gameBuild = `${version}-${archive.channel}`
-  const gameVersion = readNonEmptyString(data.Branch, 'Game version branch', 200)
+  const gameVersion = readNonEmptyString(data.Branch, 'Game build branch', 200)
+  const buildVersion = readNonEmptyString(data.Version, 'Game version', 200)
+  const gameBuild = `${buildVersion}-${archive.channel}`
   return {
     gameBuild,
     gameVersion,

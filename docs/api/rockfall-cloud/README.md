@@ -969,11 +969,6 @@ canonical JSON. Blueprint `assetKey` values and manifest keys are exactly
 `blueprint-icons/<sha256>.png`; manifest files prefix those keys with `assets/`.
 The declared, referenced, and archived asset sets must be identical.
 
-Manifest `gameBuild` and blueprint/faction resource `gameVersion` are the
-extractor identifier `<build_manifest.id Data.Version>-<selected channel>`.
-Manifest `gameVersion` is `build_manifest.id Data.Branch`. Source metadata sends
-only Data.p4k byte length and modification time, never its local path.
-
 The service stages and validates the complete archive before one serializable
 transaction activates the channel pointer. A failed request leaves the previous
 release active. Identical build/content publication returns
@@ -984,13 +979,11 @@ resources, but only administrators may publish.
 
 The non-proprietary byte fixture is
 [`test/fixtures/static-data-v1.synthetic.zip`](../../../test/fixtures/static-data-v1.synthetic.zip).
-Regenerate it with
-[`test/fixtures/generate-static-data-v1.ts`](../../../test/fixtures/generate-static-data-v1.ts)
-by running `npx tsx test/fixtures/generate-static-data-v1.ts`.
-Its pinned size is 3,359 bytes and SHA-256 is
-`e49a5b8973a2f1d49eb274f4b6e79e5216a1d697b8325c815e86e67602b83996`.
+Its pinned size is 3,370 bytes and SHA-256 is
+`35cd4c4c39e8768499963dd5b50844aef758148be1f5ede192d2b867f6d0ab85`.
 API tests should consume these exact bytes rather than reproduce Node/zlib
-compression.
+compression. Regenerate the fixture without proprietary game data using
+`npm run generate:static-data-fixture`.
 
 ## 11. Desktop integration requirements
 

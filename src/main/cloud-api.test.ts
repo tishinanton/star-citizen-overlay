@@ -143,19 +143,40 @@ test('validates every Rockfall Cloud client method', async () => {
 })
 
 test('validates static-data capability and current-release contracts', async () => {
+  let useLegacyCapabilities = false
   const server = createServer((request, response) => {
     if (request.url === '/v1/static-data/capabilities') {
+      if (useLegacyCapabilities) {
+        writeJson(response, 200, {
+          contractVersion: 1,
+          role: 'admin',
+          canPublish: true,
+          requiredResources: {
+            signatures: [1],
+            blueprints: [1],
+            'faction-reputation': [1]
+          },
+          assetMediaTypes: ['image/png'],
+          limits: {}
+        })
+        return
+      }
       writeJson(response, 200, {
         contractVersion: 1,
         role: 'admin',
         canPublish: true,
-        requiredResources: {
-          signatures: [1],
-          blueprints: [1],
-          'faction-reputation': [1]
+        upload: {
+          method: 'POST',
+          path: '/v1/admin/static-data/releases',
+          mediaType: 'application/zip',
+          maxArchiveBytes: 134_217_728
         },
-        assetMediaTypes: ['image/png'],
-        limits: {}
+        requiredResources: [
+          { name: 'signatures', schemaVersions: [1], maxRecords: 128 },
+          { name: 'blueprints', schemaVersions: [1], maxRecords: 5_000 },
+          { name: 'faction-reputation', schemaVersions: [1], maxRecords: 500 }
+        ],
+        supportedAssetMediaTypes: ['image/png']
       })
       return
     }
@@ -166,6 +187,8 @@ test('validates static-data capability and current-release contracts', async () 
         channel: 'LIVE',
         gameBuild: 'sc-alpha-4.9.0',
         gameVersion: '4.9.187.47267',
+        generatedAt: NOW,
+        sourceAppVersion: '0.2.0',
         contentSetSha256: 'a'.repeat(64),
         publishedAt: NOW,
         source: {
@@ -177,7 +200,17 @@ test('validates static-data capability and current-release contracts', async () 
           resource('blueprints', 1_591),
           resource('faction-reputation', 38)
         ],
-        assets: []
+        assets: [
+          {
+            key: `blueprint-icons/${'c'.repeat(64)}.png`,
+            mediaType: 'image/png',
+            sha256: 'c'.repeat(64),
+            byteLength: 70,
+            width: 1,
+            height: 1,
+            url: `/v1/static-data/assets/${'c'.repeat(64)}.png`
+          }
+        ]
       })
       return
     }
@@ -193,6 +226,11 @@ test('validates static-data capability and current-release contracts', async () 
     const current = await client.getCurrentStaticDataRelease('LIVE', 'access-token')
     assert.equal(current.releaseId, RELEASE_ID)
     assert.equal(current.manifestUrl, `/v1/static-data/releases/${RELEASE_ID}`)
+    useLegacyCapabilities = true
+    await assert.rejects(
+      client.getStaticDataCapabilities('access-token'),
+      /must contain exactly the documented fields/
+    )
   } finally {
     await new Promise<void>((resolve, reject) =>
       server.close((error) => (error ? reject(error) : resolve()))
@@ -469,8 +507,13 @@ function resource(name: string, recordCount: number): Record<string, unknown> {
   return {
     name,
     schemaVersion: 1,
+    mediaType: 'application/json',
+    contentEncoding: 'gzip',
+    sha256: 'b'.repeat(64),
+    compressedBytes: 1,
+    uncompressedBytes: 1,
     recordCount,
-    sha256: 'b'.repeat(64)
+    url: `/v1/static-data/releases/${RELEASE_ID}/resources/${name}`
   }
 }
 

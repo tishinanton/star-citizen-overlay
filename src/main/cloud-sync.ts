@@ -371,7 +371,13 @@ export class CloudSyncController {
             this.api.getCurrentStaticDataRelease(channel, accessToken, signal)
           )
         } catch (error) {
-          if (!(error instanceof CloudApiError) || error.status !== 404) throw error
+          if (
+            !(error instanceof CloudApiError) ||
+            error.status !== 404 ||
+            error.code !== 'static_data_not_published'
+          ) {
+            throw error
+          }
         }
         return {
           canPublish: capabilities.role === 'admin' && capabilities.canPublish,

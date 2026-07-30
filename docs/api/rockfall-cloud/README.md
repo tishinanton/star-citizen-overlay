@@ -954,6 +954,14 @@ signal. The desktop then uploads one bounded `application/zip` to
 `POST /v1/admin/static-data/releases`; it never sends multipart requests or
 base64 images.
 
+The capability DTO declares an `upload` object, an array of
+`requiredResources` entries (`name`, `schemaVersions`, and `maxRecords`), and
+`supportedAssetMediaTypes`. Desktop parsing is exact and fail-closed: the route,
+media type, 128 MiB limit, three schema-v1 resource caps, PNG support, role, and
+`canPublish` must all match. Current-release parsing likewise validates every
+resource/asset hash, encoding, content-addressed URL, and logical key. Only a
+404 with code `static_data_not_published` represents an empty channel.
+
 The archive contains `manifest.json`, gzip JSON resources named exactly
 `signatures`, `blueprints`, and `faction-reputation`, plus every declared
 `assets/blueprint-icons/<sha256>.png`. Resource hashes cover uncompressed

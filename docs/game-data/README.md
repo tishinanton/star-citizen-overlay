@@ -258,7 +258,8 @@ never its local path.
 The current catalogs contain 38 signatures, 1,591 blueprints, and 38 factions.
 Their 27 static non-interlaced 64x64 PNGs total 21,056 bytes, range from 473 to
 1,258 bytes, and contain no APNG animation chunk. These are observations, not
-future maxima; desktop and API limits are enforced independently.
+future maxima. Publication allows the validated cache ceiling of 200 icons and
+enforces 204 ZIP entries, 128 KiB per raw PNG, and 32 MiB aggregate PNG bytes.
 
 ## Data that this method cannot provide
 

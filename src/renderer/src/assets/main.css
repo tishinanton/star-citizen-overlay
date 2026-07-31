@@ -1458,18 +1458,419 @@
   max-width: 28ch;
 }
 
+.lan-settings,
 .cloud-settings,
 .static-data-settings,
 .starstrings-settings {
   min-width: 0;
 }
 
+.lan-settings__header,
 .cloud-connection__header {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
   padding: 22px 24px 18px;
   gap: 20px;
+}
+
+.lan-status--listening > span,
+.lan-status--pairing > span {
+  background: var(--success);
+}
+
+.lan-status--starting > span {
+  background: var(--accent);
+}
+
+.lan-status--degraded > span {
+  background: var(--warning);
+}
+
+.lan-status--error > span {
+  background: var(--danger);
+}
+
+.lan-enable-row,
+.lan-reset-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 18px 24px;
+  gap: 20px;
+  border-top: 1px solid var(--edge);
+}
+
+.lan-enable-row > div,
+.lan-reset-row > div {
+  min-width: 0;
+}
+
+.lan-enable-row strong,
+.lan-enable-row span,
+.lan-reset-row strong,
+.lan-reset-row span {
+  display: block;
+}
+
+.lan-enable-row strong,
+.lan-reset-row strong {
+  color: var(--ink);
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.lan-enable-row span,
+.lan-reset-row span {
+  max-width: 48ch;
+  margin-top: 5px;
+  color: var(--muted);
+  font-size: 1rem;
+  line-height: 1.4;
+}
+
+.lan-settings button,
+.lan-power-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 36px;
+  padding: 7px 12px;
+  gap: 7px;
+  border: 1px solid var(--accent);
+  border-radius: var(--radius-sm);
+  background: var(--accent);
+  color: var(--bg);
+  font-size: 1rem;
+  font-weight: 600;
+  white-space: nowrap;
+  transition:
+    border-color var(--duration-fast) var(--ease-out),
+    background-color var(--duration-fast) var(--ease-out),
+    color var(--duration-fast) var(--ease-out);
+}
+
+.lan-settings button:hover:not(:disabled),
+.lan-power-button:hover:not(:disabled) {
+  border-color: var(--accent-bright);
+  background: var(--accent-bright);
+}
+
+.lan-settings button:disabled,
+.lan-power-button:disabled {
+  opacity: 0.45;
+}
+
+.lan-power-button.is-enabled,
+.lan-settings .cloud-actions__secondary,
+.lan-client-list button,
+.lan-reset-row button {
+  border-color: var(--edge);
+  background: var(--surface);
+  color: var(--ink-soft);
+  font-weight: 500;
+}
+
+.lan-power-button.is-enabled:hover:not(:disabled),
+.lan-settings .cloud-actions__secondary:hover:not(:disabled),
+.lan-client-list button:hover:not(:disabled),
+.lan-reset-row button:hover:not(:disabled) {
+  border-color: var(--edge-strong);
+  background: var(--surface-high);
+  color: var(--ink);
+}
+
+.lan-port-form {
+  padding: 18px 24px 22px;
+  border-top: 1px solid var(--edge);
+  background: var(--surface);
+}
+
+.lan-port-form label,
+.lan-port-form > div:first-child span {
+  display: block;
+}
+
+.lan-port-form label {
+  color: var(--ink);
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.lan-port-form > div:first-child span {
+  margin-top: 5px;
+  color: var(--muted);
+  font-size: 1rem;
+  line-height: 1.4;
+}
+
+.lan-port-form .inline-field {
+  max-width: 310px;
+}
+
+.lan-port-form input[aria-invalid='true'] {
+  border-color: var(--danger);
+}
+
+.lan-field-error {
+  display: block;
+  margin-top: 8px;
+  color: var(--danger-ink);
+  font-size: 1rem;
+  line-height: 1.35;
+}
+
+.lan-connection-panel,
+.lan-pairing-panel,
+.lan-client-panel,
+.lan-certificate-row,
+.lan-reset-row {
+  border-top: 1px solid var(--edge);
+}
+
+.lan-connection-panel,
+.lan-pairing-panel,
+.lan-client-panel {
+  padding: 18px 24px 20px;
+}
+
+.lan-connection-panel__heading,
+.lan-pairing-panel__heading > div:first-child,
+.lan-client-panel__heading > div:first-child {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+}
+
+.lan-connection-panel__heading > svg,
+.lan-pairing-panel__heading > div:first-child > svg,
+.lan-client-panel__heading > div:first-child > svg {
+  flex: 0 0 auto;
+  margin-top: 1px;
+  color: var(--accent-bright);
+}
+
+.lan-connection-panel__heading strong,
+.lan-connection-panel__heading span,
+.lan-pairing-panel__heading strong,
+.lan-pairing-panel__heading span,
+.lan-client-panel__heading strong,
+.lan-client-panel__heading span {
+  display: block;
+}
+
+.lan-connection-panel__heading strong,
+.lan-pairing-panel__heading strong,
+.lan-client-panel__heading strong {
+  color: var(--ink);
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.lan-connection-panel__heading span,
+.lan-pairing-panel__heading span,
+.lan-client-panel__heading span {
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 1rem;
+  line-height: 1.4;
+}
+
+.lan-endpoint-list,
+.lan-client-list {
+  padding: 0;
+  margin: 13px 0 0;
+  list-style: none;
+}
+
+.lan-endpoint-list {
+  display: grid;
+  gap: 7px;
+}
+
+.lan-endpoint-list li {
+  min-width: 0;
+  padding: 9px 11px;
+  overflow-x: auto;
+  border: 1px solid var(--edge);
+  border-radius: var(--radius-sm);
+  background: var(--bg);
+}
+
+.lan-endpoint-list code,
+.lan-certificate-row strong,
+.lan-pairing-code strong {
+  color: var(--accent-bright);
+  font-family: inherit;
+  font-variant-numeric: tabular-nums;
+}
+
+.lan-firewall-note {
+  display: flex;
+  align-items: flex-start;
+  margin: 12px 0 0;
+  gap: 7px;
+  color: var(--muted);
+  font-size: 1rem;
+  line-height: 1.4;
+}
+
+.lan-firewall-note > svg {
+  flex: 0 0 auto;
+  margin-top: 2px;
+  color: var(--accent-bright);
+}
+
+.lan-certificate-row {
+  display: flex;
+  align-items: flex-start;
+  padding: 16px 24px;
+  gap: 10px;
+  background: var(--surface);
+}
+
+.lan-certificate-row > svg {
+  flex: 0 0 auto;
+  margin-top: 2px;
+  color: var(--success);
+}
+
+.lan-certificate-row span,
+.lan-certificate-row strong,
+.lan-certificate-row code,
+.lan-certificate-row small {
+  display: block;
+}
+
+.lan-certificate-row span {
+  color: var(--muted);
+  font-size: 1rem;
+}
+
+.lan-certificate-row strong {
+  margin-top: 5px;
+  font-size: 1rem;
+  letter-spacing: 0.04em;
+}
+
+.lan-certificate-row code {
+  max-width: 46ch;
+  margin-top: 6px;
+  overflow-wrap: anywhere;
+  color: var(--muted);
+  font-family: inherit;
+  font-size: 1rem;
+  line-height: 1.35;
+}
+
+.lan-certificate-row small {
+  margin-top: 5px;
+  color: var(--ink-soft);
+  font-size: 1rem;
+  line-height: 1.4;
+}
+
+.lan-pairing-panel__heading,
+.lan-client-panel__heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.lan-client-panel__heading > span {
+  flex: 0 0 auto;
+  color: var(--muted);
+  font-size: 1rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.lan-pairing-code {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: end;
+  margin-top: 14px;
+  padding: 13px 15px;
+  gap: 3px 16px;
+  border: 1px solid var(--accent);
+  border-radius: var(--radius-sm);
+  background: var(--accent-soft);
+}
+
+.lan-pairing-code span,
+.lan-pairing-code small {
+  color: var(--ink-soft);
+  font-size: 1rem;
+}
+
+.lan-pairing-code strong {
+  grid-row: 1 / span 2;
+  grid-column: 2;
+  font-size: 1.5rem;
+  letter-spacing: 0.12em;
+  line-height: 1;
+}
+
+.lan-client-list {
+  border: 1px solid var(--edge);
+  border-radius: var(--radius-sm);
+}
+
+.lan-client-list li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-width: 0;
+  padding: 11px 12px;
+  gap: 16px;
+  background: var(--surface);
+}
+
+.lan-client-list li + li {
+  border-top: 1px solid var(--edge);
+}
+
+.lan-client-list li > div {
+  min-width: 0;
+}
+
+.lan-client-list strong,
+.lan-client-list span {
+  display: block;
+}
+
+.lan-client-list strong {
+  overflow: hidden;
+  color: var(--ink);
+  font-size: 1rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.lan-client-list span {
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 1rem;
+  line-height: 1.35;
+}
+
+.lan-empty-state {
+  margin: 13px 0 0;
+  color: var(--muted);
+  font-size: 1rem;
+  line-height: 1.4;
+  text-wrap: pretty;
+}
+
+.lan-empty-state--clients {
+  padding: 12px;
+  border: 1px solid var(--edge);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+}
+
+.lan-reset-row {
+  background: var(--surface);
 }
 
 .setting-label,

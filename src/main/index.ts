@@ -45,6 +45,16 @@ import {
   type StaticDataSyncState
 } from '../shared/contracts'
 import {
+  MAX_LAN_CONTROL_PORT,
+  MIN_LAN_CONTROL_PORT,
+  type LanCommandRequestV1,
+  type LanControlConfig,
+  type LanControlState,
+  type LanOverlayCommandV1,
+  type LanPairingSession,
+  parseLanOverlayCommand
+} from '../shared/lan-control'
+import {
   getOverlayFallbackLayout,
   getOverlayLayoutKey,
   type OverlayLayout
@@ -63,6 +73,13 @@ import {
 } from './game-data'
 import { loadMiningData } from './mining-data'
 import { loadMiningLocations } from './mining-locations'
+import {
+  LanControlServer,
+  type LanCommandExecutionContext,
+  type LanDomainState
+} from './lan-control-server'
+import { LanControlStore } from './lan-control-store'
+import { resolveOverlayCommand } from './overlay-commands'
 import { DEFAULT_SETTINGS, loadSettings, mergeSettings, saveSettings } from './settings-store'
 import {
   downloadAndInstallStarStrings,
@@ -78,6 +95,7 @@ import {
 
 const SCREEN_MARGIN = 24
 const ROCKFALL_PROTOCOL = 'rockfall'
+const LAN_SHUTDOWN_TIMEOUT_MS = 3_000
 
 if (process.defaultApp && process.argv[1]) {
   app.setAsDefaultProtocolClient(ROCKFALL_PROTOCOL, process.execPath, [resolve(process.argv[1])])
@@ -102,7 +120,11 @@ const SHORTCUT_DEFINITIONS: Array<
   {
     id: 'next-target',
     label: 'Spotlight next target',
-    action: () => runInBackground('The next target could not be selected', cycleSpotlight())
+    action: () =>
+      runInBackground(
+        'The next target could not be selected',
+        executeOverlayCommand({ operation: 'overlay.target.cycle' }).then(() => undefined)
+      )
   },
   {
     id: 'show-all',
@@ -119,7 +141,10 @@ const SHORTCUT_DEFINITIONS: Array<
     action: () =>
       runInBackground(
         'Compact mode could not be changed',
-        updateSettings({ compact: !settings.compact })
+        executeOverlayCommand({
+          operation: 'overlay.compact.set',
+          enabled: !settings.compact
+        }).then(() => undefined)
       )
   }
 ]
@@ -132,7 +157,8 @@ let settings: OverlaySettings = {
   ...DEFAULT_SETTINGS,
   selectedMaterialIds: [...DEFAULT_SETTINGS.selectedMaterialIds],
   signatureOverrides: { ...DEFAULT_SETTINGS.signatureOverrides },
-  shortcuts: { ...DEFAULT_SETTINGS.shortcuts }
+  shortcuts: { ...DEFAULT_SETTINGS.shortcuts },
+  lanControl: { ...DEFAULT_SETTINGS.lanControl }
 }
 let materials: MiningMaterial[] = []
 let bestMiningLocations: Record<string, BestMiningLocationState> = {}
@@ -175,6 +201,18 @@ let starStrings: StarStringsSyncState = {
   installedRelease: null,
   availableRelease: null
 }
+let lanControlState: LanControlState = {
+  status: 'disabled',
+  enabled: false,
+  port: DEFAULT_SETTINGS.lanControl.port,
+  endpoints: [],
+  serverId: null,
+  tlsSpkiSha256: null,
+  verificationCode: null,
+  pairingExpiresAt: null,
+  pairedClients: [],
+  message: 'LAN control is disabled.'
+}
 let starStringsOperation: Promise<StarStringsSyncState> | null = null
 let gameDataSelectionActive = false
 let shortcutStatuses: ShortcutStatus[] = []
@@ -188,10 +226,13 @@ let blueprintOwnershipPath = ''
 let cloudStatePath = ''
 let gameDataPreferencePath = ''
 let starStringsRecordPath = ''
+let lanControlPath = ''
 let gameDataArchive: GameDataArchive | null = null
 let extractorPath = ''
 let appUpdater: AppUpdaterController | null = null
 let isQuitting = false
+let lanShutdownComplete = false
+let lanShutdownInProgress = false
 let appInitialized = false
 let focusRequestedDuringStartup = false
 let shortcutCaptureActive = false
@@ -215,7 +256,9 @@ let pendingFactionData: {
 } | null = null
 let blueprintOwnershipService: BlueprintOwnershipService | null = null
 let cloudSyncController: CloudSyncController | null = null
+let lanControlServer: LanControlServer | null = null
 let suppressCloudOwnershipCapture = false
+let settingsMutationQueue: Promise<void> = Promise.resolve()
 const pendingProtocolUrls = process.argv.filter((argument) => argument.startsWith('rockfall://'))
 
 function getSnapshot(): AppSnapshot {
@@ -229,6 +272,7 @@ function getSnapshot(): AppSnapshot {
     cloud: cloudSync,
     staticData,
     starStrings,
+    lanControl: lanControlState,
     warning
   }
 }
@@ -427,14 +471,25 @@ function applyMeasuredOverlayMetrics(value: unknown): void {
 }
 
 async function saveDraggedOverlayPosition(position: OverlayPosition): Promise<void> {
-  const next = mergeSettings(settings, { customPosition: position })
-  await saveSettings(settingsPath, next)
-  settings = next
-  warning = null
-  broadcastSnapshot()
+  await enqueueSettingsMutation(async () => {
+    await applySettingsPatch({ customPosition: position })
+  })
 }
 
-async function updateSettings(patch: OverlaySettingsPatch): Promise<AppSnapshot> {
+function enqueueSettingsMutation<T>(operation: () => Promise<T>): Promise<T> {
+  const result = settingsMutationQueue.then(operation, operation)
+  settingsMutationQueue = result.then(
+    () => undefined,
+    () => undefined
+  )
+  return result
+}
+
+function updateSettings(patch: OverlaySettingsPatch): Promise<AppSnapshot> {
+  return enqueueSettingsMutation(() => applySettingsPatch(patch))
+}
+
+async function applySettingsPatch(patch: OverlaySettingsPatch): Promise<AppSnapshot> {
   const shortcutsChanged = patch.shortcuts !== undefined
   const next = mergeSettings(settings, patch)
   const cloudApiChanged = next.cloudApiUrl !== settings.cloudApiUrl
@@ -452,7 +507,162 @@ async function updateSettings(patch: OverlaySettingsPatch): Promise<AppSnapshot>
   }
   applyOverlayState()
   broadcastSnapshot()
+  synchronizeLanState()
   queueSelectedMiningLocations()
+  return getSnapshot()
+}
+
+function executeOverlayCommand(command: LanOverlayCommandV1): Promise<AppSnapshot> {
+  return enqueueSettingsMutation(async () => {
+    const result = resolveOverlayCommand(
+      command,
+      settings,
+      materials,
+      dataStatus.state === 'loading'
+    )
+    if (result.patch) await applySettingsPatch(result.patch)
+    return getSnapshot()
+  })
+}
+
+function executeLanCommand(
+  command: LanCommandRequestV1,
+  context: LanCommandExecutionContext
+): Promise<'applied' | 'noop'> {
+  return enqueueSettingsMutation(async () => {
+    context.assertExpected()
+    const result = resolveOverlayCommand(
+      command,
+      settings,
+      materials,
+      dataStatus.state === 'loading'
+    )
+    if (result.patch) {
+      await applySettingsPatch(result.patch)
+    } else {
+      synchronizeLanState()
+    }
+    return result.result
+  })
+}
+
+function getLanDomainState(): LanDomainState {
+  return {
+    catalog: {
+      state: dataStatus.state,
+      message: dataStatus.message,
+      updatedAt: dataStatus.updatedAt,
+      items: materials.map(({ id, commodityId, name, displayName, methods }) => ({
+        id,
+        commodityId,
+        name,
+        displayName,
+        methods: [...methods]
+      }))
+    },
+    overlay: {
+      selectedItemIds: [...settings.selectedMaterialIds],
+      compact: settings.compact,
+      spotlightItemId: settings.spotlightMaterialId
+    }
+  }
+}
+
+function synchronizeLanState(force = false): void {
+  const server = lanControlServer
+  if (!server || !lanControlState.serverId) return
+  server.synchronizeState(force)
+}
+
+function normalizeLanControlConfig(value: unknown): LanControlConfig {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+    throw new TypeError('LAN control configuration must be an object.')
+  }
+  const { enabled, port } = value as Record<string, unknown>
+  if (typeof enabled !== 'boolean') {
+    throw new TypeError('LAN control enabled state must be a boolean.')
+  }
+  if (
+    typeof port !== 'number' ||
+    !Number.isInteger(port) ||
+    port < MIN_LAN_CONTROL_PORT ||
+    port > MAX_LAN_CONTROL_PORT
+  ) {
+    throw new RangeError(
+      `LAN control port must be between ${MIN_LAN_CONTROL_PORT} and ${MAX_LAN_CONTROL_PORT}.`
+    )
+  }
+  return { enabled, port }
+}
+
+function configureLanControl(value: unknown): Promise<AppSnapshot> {
+  const config = normalizeLanControlConfig(value)
+  return enqueueSettingsMutation(async () => {
+    const server = lanControlServer
+    if (!server) throw new Error('LAN control is not initialized.')
+    await applySettingsPatch({ lanControl: config })
+    if (config.enabled) {
+      if (
+        lanControlState.status === 'disabled' ||
+        lanControlState.status === 'error' ||
+        lanControlState.port !== config.port
+      ) {
+        await server.start(config.port)
+      }
+    } else {
+      await server.stop()
+    }
+    return getSnapshot()
+  })
+}
+
+function beginLanPairing(): LanPairingSession {
+  const server = lanControlServer
+  if (!server) throw new Error('LAN control is not initialized.')
+  return server.beginPairing()
+}
+
+function cancelLanPairing(): AppSnapshot {
+  const server = lanControlServer
+  if (!server) throw new Error('LAN control is not initialized.')
+  server.cancelPairing()
+  return getSnapshot()
+}
+
+async function revokeLanClient(clientId: unknown): Promise<AppSnapshot> {
+  if (
+    typeof clientId !== 'string' ||
+    !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(clientId)
+  ) {
+    throw new TypeError('A valid paired device is required.')
+  }
+  const server = lanControlServer
+  if (!server) throw new Error('LAN control is not initialized.')
+  if (!(await server.revokeClient(clientId))) {
+    throw new Error('That paired device is no longer available.')
+  }
+  return getSnapshot()
+}
+
+async function resetLanIdentity(): Promise<AppSnapshot> {
+  const server = lanControlServer
+  if (!server || !controlWindow || controlWindow.isDestroyed()) {
+    throw new Error('LAN control or the Rockfall control window is unavailable.')
+  }
+  const confirmation = await dialog.showMessageBox(controlWindow, {
+    type: 'warning',
+    title: 'Reset LAN identity',
+    message: 'Reset secure LAN pairing?',
+    detail:
+      'Every paired phone will be disconnected and must compare the new certificate code before pairing again.',
+    buttons: ['Cancel', 'Reset identity'],
+    defaultId: 0,
+    cancelId: 0,
+    noLink: true
+  })
+  if (confirmation.response === 1) {
+    await enqueueSettingsMutation(() => server.resetIdentity())
+  }
   return getSnapshot()
 }
 
@@ -700,7 +910,9 @@ async function runStaticDataPublication(): Promise<StaticDataSyncState> {
       desktopVersion: app.getVersion(),
       onProgress: setStaticDataProgress
     })
-    applyPreparedStaticData(prepared)
+    await enqueueSettingsMutation(async () => {
+      applyPreparedStaticData(prepared)
+    })
 
     staticData = {
       ...staticData,
@@ -814,6 +1026,7 @@ function applyPreparedStaticData(prepared: PreparedStaticData): void {
   factionDataResult = prepared.factions
   broadcastBlueprintOwnership()
   broadcastSnapshot()
+  synchronizeLanState()
   queueSelectedMiningLocations()
 }
 
@@ -860,57 +1073,50 @@ function getErrorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error)
 }
 
-async function cycleSpotlight(): Promise<void> {
-  const selected = settings.selectedMaterialIds
-  if (selected.length === 0) {
-    await updateSettings({ spotlightMaterialId: null })
-    return
-  }
-
-  const currentIndex = settings.spotlightMaterialId
-    ? selected.indexOf(settings.spotlightMaterialId)
-    : -1
-  const nextId = selected[(currentIndex + 1) % selected.length]
-  await updateSettings({ spotlightMaterialId: nextId })
-}
-
 async function refreshMaterials(): Promise<AppSnapshot> {
   if (staticDataPublication) {
     throw new Error('Mining signatures cannot be refreshed during static-data publication.')
   }
-  miningLocationGeneration += 1
-  miningLocationResults.clear()
-  pendingLocationRequests.clear()
-  bestMiningLocations = {}
-  dataStatus = {
-    state: 'loading',
-    message: gameDataArchive
-      ? `Reading installed ${gameDataArchive.channel} game signatures…`
-      : 'Refreshing mining signatures…',
-    updatedAt: dataStatus.updatedAt
-  }
-  broadcastSnapshot()
+  const archive = gameDataArchive
+  const generation = await enqueueSettingsMutation(async () => {
+    miningLocationGeneration += 1
+    miningLocationResults.clear()
+    pendingLocationRequests.clear()
+    bestMiningLocations = {}
+    dataStatus = {
+      state: 'loading',
+      message: archive
+        ? `Reading installed ${archive.channel} game signatures…`
+        : 'Refreshing mining signatures…',
+      updatedAt: dataStatus.updatedAt
+    }
+    broadcastSnapshot()
+    synchronizeLanState()
+    return miningLocationGeneration
+  })
 
   const result = await loadMiningData({
     cachePath,
     extractorPath,
-    gameDataArchive
+    gameDataArchive: archive
   })
-  materials = result.materials
-  dataStatus = result.status
 
-  const availableIds = new Set(materials.map((material) => material.id))
-  const selectedMaterialIds = settings.selectedMaterialIds.filter((id) => availableIds.has(id))
-  if (selectedMaterialIds.length !== settings.selectedMaterialIds.length) {
-    const next = mergeSettings(settings, { selectedMaterialIds })
-    measuredOverlayMetrics = null
-    settings = next
-    await saveSettings(settingsPath, settings)
-  }
+  return enqueueSettingsMutation(async () => {
+    if (generation !== miningLocationGeneration) return getSnapshot()
+    materials = result.materials
+    dataStatus = result.status
 
-  broadcastSnapshot()
-  queueSelectedMiningLocations()
-  return getSnapshot()
+    const availableIds = new Set(materials.map((material) => material.id))
+    const selectedMaterialIds = settings.selectedMaterialIds.filter((id) => availableIds.has(id))
+    if (selectedMaterialIds.length !== settings.selectedMaterialIds.length) {
+      return applySettingsPatch({ selectedMaterialIds })
+    }
+
+    broadcastSnapshot()
+    synchronizeLanState()
+    queueSelectedMiningLocations()
+    return getSnapshot()
+  })
 }
 
 async function chooseGameData(): Promise<GameDataSelectionResult> {
@@ -1450,9 +1656,21 @@ function assertControlWindowSender(event: IpcMainInvokeEvent): void {
 
 function registerIpcHandlers(): void {
   ipcMain.handle(IPC_CHANNELS.getSnapshot, () => getSnapshot())
-  ipcMain.handle(IPC_CHANNELS.updateSettings, (_event, patch: OverlaySettingsPatch) =>
-    updateSettings(patch)
-  )
+  ipcMain.handle(IPC_CHANNELS.updateSettings, (event, patch: OverlaySettingsPatch) => {
+    assertControlWindowSender(event)
+    if (
+      typeof patch === 'object' &&
+      patch !== null &&
+      Object.prototype.hasOwnProperty.call(patch, 'lanControl')
+    ) {
+      throw new Error('Use the dedicated LAN configuration action.')
+    }
+    return updateSettings(patch)
+  })
+  ipcMain.handle(IPC_CHANNELS.executeOverlayCommand, (event, command: unknown) => {
+    assertControlWindowSender(event)
+    return executeOverlayCommand(parseLanOverlayCommand(command))
+  })
   ipcMain.handle(IPC_CHANNELS.reportOverlayMetrics, (event, metrics: unknown) => {
     if (
       !overlayWindow ||
@@ -1574,6 +1792,26 @@ function registerIpcHandlers(): void {
     if (!updater) throw new Error('The application updater is not initialized.')
     runWithQuitIntent(() => updater.restartToUpdate())
   })
+  ipcMain.handle(IPC_CHANNELS.configureLanControl, (event, config: unknown) => {
+    assertControlWindowSender(event)
+    return configureLanControl(config)
+  })
+  ipcMain.handle(IPC_CHANNELS.beginLanPairing, (event) => {
+    assertControlWindowSender(event)
+    return beginLanPairing()
+  })
+  ipcMain.handle(IPC_CHANNELS.cancelLanPairing, (event) => {
+    assertControlWindowSender(event)
+    return cancelLanPairing()
+  })
+  ipcMain.handle(IPC_CHANNELS.revokeLanClient, (event, clientId: unknown) => {
+    assertControlWindowSender(event)
+    return revokeLanClient(clientId)
+  })
+  ipcMain.handle(IPC_CHANNELS.resetLanIdentity, (event) => {
+    assertControlWindowSender(event)
+    return resetLanIdentity()
+  })
 }
 
 app.on('open-url', (event, url) => {
@@ -1606,6 +1844,7 @@ if (!hasSingleInstanceLock) {
     cloudStatePath = join(app.getPath('userData'), 'cloud-state.json')
     gameDataPreferencePath = join(app.getPath('userData'), 'game-data.json')
     starStringsRecordPath = join(app.getPath('userData'), 'starstrings.json')
+    lanControlPath = join(app.getPath('userData'), 'lan-control.json')
     extractorPath = app.isPackaged
       ? join(process.resourcesPath, 'game-data-extractor', 'Rockfall.GameDataExtractor.exe')
       : join(
@@ -1637,10 +1876,47 @@ if (!hasSingleInstanceLock) {
       gameDataResolutionWarning = `The configured game data location is unavailable: ${message}`
     }
     settings = loaded.settings
+    lanControlState = {
+      ...lanControlState,
+      enabled: settings.lanControl.enabled,
+      port: settings.lanControl.port
+    }
     warning =
       [loaded.warning, gameDataPreference.warning, gameDataResolutionWarning]
         .filter(Boolean)
         .join(' ') || null
+    const lanControlStore = new LanControlStore({
+      path: lanControlPath,
+      protector: {
+        isEncryptionAvailable: () => safeStorage.isEncryptionAvailable(),
+        encrypt: (value) => safeStorage.encryptString(value).toString('base64'),
+        decrypt: (value) => safeStorage.decryptString(Buffer.from(value, 'base64'))
+      }
+    })
+    lanControlServer = new LanControlServer({
+      store: lanControlStore,
+      deviceName: hostname().trim().slice(0, 80) || 'Windows PC',
+      appVersion: app.getVersion(),
+      getDomainState: getLanDomainState,
+      executeCommand: executeLanCommand,
+      onRuntimeStateChange: (state) => {
+        lanControlState = state
+        broadcastSnapshot([controlWindow])
+      }
+    })
+    if (settings.lanControl.enabled) {
+      try {
+        await lanControlServer.start(settings.lanControl.port)
+      } catch (error) {
+        console.error('LAN control could not be started.', error)
+      }
+    } else {
+      try {
+        await lanControlServer.loadIdentityIfPresent()
+      } catch (error) {
+        console.error('Saved LAN pairing metadata could not be loaded.', error)
+      }
+    }
     await refreshStarStringsState()
     cloudSyncController = new CloudSyncController({
       storePath: cloudStatePath,
@@ -1721,7 +1997,7 @@ if (!hasSingleInstanceLock) {
     if (loaded.needsSave) {
       runInBackground(
         'Updated overlay defaults could not be saved',
-        saveSettings(settingsPath, settings)
+        enqueueSettingsMutation(() => saveSettings(settingsPath, settings))
       )
     }
     shortcutStatuses = registerShortcuts()
@@ -1743,7 +2019,22 @@ app.on('before-quit', () => {
   isQuitting = true
 })
 
-app.on('will-quit', () => {
+app.on('will-quit', (event) => {
+  if (!lanShutdownComplete && lanControlServer) {
+    event.preventDefault()
+    if (!lanShutdownInProgress) {
+      lanShutdownInProgress = true
+      void withTimeout(lanControlServer.dispose(), LAN_SHUTDOWN_TIMEOUT_MS)
+        .catch((error: unknown) => {
+          console.error('LAN control could not be stopped cleanly.', error)
+        })
+        .finally(() => {
+          lanShutdownComplete = true
+          app.quit()
+        })
+    }
+    return
+  }
   appUpdater?.stop()
   cloudSyncController?.dispose()
   blueprintOwnershipService?.dispose()
@@ -1752,3 +2043,15 @@ app.on('will-quit', () => {
   tray?.destroy()
   tray = null
 })
+
+function withTimeout<T>(operation: Promise<T>, timeoutMs: number): Promise<T> {
+  let timer: NodeJS.Timeout
+  const timeout = new Promise<never>((_resolve, reject) => {
+    timer = setTimeout(
+      () => reject(new Error(`Operation did not finish within ${timeoutMs} ms.`)),
+      timeoutMs
+    )
+    timer.unref()
+  })
+  return Promise.race([operation, timeout]).finally(() => clearTimeout(timer))
+}

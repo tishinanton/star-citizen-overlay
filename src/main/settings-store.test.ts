@@ -35,7 +35,8 @@ test('normalizes persisted settings and clamps opacity', () => {
       customPosition: null,
       spotlightMaterialId: 'riccite-ore',
       shortcuts: DEFAULT_SETTINGS.shortcuts,
-      cloudApiUrl: DEFAULT_SETTINGS.cloudApiUrl
+      cloudApiUrl: DEFAULT_SETTINGS.cloudApiUrl,
+      lanControl: DEFAULT_SETTINGS.lanControl
     }
   )
 })
@@ -182,5 +183,29 @@ test('rejects more than four selected targets', () => {
         selectedMaterialIds: ['one', 'two', 'three', 'four', 'five']
       }),
     /no more than 4/
+  )
+})
+
+test('defaults LAN control off and normalizes its configurable port', () => {
+  assert.deepEqual(normalizeSettings({}).lanControl, {
+    enabled: false,
+    port: DEFAULT_SETTINGS.lanControl.port
+  })
+  assert.deepEqual(
+    normalizeSettings({
+      ...DEFAULT_SETTINGS,
+      lanControl: { enabled: true, port: 54_321 }
+    }).lanControl,
+    {
+      enabled: true,
+      port: 54_321
+    }
+  )
+  assert.equal(
+    normalizeSettings({
+      ...DEFAULT_SETTINGS,
+      lanControl: { enabled: true, port: 80 }
+    }).lanControl.port,
+    DEFAULT_SETTINGS.lanControl.port
   )
 })

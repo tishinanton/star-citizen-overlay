@@ -78,6 +78,7 @@ export default function ControlApp(): React.JSX.Element {
     snapshot,
     error,
     updateSettings,
+    executeOverlayCommand,
     refreshMaterials,
     chooseGameData,
     getMiningLocations,
@@ -91,7 +92,12 @@ export default function ControlApp(): React.JSX.Element {
     publishStaticData,
     syncStarStrings,
     checkForUpdates,
-    restartToUpdate
+    restartToUpdate,
+    configureLanControl,
+    beginLanPairing,
+    cancelLanPairing,
+    revokeLanClient,
+    resetLanIdentity
   } = useRockfall()
   const [activeTab, setActiveTab] = useState<AppTab>('mining')
   const [query, setQuery] = useState('')
@@ -142,13 +148,10 @@ export default function ControlApp(): React.JSX.Element {
 
   const toggleMaterial = (material: MiningMaterial): void => {
     const isSelected = settings.selectedMaterialIds.includes(material.id)
-    const selectedMaterialIds = isSelected
-      ? settings.selectedMaterialIds.filter((id) => id !== material.id)
-      : [...settings.selectedMaterialIds, material.id]
-
-    if (selectedMaterialIds.length <= MAX_SELECTED_MATERIALS) {
-      void updateSettings({ selectedMaterialIds })
-    }
+    void executeOverlayCommand({
+      operation: isSelected ? 'overlay.item.remove' : 'overlay.item.add',
+      itemId: material.id
+    })
   }
 
   const clearOverlay = (): void => {
@@ -733,7 +736,12 @@ export default function ControlApp(): React.JSX.Element {
                   className={`mode-toggle ${settings.compact ? 'is-active' : ''}`}
                   type="button"
                   aria-pressed={settings.compact}
-                  onClick={() => void updateSettings({ compact: !settings.compact })}
+                  onClick={() =>
+                    void executeOverlayCommand({
+                      operation: 'overlay.compact.set',
+                      enabled: !settings.compact
+                    })
+                  }
                 >
                   Compact
                 </button>
@@ -795,6 +803,8 @@ export default function ControlApp(): React.JSX.Element {
         <SettingsPage
           fontSize={settings.appFontSize}
           apiUrl={settings.cloudApiUrl}
+          lanConfig={settings.lanControl}
+          lanState={snapshot.lanControl}
           cloud={snapshot.cloud}
           staticData={snapshot.staticData}
           starStrings={snapshot.starStrings}
@@ -808,6 +818,11 @@ export default function ControlApp(): React.JSX.Element {
           onLogoutCloud={() => void logoutCloud()}
           onPublishStaticData={() => void publishStaticData()}
           onSyncStarStrings={() => void syncStarStrings()}
+          onConfigureLanControl={configureLanControl}
+          onBeginLanPairing={beginLanPairing}
+          onCancelLanPairing={cancelLanPairing}
+          onRevokeLanClient={revokeLanClient}
+          onResetLanIdentity={resetLanIdentity}
         />
       )}
 

@@ -7,11 +7,17 @@ import {
   type MiningLocationResult,
   type OverlaySettingsPatch
 } from '../../../shared/contracts'
+import type {
+  LanControlConfig,
+  LanOverlayCommandV1,
+  LanPairingSession
+} from '../../../shared/lan-control'
 
 interface RockfallState {
   snapshot: AppSnapshot | null
   error: string | null
   updateSettings: (patch: OverlaySettingsPatch) => Promise<void>
+  executeOverlayCommand: (command: LanOverlayCommandV1) => Promise<void>
   refreshMaterials: () => Promise<void>
   chooseGameData: () => Promise<boolean>
   getMiningLocations: (materialId: string) => Promise<MiningLocationResult>
@@ -26,6 +32,11 @@ interface RockfallState {
   syncStarStrings: () => Promise<void>
   checkForUpdates: () => Promise<void>
   restartToUpdate: () => Promise<void>
+  configureLanControl: (config: LanControlConfig) => Promise<void>
+  beginLanPairing: () => Promise<LanPairingSession | null>
+  cancelLanPairing: () => Promise<void>
+  revokeLanClient: (clientId: string) => Promise<void>
+  resetLanIdentity: () => Promise<void>
 }
 
 export function useRockfall(): RockfallState {
@@ -66,6 +77,15 @@ export function useRockfall(): RockfallState {
     try {
       setError(null)
       setSnapshot(await window.rockfall.updateSettings(patch))
+    } catch (reason) {
+      setError(getErrorMessage(reason))
+    }
+  }, [])
+
+  const executeOverlayCommand = useCallback(async (command: LanOverlayCommandV1): Promise<void> => {
+    try {
+      setError(null)
+      setSnapshot(await window.rockfall.executeOverlayCommand(command))
     } catch (reason) {
       setError(getErrorMessage(reason))
     }
@@ -197,10 +217,57 @@ export function useRockfall(): RockfallState {
     }
   }, [])
 
+  const configureLanControl = useCallback(async (config: LanControlConfig): Promise<void> => {
+    try {
+      setError(null)
+      setSnapshot(await window.rockfall.configureLanControl(config))
+    } catch (reason) {
+      setError(getErrorMessage(reason))
+    }
+  }, [])
+
+  const beginLanPairing = useCallback(async (): Promise<LanPairingSession | null> => {
+    try {
+      setError(null)
+      return await window.rockfall.beginLanPairing()
+    } catch (reason) {
+      setError(getErrorMessage(reason))
+      return null
+    }
+  }, [])
+
+  const cancelLanPairing = useCallback(async (): Promise<void> => {
+    try {
+      setError(null)
+      setSnapshot(await window.rockfall.cancelLanPairing())
+    } catch (reason) {
+      setError(getErrorMessage(reason))
+    }
+  }, [])
+
+  const revokeLanClient = useCallback(async (clientId: string): Promise<void> => {
+    try {
+      setError(null)
+      setSnapshot(await window.rockfall.revokeLanClient(clientId))
+    } catch (reason) {
+      setError(getErrorMessage(reason))
+    }
+  }, [])
+
+  const resetLanIdentity = useCallback(async (): Promise<void> => {
+    try {
+      setError(null)
+      setSnapshot(await window.rockfall.resetLanIdentity())
+    } catch (reason) {
+      setError(getErrorMessage(reason))
+    }
+  }, [])
+
   return {
     snapshot,
     error,
     updateSettings,
+    executeOverlayCommand,
     refreshMaterials,
     chooseGameData,
     getMiningLocations,
@@ -214,7 +281,12 @@ export function useRockfall(): RockfallState {
     publishStaticData,
     syncStarStrings,
     checkForUpdates,
-    restartToUpdate
+    restartToUpdate,
+    configureLanControl,
+    beginLanPairing,
+    cancelLanPairing,
+    revokeLanClient,
+    resetLanIdentity
   }
 }
 

@@ -3,6 +3,8 @@
 Rockfall is a Windows desktop field companion for Star Citizen. It combines a
 web-based control console with a transparent, click-through, always-on-top
 mining overlay, blueprint reference workspace, and faction reputation directory.
+An optional paired Android companion can control the mining overlay over the
+same local network.
 
 The first workflow lets a player select up to four mining targets and see:
 
@@ -100,6 +102,7 @@ Complete endpoint inventories:
 - [Installed Star Citizen game-data inventory](docs/game-data/README.md)
 - [UEX Corp API 2.0](docs/api/uex/README.md)
 - [Star Citizen Wiki API](docs/api/star-citizen-wiki/README.md)
+- [Rockfall LAN Control Protocol](docs/api/lan-control/README.md)
 
 ## Controls
 
@@ -139,6 +142,15 @@ directly from GitHub. Rockfall validates the release checksum, installs its
 English localization, and preserves existing `USER.cfg` entries while ensuring
 `g_language = english` is enabled.
 
+The **Phone control** section can expose a secure local HTTPS listener for the
+Android companion. It is disabled by default. Rockfall advertises the listener
+through local-network discovery and also lists direct private IPv4 addresses for
+manual entry. First pairing requires comparing the certificate code shown on
+both devices, followed by a five-minute one-time code. Each phone receives an
+independent credential that can be revoked without affecting other devices.
+Paired devices remain revocable while the network listener is disabled.
+Allow Rockfall only on Windows **Private networks** if the firewall prompts.
+
 When the signed-in account has the server-provided `admin` role, Settings also
 shows static-catalog compatibility, the current release build/version/hash, and
 publication progress. Extraction, ZIP creation, and upload are single-flight;
@@ -162,6 +174,11 @@ Click any binding in **Global controls** and press a replacement key
 combination. Function keys can be used alone; regular keys require Ctrl, Alt,
 or Shift. The app reports when another program has already claimed a shortcut.
 
+A paired phone can add or remove the same exact mining target IDs, explicitly
+set compact mode, and run the same next-target cycle as the keyboard shortcut.
+Desktop controls, shortcuts, and all paired phones receive the same
+authoritative full-state updates.
+
 Installed builds check GitHub Releases for updates at startup and every four
 hours. New versions download in the background; the control window reports
 progress and offers a restart action when installation is ready. A downloaded
@@ -173,6 +190,11 @@ Closing the control window hides Rockfall in the Windows notification area
 instead of exiting. Click the tray icon to reopen the console, or choose
 **Quit Rockfall** from its context menu to exit. The overlay and global
 shortcuts remain active while the console is hidden.
+
+When Phone control is enabled, its listener and local discovery also remain
+active while the console is hidden. Disabling Phone control or quitting Rockfall
+closes active phone event streams and the listener. No listener is created by
+default.
 
 The overlay window is:
 
@@ -243,8 +265,8 @@ Rockfall uses Electron, React, TypeScript, and electron-vite.
 
 - `src\main` owns native windows, tray lifecycle, global shortcuts, settings
   persistence, secure cloud authentication and ownership synchronization, local
-  game-data extraction, API access, caching, overlay placement, and application
-  updates.
+  game-data extraction, API access, caching, overlay placement, secure opt-in LAN
+  control, and application updates.
 - `src\preload` exposes a narrow typed IPC bridge; renderer code has no Node.js
   access.
 - `src\renderer` renders both the control console and overlay from the same
@@ -259,6 +281,8 @@ shapes are validated before values reach the renderer.
 
 The cross-device blueprint ownership contract is defined in the
 [Rockfall Cloud Ownership Service specification](docs/api/rockfall-cloud/README.md).
+The local Android overlay-control contract is defined in the
+[Rockfall LAN Control Protocol](docs/api/lan-control/README.md).
 
 ## Scope and limitations
 

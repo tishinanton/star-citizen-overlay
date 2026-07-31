@@ -133,6 +133,12 @@ their service origin. Changing endpoints clears the current local cloud session.
 Loopback HTTP and self-signed HTTPS certificates are accepted only for local
 development.
 
+Settings also detects the Star Citizen `LIVE` installation and can download the
+latest unofficial [StarStrings](https://github.com/MrKraken/StarStrings) release
+directly from GitHub. Rockfall validates the release checksum, installs its
+English localization, and preserves existing `USER.cfg` entries while ensuring
+`g_language = english` is enabled.
+
 When the signed-in account has the server-provided `admin` role, Settings also
 shows static-catalog compatibility, the current release build/version/hash, and
 publication progress. Extraction, ZIP creation, and upload are single-flight;

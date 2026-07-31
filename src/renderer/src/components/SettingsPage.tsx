@@ -2,7 +2,9 @@ import { useState, type FormEvent } from 'react'
 import {
   Cloud,
   Database,
+  ExternalLink,
   Info,
+  Languages,
   Link,
   LogIn,
   LogOut,
@@ -21,6 +23,7 @@ import {
   MAX_APP_FONT_SIZE,
   MIN_APP_FONT_SIZE,
   type CloudSyncState,
+  type StarStringsSyncState,
   type StaticDataSyncState
 } from '../../../shared/contracts'
 import { canShowStaticDataSync } from '../lib/static-data-visibility'
@@ -30,6 +33,7 @@ interface SettingsPageProps {
   apiUrl: string
   cloud: CloudSyncState
   staticData: StaticDataSyncState
+  starStrings: StarStringsSyncState
   onFontSizeChange: (fontSize: number) => void
   onApiUrlChange: (apiUrl: string) => void
   onBeginCloudLogin: () => void
@@ -39,6 +43,7 @@ interface SettingsPageProps {
   onConfirmCloudProfileImport: () => void
   onLogoutCloud: () => void
   onPublishStaticData: () => void
+  onSyncStarStrings: () => void
 }
 
 export default function SettingsPage({
@@ -46,6 +51,7 @@ export default function SettingsPage({
   apiUrl,
   cloud,
   staticData,
+  starStrings,
   onFontSizeChange,
   onApiUrlChange,
   onBeginCloudLogin,
@@ -54,7 +60,8 @@ export default function SettingsPage({
   onSyncCloud,
   onConfirmCloudProfileImport,
   onLogoutCloud,
-  onPublishStaticData
+  onPublishStaticData,
+  onSyncStarStrings
 }: SettingsPageProps): React.JSX.Element {
   const scalePercentage = Math.round((fontSize / DEFAULT_APP_FONT_SIZE) * 100)
   const [apiUrlDraft, setApiUrlDraft] = useState<string | null>(null)
@@ -71,6 +78,7 @@ export default function SettingsPage({
     'uploading',
     'validating'
   ].includes(staticData.status)
+  const starStringsBusy = ['checking', 'downloading', 'installing'].includes(starStrings.status)
   const interactionBusy = busy || staticDataBusy
   const displayedApiUrl = apiUrlDraft ?? apiUrl
   const handoffCode = handoffDraft.loginExpiresAt === cloud.loginExpiresAt ? handoffDraft.value : ''
@@ -106,7 +114,10 @@ export default function SettingsPage({
           </span>
           <div>
             <h1>Settings</h1>
-            <p>Control Rockfall&apos;s display, cloud connection, and local service endpoint.</p>
+            <p>
+              Control Rockfall&apos;s display, cloud connection, game integrations, and local
+              service endpoint.
+            </p>
           </div>
         </header>
 
@@ -377,6 +388,108 @@ export default function SettingsPage({
           </section>
         )}
 
+        <section className="settings-section" aria-labelledby="starstrings-title">
+          <div className="settings-section__heading">
+            <Languages size={18} aria-hidden="true" />
+            <div>
+              <h2 id="starstrings-title">StarStrings</h2>
+              <p>Keep the community English strings in your LIVE game install up to date.</p>
+            </div>
+          </div>
+
+          <div className="starstrings-settings">
+            <div className="cloud-connection__header">
+              <div>
+                <span className="setting-label">Community localization</span>
+                <span className="setting-help" role="status" aria-live="polite">
+                  {starStrings.message}
+                </span>
+              </div>
+              <StarStringsStatus status={starStrings.status} />
+            </div>
+
+            <dl className="cloud-telemetry starstrings-telemetry">
+              <div>
+                <dt>Target</dt>
+                <dd title={starStrings.gamePath ?? undefined}>
+                  {starStrings.gamePath ?? 'LIVE not found'}
+                </dd>
+              </div>
+              <div>
+                <dt>Installed</dt>
+                <dd title={starStrings.installedRelease?.name}>
+                  {starStrings.installedRelease?.name ?? 'Not managed'}
+                </dd>
+              </div>
+              <div>
+                <dt>Latest</dt>
+                <dd title={starStrings.availableRelease?.name}>
+                  {starStrings.availableRelease?.name ?? 'Not checked'}
+                </dd>
+              </div>
+              <div>
+                <dt>Last install</dt>
+                <dd>{formatSyncTime(starStrings.installedRelease?.installedAt ?? null)}</dd>
+              </div>
+            </dl>
+
+            {starStringsBusy && (
+              <div className="static-data-progress starstrings-progress">
+                <div>
+                  <span>
+                    {starStrings.status === 'downloading'
+                      ? 'Downloading release'
+                      : starStrings.status === 'installing'
+                        ? 'Installing files'
+                        : 'Checking GitHub'}
+                  </span>
+                  <span>
+                    {starStrings.progress === null ? 'In progress' : `${starStrings.progress}%`}
+                  </span>
+                </div>
+                <progress max={100} value={starStrings.progress ?? undefined} />
+              </div>
+            )}
+
+            {starStrings.status === 'error' && (
+              <div className="cloud-notice cloud-notice--danger" role="alert">
+                <TriangleAlert size={16} aria-hidden="true" />
+                <span>{starStrings.message}</span>
+              </div>
+            )}
+
+            <div className="starstrings-source-note">
+              <ShieldCheck size={15} aria-hidden="true" />
+              <span>
+                Unofficial community package downloaded directly from MrKraken&apos;s GitHub
+                release.
+              </span>
+              <a href="https://github.com/MrKraken/StarStrings" target="_blank" rel="noreferrer">
+                View project
+                <ExternalLink size={13} aria-hidden="true" />
+              </a>
+            </div>
+
+            <div className="cloud-actions starstrings-actions">
+              <button
+                type="button"
+                disabled={starStrings.status === 'unavailable' || starStringsBusy}
+                onClick={onSyncStarStrings}
+              >
+                <RefreshCw
+                  size={15}
+                  aria-hidden="true"
+                  className={starStringsBusy ? 'is-spinning' : ''}
+                />
+                {starStrings.status === 'current' ? 'Check again' : 'Sync latest release'}
+              </button>
+              <span>
+                Preserves existing <code>USER.cfg</code> entries and enables English localization.
+              </span>
+            </div>
+          </div>
+        </section>
+
         <section className="settings-section" aria-labelledby="appearance-title">
           <div className="settings-section__heading">
             <Type size={18} aria-hidden="true" />
@@ -438,6 +551,35 @@ export default function SettingsPage({
         </section>
       </div>
     </main>
+  )
+}
+
+function StarStringsStatus({
+  status
+}: {
+  status: StarStringsSyncState['status']
+}): React.JSX.Element {
+  const label =
+    status === 'unavailable'
+      ? 'LIVE not found'
+      : status === 'ready'
+        ? 'Ready'
+        : status === 'checking'
+          ? 'Checking'
+          : status === 'downloading'
+            ? 'Downloading'
+            : status === 'installing'
+              ? 'Installing'
+              : status === 'current'
+                ? 'Current'
+                : status === 'installed'
+                  ? 'Installed'
+                  : 'Sync error'
+  return (
+    <span className={`cloud-status starstrings-status--${status}`}>
+      <span aria-hidden="true" />
+      {label}
+    </span>
   )
 }
 

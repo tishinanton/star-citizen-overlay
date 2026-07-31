@@ -23,6 +23,7 @@ interface RockfallState {
   confirmCloudProfileImport: () => Promise<void>
   logoutCloud: () => Promise<void>
   publishStaticData: () => Promise<void>
+  syncStarStrings: () => Promise<void>
   checkForUpdates: () => Promise<void>
   restartToUpdate: () => Promise<void>
 }
@@ -160,6 +161,16 @@ export function useRockfall(): RockfallState {
     }
   }, [])
 
+  const syncStarStrings = useCallback(async (): Promise<void> => {
+    try {
+      setError(null)
+      const starStrings = await window.rockfall.syncStarStrings()
+      setSnapshot((current) => (current ? { ...current, starStrings } : current))
+    } catch (reason) {
+      setError(getErrorMessage(reason))
+    }
+  }, [])
+
   useEffect(() => {
     const handleOnline = (): void => {
       void syncCloud()
@@ -201,6 +212,7 @@ export function useRockfall(): RockfallState {
     confirmCloudProfileImport,
     logoutCloud,
     publishStaticData,
+    syncStarStrings,
     checkForUpdates,
     restartToUpdate
   }

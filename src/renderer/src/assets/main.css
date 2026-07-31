@@ -1459,7 +1459,8 @@
 }
 
 .cloud-settings,
-.static-data-settings {
+.static-data-settings,
+.starstrings-settings {
   min-width: 0;
 }
 
@@ -1544,8 +1545,24 @@
 .static-data-status--preparing > span,
 .static-data-status--confirming > span,
 .static-data-status--uploading > span,
-.static-data-status--validating > span {
+.static-data-status--validating > span,
+.starstrings-status--checking > span,
+.starstrings-status--downloading > span,
+.starstrings-status--installing > span {
   background: var(--accent);
+}
+
+.starstrings-status--current > span,
+.starstrings-status--installed > span {
+  background: var(--success);
+}
+
+.starstrings-status--unavailable > span {
+  background: var(--warning);
+}
+
+.starstrings-status--error > span {
+  background: var(--danger);
 }
 
 .cloud-telemetry {
@@ -1632,12 +1649,23 @@
   justify-content: space-between;
 }
 
-.static-data-actions > span {
+.static-data-actions > span,
+.starstrings-actions > span {
   max-width: 42ch;
   color: var(--muted);
   font-size: 1rem;
   line-height: 1.4;
   text-align: right;
+}
+
+.starstrings-actions {
+  justify-content: space-between;
+}
+
+.starstrings-actions code {
+  color: var(--ink-soft);
+  font-family: inherit;
+  font-weight: 600;
 }
 
 .static-data-progress {
@@ -1664,6 +1692,49 @@
   border-radius: var(--radius-xs);
   background: var(--surface);
   accent-color: var(--accent);
+}
+
+.static-data-progress progress::-webkit-progress-bar {
+  background: var(--surface);
+}
+
+.static-data-progress progress::-webkit-progress-value {
+  background: var(--accent);
+}
+
+.starstrings-source-note {
+  display: flex;
+  align-items: center;
+  padding: 14px 24px;
+  gap: 8px;
+  border-top: 1px solid var(--edge);
+  color: var(--muted);
+  font-size: 1rem;
+  line-height: 1.4;
+}
+
+.starstrings-source-note > svg {
+  flex: 0 0 auto;
+  color: var(--accent-bright);
+}
+
+.starstrings-source-note > span {
+  flex: 1 1 auto;
+}
+
+.starstrings-source-note a {
+  display: inline-flex;
+  align-items: center;
+  flex: 0 0 auto;
+  gap: 5px;
+  color: var(--accent-bright);
+  text-decoration: none;
+}
+
+.starstrings-source-note a:hover {
+  color: var(--ink);
+  text-decoration: underline;
+  text-underline-offset: 3px;
 }
 
 .cloud-actions button,

@@ -40,6 +40,7 @@ import {
   type OverlaySettings,
   type OverlaySettingsPatch,
   type ShortcutStatus,
+  type StarStringsSyncState,
   type StaticDataReleaseSummary,
   type StaticDataSyncState
 } from '../shared/contracts'
@@ -63,6 +64,12 @@ import {
 import { loadMiningData } from './mining-data'
 import { loadMiningLocations } from './mining-locations'
 import { DEFAULT_SETTINGS, loadSettings, mergeSettings, saveSettings } from './settings-store'
+import {
+  downloadAndInstallStarStrings,
+  fetchLatestStarStringsRelease,
+  inspectStarStringsInstallation,
+  resolveLiveGamePath
+} from './starstrings'
 import {
   prepareStaticData,
   type PreparedStaticData,
@@ -160,6 +167,15 @@ let staticData: StaticDataSyncState = {
   currentRelease: null
 }
 let staticDataPublication: Promise<StaticDataSyncState> | null = null
+let starStrings: StarStringsSyncState = {
+  status: 'unavailable',
+  gamePath: null,
+  message: 'No Star Citizen LIVE installation was detected.',
+  progress: null,
+  installedRelease: null,
+  availableRelease: null
+}
+let starStringsOperation: Promise<StarStringsSyncState> | null = null
 let gameDataSelectionActive = false
 let shortcutStatuses: ShortcutStatus[] = []
 let warning: string | null = null
@@ -171,6 +187,7 @@ let factionCatalogCachePath = ''
 let blueprintOwnershipPath = ''
 let cloudStatePath = ''
 let gameDataPreferencePath = ''
+let starStringsRecordPath = ''
 let gameDataArchive: GameDataArchive | null = null
 let extractorPath = ''
 let appUpdater: AppUpdaterController | null = null
@@ -211,6 +228,7 @@ function getSnapshot(): AppSnapshot {
     appUpdate,
     cloud: cloudSync,
     staticData,
+    starStrings,
     warning
   }
 }
@@ -508,6 +526,142 @@ function publishStaticData(): Promise<StaticDataSyncState> {
   return request
 }
 
+async function refreshStarStringsState(): Promise<StarStringsSyncState> {
+  try {
+    const gamePath = await resolveLiveGamePath(gameDataArchive)
+    if (!gamePath) {
+      starStrings = {
+        status: 'unavailable',
+        gamePath: null,
+        message:
+          'No LIVE installation was detected. Select LIVE/Data.p4k as the game-data source to use a custom install location.',
+        progress: null,
+        installedRelease: null,
+        availableRelease: null
+      }
+      broadcastSnapshot([controlWindow])
+      return starStrings
+    }
+
+    const inspection = await inspectStarStringsInstallation(starStringsRecordPath, gamePath)
+    const message = inspection.warning
+      ? inspection.warning
+      : inspection.installedRelease
+        ? `${inspection.installedRelease.name} is installed. Sync to check GitHub for a newer release.`
+        : inspection.localizationPresent
+          ? 'An existing English localization file was found. Sync to replace it with the latest StarStrings release.'
+          : 'LIVE is ready. Sync to download and install the latest StarStrings release.'
+    starStrings = {
+      status: 'ready',
+      gamePath,
+      message,
+      progress: null,
+      installedRelease: inspection.installedRelease,
+      availableRelease: null
+    }
+  } catch (error) {
+    starStrings = {
+      ...starStrings,
+      status: 'error',
+      message: `The StarStrings installation could not be inspected: ${getErrorMessage(error)}`,
+      progress: null
+    }
+  }
+  broadcastSnapshot([controlWindow])
+  return starStrings
+}
+
+function syncStarStrings(): Promise<StarStringsSyncState> {
+  if (starStringsOperation) {
+    return Promise.reject(new Error('A StarStrings sync is already in progress.'))
+  }
+  const request = runStarStringsSync().finally(() => {
+    if (starStringsOperation === request) starStringsOperation = null
+  })
+  starStringsOperation = request
+  return request
+}
+
+async function runStarStringsSync(): Promise<StarStringsSyncState> {
+  let gamePath: string | null = null
+  try {
+    gamePath = await resolveLiveGamePath(gameDataArchive)
+    if (!gamePath) return refreshStarStringsState()
+    const inspection = await inspectStarStringsInstallation(starStringsRecordPath, gamePath)
+    starStrings = {
+      status: 'checking',
+      gamePath,
+      message: 'Checking the latest StarStrings LIVE release on GitHub…',
+      progress: null,
+      installedRelease: inspection.installedRelease,
+      availableRelease: null
+    }
+    broadcastSnapshot([controlWindow])
+
+    const release = await fetchLatestStarStringsRelease()
+    const releaseSummary = {
+      version: release.version,
+      name: release.name,
+      publishedAt: release.publishedAt
+    }
+    if (inspection.installedRelease?.version === release.version) {
+      starStrings = {
+        ...starStrings,
+        status: 'current',
+        message: `${release.name} is already installed and matches the latest GitHub release.`,
+        availableRelease: releaseSummary
+      }
+      broadcastSnapshot([controlWindow])
+      return starStrings
+    }
+
+    starStrings = {
+      ...starStrings,
+      status: 'downloading',
+      message: `Downloading ${release.name}…`,
+      progress: 0,
+      availableRelease: releaseSummary
+    }
+    broadcastSnapshot([controlWindow])
+
+    const installation = await downloadAndInstallStarStrings({
+      release,
+      livePath: gamePath,
+      recordPath: starStringsRecordPath,
+      onProgress: ({ stage, percentage }) => {
+        starStrings = {
+          ...starStrings,
+          status: stage,
+          message:
+            stage === 'downloading'
+              ? `Downloading ${release.name}…`
+              : 'Installing localization files and preserving USER.cfg…',
+          progress: percentage
+        }
+        broadcastSnapshot([controlWindow])
+      }
+    })
+    starStrings = {
+      status: 'installed',
+      gamePath,
+      message: `${installation.name} is installed. Restart Star Citizen to load the updated strings.`,
+      progress: null,
+      installedRelease: installation,
+      availableRelease: releaseSummary
+    }
+  } catch (error) {
+    starStrings = {
+      ...starStrings,
+      gamePath: gamePath ?? starStrings.gamePath,
+      status: 'error',
+      message: `StarStrings sync failed: ${getErrorMessage(error)}`,
+      progress: null
+    }
+  }
+  broadcastSnapshot([controlWindow])
+  return starStrings
+}
+
 async function runStaticDataPublication(): Promise<StaticDataSyncState> {
   const controller = cloudSyncController
   if (!controller || cloudSync.user?.role !== 'admin') {
@@ -766,6 +920,9 @@ async function chooseGameData(): Promise<GameDataSelectionResult> {
   if (gameDataSelectionActive) {
     throw new Error('Game-file selection is already in progress.')
   }
+  if (starStringsOperation) {
+    throw new Error('Game files cannot be changed during StarStrings sync.')
+  }
   if (!controlWindow || controlWindow.isDestroyed()) {
     throw new Error('The Rockfall control window is unavailable.')
   }
@@ -797,6 +954,7 @@ async function chooseGameData(): Promise<GameDataSelectionResult> {
         ownershipService.configure(archive)
       )
     }
+    await refreshStarStringsState()
     const snapshot = await refreshMaterials()
     if (cloudSync.user?.role === 'admin') {
       runInBackground(
@@ -1400,6 +1558,10 @@ function registerIpcHandlers(): void {
     assertControlWindowSender(event)
     return publishStaticData()
   })
+  ipcMain.handle(IPC_CHANNELS.syncStarStrings, (event) => {
+    assertControlWindowSender(event)
+    return syncStarStrings()
+  })
   ipcMain.handle(IPC_CHANNELS.checkForUpdates, async (event) => {
     assertControlWindowSender(event)
     if (!appUpdater) throw new Error('The application updater is not initialized.')
@@ -1443,6 +1605,7 @@ if (!hasSingleInstanceLock) {
     blueprintOwnershipPath = join(app.getPath('userData'), 'blueprint-ownership.json')
     cloudStatePath = join(app.getPath('userData'), 'cloud-state.json')
     gameDataPreferencePath = join(app.getPath('userData'), 'game-data.json')
+    starStringsRecordPath = join(app.getPath('userData'), 'starstrings.json')
     extractorPath = app.isPackaged
       ? join(process.resourcesPath, 'game-data-extractor', 'Rockfall.GameDataExtractor.exe')
       : join(
@@ -1478,6 +1641,7 @@ if (!hasSingleInstanceLock) {
       [loaded.warning, gameDataPreference.warning, gameDataResolutionWarning]
         .filter(Boolean)
         .join(' ') || null
+    await refreshStarStringsState()
     cloudSyncController = new CloudSyncController({
       storePath: cloudStatePath,
       apiUrl: settings.cloudApiUrl,

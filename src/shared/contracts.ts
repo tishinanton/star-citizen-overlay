@@ -362,6 +362,35 @@ export interface StaticDataSyncState {
   currentRelease: StaticDataReleaseSummary | null
 }
 
+export type StarStringsSyncStatus =
+  | 'unavailable'
+  | 'ready'
+  | 'checking'
+  | 'downloading'
+  | 'installing'
+  | 'current'
+  | 'installed'
+  | 'error'
+
+export interface StarStringsReleaseSummary {
+  version: string
+  name: string
+  publishedAt: string
+}
+
+export interface StarStringsInstallationSummary extends StarStringsReleaseSummary {
+  installedAt: string
+}
+
+export interface StarStringsSyncState {
+  status: StarStringsSyncStatus
+  gamePath: string | null
+  message: string
+  progress: number | null
+  installedRelease: StarStringsInstallationSummary | null
+  availableRelease: StarStringsReleaseSummary | null
+}
+
 export interface AppSnapshot {
   materials: MiningMaterial[]
   bestMiningLocations: Record<string, BestMiningLocationState>
@@ -371,6 +400,7 @@ export interface AppSnapshot {
   appUpdate: AppUpdateState
   cloud: CloudSyncState
   staticData: StaticDataSyncState
+  starStrings: StarStringsSyncState
   warning: string | null
 }
 
@@ -402,6 +432,7 @@ export interface RockfallApi {
   confirmCloudProfileImport: () => Promise<CloudSyncState>
   logoutCloud: () => Promise<CloudSyncState>
   publishStaticData: () => Promise<StaticDataSyncState>
+  syncStarStrings: () => Promise<StarStringsSyncState>
   checkForUpdates: () => Promise<AppSnapshot>
   restartToUpdate: () => Promise<void>
   onSnapshot: (listener: (snapshot: AppSnapshot) => void) => () => void
@@ -430,6 +461,7 @@ export const IPC_CHANNELS = {
   confirmCloudProfileImport: 'rockfall:cloud:import:confirm',
   logoutCloud: 'rockfall:cloud:logout',
   publishStaticData: 'rockfall:static-data:publish',
+  syncStarStrings: 'rockfall:starstrings:sync',
   checkForUpdates: 'rockfall:updates:check',
   restartToUpdate: 'rockfall:updates:restart',
   snapshotChanged: 'rockfall:snapshot:changed'

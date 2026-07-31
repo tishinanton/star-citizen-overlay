@@ -8,11 +8,18 @@ import {
   type OverlaySettingsPatch,
   type RockfallApi
 } from '../shared/contracts'
+import type {
+  LanControlConfig,
+  LanOverlayCommandV1,
+  LanPairingSession
+} from '../shared/lan-control'
 
 const rockfallApi: RockfallApi = {
   getSnapshot: () => ipcRenderer.invoke(IPC_CHANNELS.getSnapshot),
   updateSettings: (patch: OverlaySettingsPatch) =>
     ipcRenderer.invoke(IPC_CHANNELS.updateSettings, patch),
+  executeOverlayCommand: (command: LanOverlayCommandV1) =>
+    ipcRenderer.invoke(IPC_CHANNELS.executeOverlayCommand, command),
   reportOverlayMetrics: (metrics: OverlayContentMetrics) =>
     ipcRenderer.invoke(IPC_CHANNELS.reportOverlayMetrics, metrics),
   refreshMaterials: () => ipcRenderer.invoke(IPC_CHANNELS.refreshMaterials),
@@ -42,6 +49,13 @@ const rockfallApi: RockfallApi = {
   syncStarStrings: () => ipcRenderer.invoke(IPC_CHANNELS.syncStarStrings),
   checkForUpdates: () => ipcRenderer.invoke(IPC_CHANNELS.checkForUpdates),
   restartToUpdate: () => ipcRenderer.invoke(IPC_CHANNELS.restartToUpdate),
+  configureLanControl: (config: LanControlConfig) =>
+    ipcRenderer.invoke(IPC_CHANNELS.configureLanControl, config),
+  beginLanPairing: (): Promise<LanPairingSession> =>
+    ipcRenderer.invoke(IPC_CHANNELS.beginLanPairing),
+  cancelLanPairing: () => ipcRenderer.invoke(IPC_CHANNELS.cancelLanPairing),
+  revokeLanClient: (clientId: string) => ipcRenderer.invoke(IPC_CHANNELS.revokeLanClient, clientId),
+  resetLanIdentity: () => ipcRenderer.invoke(IPC_CHANNELS.resetLanIdentity),
   onSnapshot: (listener: (snapshot: AppSnapshot) => void) => {
     const handler = (_event: Electron.IpcRendererEvent, snapshot: AppSnapshot): void => {
       listener(snapshot)

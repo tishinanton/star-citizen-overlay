@@ -1,3 +1,10 @@
+import type {
+  LanControlConfig,
+  LanControlState,
+  LanOverlayCommandV1,
+  LanPairingSession
+} from './lan-control'
+
 export const MAX_SELECTED_MATERIALS = 4
 export const MIN_CLUSTER_SIZE = 1
 export const MAX_CLUSTER_SIZE = 8
@@ -263,6 +270,7 @@ export interface OverlaySettings {
   spotlightMaterialId: string | null
   shortcuts: Record<ShortcutId, string>
   cloudApiUrl: string
+  lanControl: LanControlConfig
 }
 
 export type DataSourceState = 'loading' | 'game' | 'live' | 'cached' | 'fallback'
@@ -401,6 +409,7 @@ export interface AppSnapshot {
   cloud: CloudSyncState
   staticData: StaticDataSyncState
   starStrings: StarStringsSyncState
+  lanControl: LanControlState
   warning: string | null
 }
 
@@ -414,6 +423,7 @@ export type OverlaySettingsPatch = Partial<OverlaySettings>
 export interface RockfallApi {
   getSnapshot: () => Promise<AppSnapshot>
   updateSettings: (patch: OverlaySettingsPatch) => Promise<AppSnapshot>
+  executeOverlayCommand: (command: LanOverlayCommandV1) => Promise<AppSnapshot>
   reportOverlayMetrics: (metrics: OverlayContentMetrics) => Promise<void>
   refreshMaterials: () => Promise<AppSnapshot>
   chooseGameData: () => Promise<GameDataSelectionResult>
@@ -435,6 +445,11 @@ export interface RockfallApi {
   syncStarStrings: () => Promise<StarStringsSyncState>
   checkForUpdates: () => Promise<AppSnapshot>
   restartToUpdate: () => Promise<void>
+  configureLanControl: (config: LanControlConfig) => Promise<AppSnapshot>
+  beginLanPairing: () => Promise<LanPairingSession>
+  cancelLanPairing: () => Promise<AppSnapshot>
+  revokeLanClient: (clientId: string) => Promise<AppSnapshot>
+  resetLanIdentity: () => Promise<AppSnapshot>
   onSnapshot: (listener: (snapshot: AppSnapshot) => void) => () => void
   onBlueprintOwnership: (listener: (snapshot: BlueprintOwnershipSnapshot) => void) => () => void
 }
@@ -442,6 +457,7 @@ export interface RockfallApi {
 export const IPC_CHANNELS = {
   getSnapshot: 'rockfall:snapshot:get',
   updateSettings: 'rockfall:settings:update',
+  executeOverlayCommand: 'rockfall:overlay:command',
   reportOverlayMetrics: 'rockfall:overlay:metrics',
   refreshMaterials: 'rockfall:materials:refresh',
   chooseGameData: 'rockfall:game-data:choose',
@@ -464,5 +480,10 @@ export const IPC_CHANNELS = {
   syncStarStrings: 'rockfall:starstrings:sync',
   checkForUpdates: 'rockfall:updates:check',
   restartToUpdate: 'rockfall:updates:restart',
+  configureLanControl: 'rockfall:lan:configure',
+  beginLanPairing: 'rockfall:lan:pairing:begin',
+  cancelLanPairing: 'rockfall:lan:pairing:cancel',
+  revokeLanClient: 'rockfall:lan:client:revoke',
+  resetLanIdentity: 'rockfall:lan:identity:reset',
   snapshotChanged: 'rockfall:snapshot:changed'
 } as const

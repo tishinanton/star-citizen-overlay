@@ -26,16 +26,29 @@ import {
   type StarStringsSyncState,
   type StaticDataSyncState
 } from '../../../shared/contracts'
+import type {
+  LanControlConfig,
+  LanControlState,
+  LanPairingSession
+} from '../../../shared/lan-control'
 import { canShowStaticDataSync } from '../lib/static-data-visibility'
+import LanControlSettings from './LanControlSettings'
 
 interface SettingsPageProps {
   fontSize: number
   apiUrl: string
+  lanConfig: LanControlConfig
+  lanState: LanControlState
   cloud: CloudSyncState
   staticData: StaticDataSyncState
   starStrings: StarStringsSyncState
   onFontSizeChange: (fontSize: number) => void
   onApiUrlChange: (apiUrl: string) => void
+  onConfigureLanControl: (config: LanControlConfig) => Promise<void>
+  onBeginLanPairing: () => Promise<LanPairingSession | null>
+  onCancelLanPairing: () => Promise<void>
+  onRevokeLanClient: (clientId: string) => Promise<void>
+  onResetLanIdentity: () => Promise<void>
   onBeginCloudLogin: () => void
   onCompleteCloudLogin: (handoffCode: string) => void
   onCancelCloudLogin: () => void
@@ -49,11 +62,18 @@ interface SettingsPageProps {
 export default function SettingsPage({
   fontSize,
   apiUrl,
+  lanConfig,
+  lanState,
   cloud,
   staticData,
   starStrings,
   onFontSizeChange,
   onApiUrlChange,
+  onConfigureLanControl,
+  onBeginLanPairing,
+  onCancelLanPairing,
+  onRevokeLanClient,
+  onResetLanIdentity,
   onBeginCloudLogin,
   onCompleteCloudLogin,
   onCancelCloudLogin,
@@ -115,11 +135,21 @@ export default function SettingsPage({
           <div>
             <h1>Settings</h1>
             <p>
-              Control Rockfall&apos;s display, cloud connection, game integrations, and local
-              service endpoint.
+              Control Rockfall&apos;s display, phone pairing, cloud connection, and game
+              integrations.
             </p>
           </div>
         </header>
+
+        <LanControlSettings
+          config={lanConfig}
+          state={lanState}
+          onConfigure={onConfigureLanControl}
+          onBeginPairing={onBeginLanPairing}
+          onCancelPairing={onCancelLanPairing}
+          onRevokeClient={onRevokeLanClient}
+          onResetIdentity={onResetLanIdentity}
+        />
 
         <section className="settings-section" aria-labelledby="cloud-sync-title">
           <div className="settings-section__heading">

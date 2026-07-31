@@ -22,9 +22,14 @@ import {
   type SignatureOverrides,
   type ShortcutId
 } from '../shared/contracts'
+import {
+  DEFAULT_LAN_CONTROL_PORT,
+  MAX_LAN_CONTROL_PORT,
+  MIN_LAN_CONTROL_PORT
+} from '../shared/lan-control'
 import { DEFAULT_CLOUD_API_URL, normalizeCloudApiUrl } from './cloud-url'
 
-export const SETTINGS_VERSION = 8
+export const SETTINGS_VERSION = 9
 
 export const DEFAULT_SETTINGS: OverlaySettings = {
   selectedMaterialIds: ['agricium-ore', 'laranite-raw', 'riccite-ore'],
@@ -39,7 +44,11 @@ export const DEFAULT_SETTINGS: OverlaySettings = {
   customPosition: null,
   spotlightMaterialId: null,
   shortcuts: { ...DEFAULT_SHORTCUTS },
-  cloudApiUrl: DEFAULT_CLOUD_API_URL
+  cloudApiUrl: DEFAULT_CLOUD_API_URL,
+  lanControl: {
+    enabled: false,
+    port: DEFAULT_LAN_CONTROL_PORT
+  }
 }
 
 const PLACEMENTS: OverlayPlacement[] = ['top-left', 'top-right', 'bottom-left', 'bottom-right']
@@ -136,7 +145,8 @@ export function normalizeSettings(
       ...fallback,
       selectedMaterialIds: [...fallback.selectedMaterialIds],
       signatureOverrides: { ...fallback.signatureOverrides },
-      shortcuts: { ...fallback.shortcuts }
+      shortcuts: { ...fallback.shortcuts },
+      lanControl: { ...fallback.lanControl }
     }
   }
 
@@ -195,6 +205,14 @@ export function normalizeSettings(
   const shortcuts = normalizeShortcuts(value.shortcuts, fallback.shortcuts)
   const cloudApiUrl =
     value.cloudApiUrl === undefined ? fallback.cloudApiUrl : normalizeCloudApiUrl(value.cloudApiUrl)
+  const lanControlValue = isRecord(value.lanControl) ? value.lanControl : {}
+  const lanControlPort =
+    typeof lanControlValue.port === 'number' &&
+    Number.isInteger(lanControlValue.port) &&
+    lanControlValue.port >= MIN_LAN_CONTROL_PORT &&
+    lanControlValue.port <= MAX_LAN_CONTROL_PORT
+      ? lanControlValue.port
+      : fallback.lanControl.port
 
   return {
     selectedMaterialIds,
@@ -209,7 +227,14 @@ export function normalizeSettings(
     customPosition,
     spotlightMaterialId,
     shortcuts,
-    cloudApiUrl
+    cloudApiUrl,
+    lanControl: {
+      enabled:
+        typeof lanControlValue.enabled === 'boolean'
+          ? lanControlValue.enabled
+          : fallback.lanControl.enabled,
+      port: lanControlPort
+    }
   }
 }
 
@@ -256,7 +281,8 @@ export async function loadSettings(path: string): Promise<LoadedSettings> {
           ...DEFAULT_SETTINGS,
           selectedMaterialIds: [...DEFAULT_SETTINGS.selectedMaterialIds],
           signatureOverrides: { ...DEFAULT_SETTINGS.signatureOverrides },
-          shortcuts: { ...DEFAULT_SETTINGS.shortcuts }
+          shortcuts: { ...DEFAULT_SETTINGS.shortcuts },
+          lanControl: { ...DEFAULT_SETTINGS.lanControl }
         },
         warning: null,
         needsSave: false
@@ -269,7 +295,8 @@ export async function loadSettings(path: string): Promise<LoadedSettings> {
         ...DEFAULT_SETTINGS,
         selectedMaterialIds: [...DEFAULT_SETTINGS.selectedMaterialIds],
         signatureOverrides: { ...DEFAULT_SETTINGS.signatureOverrides },
-        shortcuts: { ...DEFAULT_SETTINGS.shortcuts }
+        shortcuts: { ...DEFAULT_SETTINGS.shortcuts },
+        lanControl: { ...DEFAULT_SETTINGS.lanControl }
       },
       warning: `Saved settings could not be loaded: ${message}`,
       needsSave: false

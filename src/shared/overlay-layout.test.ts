@@ -18,6 +18,8 @@ function createSettings(overrides: OverlaySettingsPatch = {}): OverlaySettings {
     customPosition: null,
     spotlightMaterialId: null,
     shortcuts: { ...DEFAULT_SHORTCUTS },
+    cloudApiUrl: 'https://api.rockfall.space',
+    lanControl: { enabled: false, port: 53_987 },
     ...overrides
   }
 }

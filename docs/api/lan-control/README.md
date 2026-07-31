@@ -299,6 +299,11 @@ deduplication entries: retention is zero. For an ambiguous timeout, Android firs
 It may retransmit the exact unchanged request and expectation, but it never rebases or automatically
 replays `overlay.target.cycle` against a newly observed revision.
 
+Android accepts an `applied`, `noop`, or state-bearing command error only when its non-null
+`requestId` exactly matches the outstanding command. A mismatched ID is a protocol violation: do
+not apply that response's state, clear the pending command as failed, and resynchronize through the
+authoritative state/event channel.
+
 ### `overlay.item.add`
 
 ```json
@@ -508,6 +513,7 @@ The Android client must:
 - replace state after `revision_conflict` and avoid automatically replaying a cycle against a new
   tuple;
 - treat `requestId` as correlation with zero desktop dedupe retention;
+- reject a command response whose non-null `requestId` does not match the outstanding command;
 - set compact mode explicitly;
 - implement target-cycle semantics exactly as documented;
 - ignore unknown response fields and branch on stable error codes;

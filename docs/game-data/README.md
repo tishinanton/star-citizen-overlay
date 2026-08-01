@@ -235,8 +235,161 @@ The implementation lives in:
 - [`src\main\game-data.ts`](../../src/main/game-data.ts);
 - [`src\main\blueprint-data.ts`](../../src/main/blueprint-data.ts); and
 - [`src\main\mining-data.ts`](../../src/main/mining-data.ts);
-- [`src\main\faction-data.ts`](../../src/main/faction-data.ts); and
+- [`src\main\faction-data.ts`](../../src/main/faction-data.ts);
+- [`src\main\mining-catalog.ts`](../../src/main/mining-catalog.ts) (see below); and
 - [`src\main\static-data-publication.ts`](../../src/main/static-data-publication.ts).
+
+## Local mining catalog extraction (wired)
+
+`mining` mode and `src\main\mining-catalog.ts` extract the complete installed
+mining catalog - materials, every current mineable entity variant, harvest
+locations, provider probability groups/contributions, quality quantization,
+and cluster presets - directly from Game2.dcb. **The Electron app prefers this
+catalog for every mining value it can supply.** `mining-data.ts` builds
+`MiningMaterial` rows directly from catalog identity/composition
+(`buildMaterialsFromCatalog`), and `mining-locations.ts` derives site
+recommendations (group probability, quality distribution, composition,
+quantized quality-roll chance) directly from the catalog
+(`buildLocalMiningLocations`). The Star Citizen Wiki API is used only in two
+reduced roles once a usable game archive/catalog is present:
+
+- **Full fallback** - when no archive is configured, extraction fails, or the
+  parsed catalog is unusable, `mining-data.ts` falls back to the Wiki
+  commodity-list endpoint (then the on-disk material cache, then bundled
+  defaults) exactly as before this layer, and `mining-locations.ts` falls back
+  to the full Wiki-driven location pipeline (`state: 'live'`/`'cached'`).
+- **Location-identity enrichment only** - on a Sites request, for the ~21
+  real ship-mining providers the extractor cannot tie to a single
+  `StarMapObject` (see below), the Wiki commodity-**detail** endpoint is
+  queried solely to resolve a named location for that provider, joining on
+  the API's `resources[].provider_names` field against the local provider
+  key. Only the location's name/system/type/parent are taken from the Wiki;
+  probability, quality, composition, area modifiers, and clustering always
+  come from the local catalog. A single local provider can map to one or many
+  named Wiki locations (e.g. "Aaron Halo" resolves to dozens of individually
+  named `ARC*` asteroid-cluster locations); each becomes its own row sharing
+  the same authoritative local numbers. If enrichment is unavailable or finds
+  no match, the provider is kept as a first-class row with a transparent,
+  technical provider-derived label and unknown hierarchy - it is never
+  silently dropped or given a fabricated StarMap name.
+
+The full parsed `MiningCatalog` is cached on disk
+(`loadMiningCatalog`/`mining-catalog.json`, keyed by schema version, archive
+fingerprint, and channel, written atomically) so normal startup reuses the
+cached catalog instead of repeating the ~5s extraction; the cache is
+invalidated on a Game files selection change, an archive fingerprint change,
+or a forced refresh. The existing `mining-signatures.json` material cache and
+`mining-locations.json` location cache continue to work unchanged for their
+respective fallback chains, extended with backward-compatible fields
+(`identitySource`, `minComposition`) that default sensibly for older cached
+entries.
+
+The 50%+ quality-roll chance is computed by a shared scoring pipeline
+(`src\main\mining-estimator.ts`) used by both the local and Wiki-fallback
+paths. On the local path, the chance is **quantization-aware**: rather than
+assuming a raw truncated-normal/uniform threshold over the full quality
+range, it integrates that distribution over the actual quantization bands
+whose `mappedValue >= 500`, intersected with each contribution's effective
+quality min/max (including any location-specific override). This can move
+the estimate in either direction versus the naive raw-threshold calculation,
+and for Hadanite at Aberdeen it raises it: the conditional (single-
+contribution) raw-threshold estimate over that distribution is 31.06%, while
+the quantization-aware conditional estimate is 50.04%. This is *not* because
+mass moved below the threshold - it is because a raw quality roll in
+`[400, 599)`, which sits below the naive 500 cutoff, is quantized through
+band `[400, 599] -> mappedValue 526`, an output that clears the threshold.
+Quantization can convert an apparently sub-threshold raw roll into an
+above-threshold mapped result, so the quantization-aware number is not
+directly comparable to a plain "fraction of raw mass above 500" reading.
+After combining with this provider's group probability `0.25` and Hadanite's
+relative probability `0.06` within that group, the final row-level chance
+goes from 0.466% (raw-threshold) to 0.751% (quantization-aware) - do not
+compare the 31.06%/50.04% conditional figures directly against the
+0.466%/0.751% combined figures; they answer different questions (single
+contribution vs. the fully combined site chance). This estimate assumes the
+material's quantization bands are disjoint (non-overlapping) and exhaustive
+enough to renormalize against; `effectiveQuality` already folds in any
+location-specific override and `qualityScale`, and `curveExponent` is
+intentionally not reapplied by this estimation step. When a material has no
+quantization bands (always true on the Wiki-fallback path), the estimator
+falls back to the raw-threshold calculation unchanged.
+
+```text
+Data.p4k
+  -> Data/Game2.dcb
+  -> libs/foundry/records/entities/mineable/*.xml
+  -> MineableParams -> MineableComposition -> MineableCompositionPart
+  -> MineableElement -> ResourceType (+ quality distribution/quantization)
+  -> libs/foundry/records/harvestable/providerpresets/*.xml
+  -> HarvestableProviderPreset -> HarvestableElementGroup -> HarvestableElement
+  -> HarvestablePreset -> entityClass (joins back to the mineable entity)
+  -> HarvestableClusterPreset
+  -> libs/foundry/records/starmap/* (StarMapObject location/parent/system)
+  -> Data/Localization/english/global.ini
+```
+
+Validated against the installed LIVE build (`4.9.188.23497-LIVE`): 38
+materials, 76 mineable entities, 90 resolvable locations, 49 provider presets,
+and 8 cluster presets, extracted in roughly 5 seconds producing a ~400 KB
+payload. The verified Hadanite/Aberdeen chain from the task brief reproduces
+exactly: material default quality distribution `min 201, max 1000, mean 201,
+stdDev 298`; quantization bands mapping to `274, 526, 665, 762, 867, 916, 959,
+1000`; provider `HPP_Stanton1b` group `FPS_Mineables` probability `0.25`;
+Hadanite's relative probability within that group `0.06`; cluster
+`MiningCluster_Med_Lrg` probability `1` with buckets `(0.2, 10-22, 3-5)`,
+`(0.3, 13-24, 2-8)`, `(0.5, 15-25, 1.5-10)`; and zero area overrides for that
+provider.
+
+Two notable joins that are not direct DataForge references:
+
+- **Provider -> location.** No record references a `HarvestableProviderPreset`
+  by GUID. The link is a naming convention: stripping the `HPP_` prefix from
+  a provider's local record name and matching it against `StarMapObject`
+  local names. If that direct match fails, the extractor retries by
+  stripping one leading `<segment>_` at a time (e.g. provider code
+  `Nyx_GlaciemRing` -> `GlaciemRing`), for providers whose code embeds a
+  system-name segment the `StarMapObject`'s own local name omits; this
+  fallback is bounded to a small, self-validated count of known cases
+  (currently `HPP_Nyx_GlaciemRing` and `HPP_Nyx_KeegerBelt`) and emits a
+  warning identifying that it was used. Together these resolve 28 of 49
+  providers. The remaining 21 have no `StarMapObject` record under any
+  naming variant and are not tied to a single celestial body in Game2.dcb;
+  they are still included with `locationId: null` and one bundled warning,
+  never fabricated or dropped. They fall into three known, permanent
+  local-data-source limitation categories (verified against a live Star
+  Citizen Wiki API cross-check - see the mining-catalog audit in the PR
+  history for details):
+  - **Generic deep-space/asteroid-belt presets** reused across systems with
+    no 1:1 location record (e.g. low/medium-yield asteroid cluster tiers).
+  - **Multi-system Lagrange-point presets** that are not tied to a single
+    system/location (e.g. the lettered Lagrange point providers).
+  - **Named system-wide belts/fields** that the game treats as a preset
+    spanning an entire region rather than one `StarMapObject` (e.g. the
+    well-known Stanton asteroid belt and the Pyro deep-space/temperature-zone
+    asteroid presets).
+  A dependent app layer wanting full parity for these must not fabricate a
+  `StarMapObject` link; any curated display name for them belongs in the app
+  layer, sourced independently, not asserted as extracted from Game2.dcb.
+- **Relative probability normalization.** `relativeProbability` is each
+  element's raw weight divided by the **sum of sibling weights in the same
+  group** (not a flat `/100`) - groups do not always sum to 100.
+
+Quantization "reachable values" are computed by overlapping each
+contribution's effective quality range (a material's default distribution,
+or its location-specific override when the provider resolves to that
+location) against the material's quantization bands, then taking the
+distinct, sorted `mappedValue`s.
+
+Named cave POI tier placement (poor/medium/rich for a specific named cave)
+lives in socpak/prefab data outside Game2.dcb; `mining` mode does not
+fabricate it and instead always emits one warning noting the limitation.
+
+`src\main\mining-catalog.ts` remains a strict, self-contained parser
+(`parseMiningExtractorPayload`) and process runner (`extractMiningCatalog`),
+now with an added atomic on-disk cache (`loadMiningCatalog`); it has no IPC
+exposure of its own; the app consumes it exclusively through
+`mining-data.ts` (materials) and `mining-locations.ts` (sites) in
+`src\main\index.ts`.
 
 ### Static publication boundary
 

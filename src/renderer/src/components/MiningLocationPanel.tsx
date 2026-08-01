@@ -3,13 +3,21 @@ import { MapPin, RefreshCw, Star, TriangleAlert } from 'lucide-react'
 import type {
   MiningLocationRecommendation,
   MiningLocationResult,
+  MiningLocationSourceState,
   MiningMaterial
 } from '../../../shared/contracts'
-import { formatMiningProbability, formatMiningQualityRange } from '../lib/mining-location-format'
+import {
+  formatMiningCompositionRange,
+  formatMiningProbability,
+  formatMiningQualityRange
+} from '../lib/mining-location-format'
 
-const compositionFormatter = new Intl.NumberFormat('en-US', {
-  maximumFractionDigits: 1
-})
+const SOURCE_LABELS: Record<MiningLocationSourceState, string> = {
+  game: 'Installed game data',
+  'game-cached': 'Cached installed game data',
+  live: 'Wiki fallback',
+  cached: 'Cached Wiki fallback'
+}
 
 interface MiningLocationPanelProps {
   material: MiningMaterial
@@ -52,7 +60,8 @@ export default function MiningLocationPanel({
         <div>
           <h2 id={titleId}>All {material.name} mining sites</h2>
           <p>
-            Ranked by estimated chance of a 50%+ quality find. Star one site to use it in the
+            Site chance = spawn group × relative deposit × quality-roll chance. Composition (the
+            material&apos;s share of the deposit) is separate. Star one site to use it in the
             overlay.
           </p>
         </div>
@@ -117,6 +126,14 @@ export default function MiningLocationPanel({
                               {location.area}
                             </span>
                           )}
+                          {location.identitySource === 'game-wiki' && (
+                            <span
+                              className="mining-location-table__identity-note"
+                              title="Site values are from installed game data; the Star Citizen Wiki supplied only this location's name because the game archive could not tie this provider to a single named location."
+                            >
+                              name via Wiki
+                            </span>
+                          )}
                         </span>
                         <small>{formatLocationContext(location)}</small>
                       </th>
@@ -135,9 +152,7 @@ export default function MiningLocationPanel({
                             : formatMiningProbability(location.highQualityProbability)}
                         </strong>
                         <small>
-                          {location.highQualityProbability === null
-                            ? 'source incomplete'
-                            : 'estimated'}
+                          {location.highQualityProbability === null ? 'incomplete' : 'estimated'}
                         </small>
                         {location.highQualityProbability !== null && (
                           <span className="mining-location-table__meter" aria-hidden="true">
@@ -157,11 +172,7 @@ export default function MiningLocationPanel({
                       </td>
                       <td className="mining-location-table__yield">
                         <strong>{formatMiningQualityRange(location)}</strong>
-                        <small>
-                          {location.maxComposition !== null
-                            ? `Up to ${compositionFormatter.format(location.maxComposition)}% material`
-                            : 'Material mix unknown'}
-                        </small>
+                        <small>{formatMiningCompositionRange(location)} material</small>
                       </td>
                       <td className="mining-location-table__favorite">
                         <button
@@ -193,11 +204,11 @@ export default function MiningLocationPanel({
         <footer className="mining-location-panel__footer" title={result.message}>
           <span className={`mining-location-source mining-location-source--${result.state}`}>
             <span />
-            {result.state === 'live' ? 'Live estimate' : 'Cached estimate'}
+            {SOURCE_LABELS[result.state]}
           </span>
           <span>
-            {locations.length} reported {locations.length === 1 ? 'site' : 'sites'} · chance = spawn
-            × deposit × quality roll
+            {locations.length} reported {locations.length === 1 ? 'site' : 'sites'} · static game
+            rules, not live telemetry
           </span>
         </footer>
       )}

@@ -71,6 +71,7 @@ import {
   validateGameDataArchive,
   type GameDataArchive
 } from './game-data'
+import type { MiningCatalog } from './mining-catalog'
 import { loadMiningData } from './mining-data'
 import { loadMiningLocations, resolvePreferredMiningLocation } from './mining-locations'
 import {
@@ -220,6 +221,7 @@ let shortcutStatuses: ShortcutStatus[] = []
 let warning: string | null = null
 let settingsPath = ''
 let cachePath = ''
+let miningCatalogCachePath = ''
 let locationCachePath = ''
 let blueprintCatalogCachePath = ''
 let factionCatalogCachePath = ''
@@ -230,6 +232,8 @@ let starStringsRecordPath = ''
 let lanControlPath = ''
 let gameDataArchive: GameDataArchive | null = null
 let extractorPath = ''
+let miningCatalog: MiningCatalog | null = null
+let miningCatalogMaterialIdByMaterialId: ReadonlyMap<string, string> = new Map()
 let appUpdater: AppUpdaterController | null = null
 let isQuitting = false
 let lanShutdownComplete = false
@@ -907,6 +911,7 @@ async function runStaticDataPublication(): Promise<StaticDataSyncState> {
     const prepared = await prepareStaticData({
       gameDataArchive: archive,
       miningCachePath: cachePath,
+      miningCatalogCachePath,
       blueprintCachePath: blueprintCatalogCachePath,
       factionCachePath: factionCatalogCachePath,
       extractorPath,
@@ -1021,6 +1026,8 @@ function applyPreparedStaticData(prepared: PreparedStaticData): void {
   bestMiningLocations = {}
   materials = prepared.mining.materials
   dataStatus = prepared.mining.status
+  miningCatalog = prepared.mining.catalog
+  miningCatalogMaterialIdByMaterialId = prepared.mining.catalogMaterialIdByMaterialId
   blueprintDataGeneration += 1
   pendingBlueprintData = null
   blueprintDataResult = prepared.blueprints
@@ -1100,6 +1107,7 @@ async function refreshMaterials(): Promise<AppSnapshot> {
 
   const result = await loadMiningData({
     cachePath,
+    miningCatalogCachePath,
     extractorPath,
     gameDataArchive: archive
   })
@@ -1108,6 +1116,8 @@ async function refreshMaterials(): Promise<AppSnapshot> {
     if (generation !== miningLocationGeneration) return getSnapshot()
     materials = result.materials
     dataStatus = result.status
+    miningCatalog = result.catalog
+    miningCatalogMaterialIdByMaterialId = result.catalogMaterialIdByMaterialId
 
     const availableIds = new Set(materials.map((material) => material.id))
     const selectedMaterialIds = settings.selectedMaterialIds.filter((id) => availableIds.has(id))
@@ -1219,7 +1229,12 @@ async function loadAndStoreMiningLocations(
   generation: number
 ): Promise<MiningLocationResult> {
   try {
-    const result = await loadMiningLocations(locationCachePath, material)
+    const result = await loadMiningLocations(
+      locationCachePath,
+      material,
+      miningCatalog,
+      miningCatalogMaterialIdByMaterialId.get(material.id) ?? null
+    )
     if (generation === miningLocationGeneration) {
       miningLocationResults.set(material.id, result)
       bestMiningLocations = {
@@ -1861,6 +1876,7 @@ if (!hasSingleInstanceLock) {
     nativeTheme.themeSource = 'dark'
     settingsPath = join(app.getPath('userData'), 'settings.json')
     cachePath = join(app.getPath('userData'), 'mining-signatures.json')
+    miningCatalogCachePath = join(app.getPath('userData'), 'mining-catalog.json')
     locationCachePath = join(app.getPath('userData'), 'mining-locations.json')
     blueprintCatalogCachePath = join(app.getPath('userData'), 'blueprints.json')
     factionCatalogCachePath = join(app.getPath('userData'), 'factions.json')

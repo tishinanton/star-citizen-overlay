@@ -27,6 +27,7 @@ export interface PrepareStaticDataOptions {
   gameDataArchive: GameDataArchive
   extractorPath: string
   miningCachePath: string
+  miningCatalogCachePath: string
   blueprintCachePath: string
   factionCachePath: string
   desktopVersion: string
@@ -54,6 +55,7 @@ export async function prepareStaticData(
   progress('signatures', 1, 'Refreshing installed mining signatures…')
   const mining = await loadMiningData({
     cachePath: options.miningCachePath,
+    miningCatalogCachePath: options.miningCatalogCachePath,
     extractorPath: options.extractorPath,
     gameDataArchive: options.gameDataArchive,
     forceRefresh: true

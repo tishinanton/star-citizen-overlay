@@ -46,6 +46,18 @@ export interface MiningMaterial {
   sourceUrl: string
 }
 
+/**
+ * Per-row identity provenance for a mining site recommendation. `'game'`
+ * means both the identity (name/system/type) and the values (probability,
+ * quality, composition) came from the installed local catalog. `'game-wiki'`
+ * means the values are still authoritatively local, but the Wiki API
+ * supplied the location's name/system/type because the local catalog could
+ * not tie the provider to a single `StarMapObject`. `'wiki'` means both
+ * identity and values came from the Star Citizen Wiki API (no usable local
+ * catalog was available at all).
+ */
+export type MiningLocationIdentitySource = 'game' | 'game-wiki' | 'wiki'
+
 export interface MiningLocationRecommendation {
   id: string
   name: string
@@ -56,14 +68,27 @@ export interface MiningLocationRecommendation {
   highQualityProbability: number | null
   minQuality: number | null
   maxQuality: number
+  minComposition: number | null
   maxComposition: number | null
+  identitySource: MiningLocationIdentitySource
   sourceUrl: string
 }
+
+/**
+ * Coarse origin of a mining-location result's *values* (probability, quality,
+ * composition). `'game'`/`'game-cached'` mean the installed local catalog was
+ * used (freshly derived vs. served from the location cache); `'live'`/
+ * `'cached'` mean the Star Citizen Wiki API was used end-to-end because no
+ * usable local catalog was available. Independent of the per-row
+ * `identitySource`, which can still mix in Wiki-sourced names on the game
+ * path.
+ */
+export type MiningLocationSourceState = 'game' | 'game-cached' | 'live' | 'cached'
 
 export interface MiningLocationResult {
   materialId: string
   locations: MiningLocationRecommendation[]
-  state: 'live' | 'cached'
+  state: MiningLocationSourceState
   message: string
   updatedAt: string
 }
@@ -225,13 +250,13 @@ export type BestMiningLocationState =
   | {
       status: 'ready'
       location: MiningLocationRecommendation
-      source: 'live' | 'cached'
+      source: MiningLocationSourceState
       message: string
     }
   | {
       status: 'empty'
       location: null
-      source: 'live' | 'cached'
+      source: MiningLocationSourceState
       message: string
     }
   | {

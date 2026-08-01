@@ -11,13 +11,13 @@ const PREFERENCE_SCHEMA_VERSION = 1
 const MIN_CANONICAL_SIGNATURES = 20
 const GAME_RECORD_PREFIX = 'libs/foundry/records/entities/mineable/'
 const CHANNELS = ['LIVE', 'PTU', 'EPTU', 'TECH-PREVIEW', 'HOTFIX']
-const METHOD_ORDER: Record<MiningMethod, number> = {
+export const METHOD_ORDER: Record<MiningMethod, number> = {
   Ship: 0,
   'Ground Vehicle': 1,
   FPS: 2,
   Unclassified: 3
 }
-const PRIMARY_METHOD_ORDER: Record<MiningMethod, number> = {
+export const PRIMARY_METHOD_ORDER: Record<MiningMethod, number> = {
   Ship: 0,
   FPS: 1,
   'Ground Vehicle': 2,
@@ -34,7 +34,7 @@ const IGNORED_COMMODITY_TOKENS = new Set([
   'rawminerals',
   'unrefinedores'
 ])
-const GAME_COMMODITY_IDS: Readonly<Record<string, string>> = {
+export const GAME_COMMODITY_IDS: Readonly<Record<string, string>> = {
   agricium: 'agricium-ore',
   aluminum: 'aluminum-ore',
   aphorite: 'aphorite',
@@ -117,7 +117,9 @@ function isMissingFileError(error: unknown): boolean {
   return isRecord(error) && 'code' in error && (error as { code?: unknown }).code === 'ENOENT'
 }
 
-function inferCanonicalRecord(recordPath: string): { key: string; method: MiningMethod } | null {
+export function inferCanonicalRecord(
+  recordPath: string
+): { key: string; method: MiningMethod } | null {
   const filename = recordPath
     .split(/[\\/]/)
     .at(-1)
@@ -133,9 +135,15 @@ function inferCanonicalRecord(recordPath: string): { key: string; method: Mining
     return { key: shipMatch[1], method: 'Ship' }
   }
 
-  const fpsMatch = /^mineablerock_fps_([a-z0-9]+)(?:_(?:large|small|pure_small))?$/.exec(filename)
+  // A leading "_pure" qualifier before the size suffix denotes a genuinely distinct sellable
+  // material (e.g. "Carinite" vs "Carinite (Pure)" - confirmed against the installed LIVE
+  // archive, where MineableRock_FPS_Carinite_Pure_small's composition resolves to a different
+  // catalog material than the plain Carinite variants), so it must stay part of the canonical
+  // key rather than being folded into the large/small size-suffix bucket.
+  const fpsMatch = /^mineablerock_fps_([a-z0-9]+?)(_pure)?(?:_(?:large|small))?$/.exec(filename)
   if (fpsMatch && fpsMatch[1] !== 'template') {
-    return { key: fpsMatch[1], method: 'FPS' }
+    const key = fpsMatch[2] ? `${fpsMatch[1]}_pure` : fpsMatch[1]
+    return { key, method: 'FPS' }
   }
 
   const groundMatch = /^mineablerock_groundvehicle_([a-z0-9]+)(?:_(?:large|small))?$/.exec(filename)
@@ -286,7 +294,7 @@ function formatGameKey(key: string): string {
   return `${key.charAt(0).toUpperCase()}${key.slice(1)}`
 }
 
-function methodSlug(method: MiningMethod): string {
+export function methodSlug(method: MiningMethod): string {
   return method.toLowerCase().replaceAll(' ', '-')
 }
 

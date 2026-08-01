@@ -14,7 +14,9 @@ const location: MiningLocationRecommendation = {
   highQualityProbability: 0.125,
   minQuality: 245,
   maxQuality: 1_000,
+  minComposition: null,
   maxComposition: 75,
+  identitySource: 'wiki',
   sourceUrl: 'https://example.com/location-test'
 }
 

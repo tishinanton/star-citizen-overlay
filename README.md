@@ -51,13 +51,21 @@ thresholds, drift, gates, and availability systems. It also resolves names
 through `Data\Localization\english\global.ini`. The extractor does not modify
 game files or interact with the running game.
 
-The community-maintained [Star Citizen Wiki API](https://api.star-citizen.wiki/)
-still supplies commodity names and mining-quality distributions. Extracted
-results are cached by game-archive version. If local extraction is unavailable,
-Rockfall falls back to Wiki, cached, and finally bundled signatures in that
-order. Any material can also use a locally persisted manual signature correction.
-Corrected values are marked with `*` in the control window and overlay, and can
-be reset to the current source value at any time.
+When the extractor can also read the installed mining catalog (materials,
+mineable entities, harvest locations, provider probability groups, quality
+quantization, and clusters), Rockfall builds material identity and every
+mining-site probability/quality/composition value directly from that game
+data. The community-maintained [Star Citizen Wiki API](https://api.star-citizen.wiki/)
+is then used only to resolve a location name for the handful of real
+ship-mining providers the local data cannot tie to a single named location,
+and as a full fallback (commodity list, mining-quality distributions, and
+site data) when no usable installed game archive/catalog exists. Extracted
+results are cached by game-archive version. If local extraction is
+unavailable, Rockfall falls back to Wiki, cached, and finally bundled
+signatures in that order. Any material can also use a locally persisted
+manual signature correction. Corrected values are marked with `*` in the
+control window and overlay, and can be reset to the current source value at
+any time.
 
 The blueprint workspace depends only on installed game files. Derived records
 are cached against the selected archive fingerprint for faster subsequent

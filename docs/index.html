@@ -1,0 +1,590 @@
+<!doctype html>
+<!--
+THESIS: Rockfall is field equipment, not a generic companion-app landing page; the scan readout proves the product before any feature list.
+OWN-WORLD: Blue-black machined planes, scanner-cyan signal, hairline rules, square technical type, and dense tabular readouts.
+STORY: Understand the mining overlay, trace the three reference workspaces, trust the local-data boundary, then download the latest Windows build.
+FIRST VIEWPORT: A large direct promise and download control sit beside a live-looking Agricium scan with a click-through overlay and console dock.
+FORM: The sixth-ranked continuous telemetry route, staged as connected instrument bays from concept seed 40367570.
+-->
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      name="description"
+      content="Download Rockfall, a Windows field console for Star Citizen mining signatures, blueprints, and faction reputation."
+    />
+    <meta name="theme-color" content="#081315" />
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="Rockfall — Star Citizen field console" />
+    <meta
+      property="og:description"
+      content="Read mining signatures in-game, trace blueprint requirements, and inspect faction standings from one Windows field console."
+    />
+    <meta property="og:url" content="https://tishinanton.github.io/star-citizen-overlay/" />
+    <meta
+      property="og:image"
+      content="https://tishinanton.github.io/star-citizen-overlay/assets/icon.png"
+    />
+    <link rel="canonical" href="https://tishinanton.github.io/star-citizen-overlay/" />
+    <link rel="icon" href="./assets/icon.png" />
+    <link rel="stylesheet" href="./styles.css" />
+    <title>Rockfall — Star Citizen field console</title>
+  </head>
+  <body>
+    <a class="skip-link" href="#main-content">Skip to content</a>
+
+    <header class="site-header">
+      <a class="brand" href="#top" aria-label="Rockfall home">
+        <img src="./assets/icon.png" alt="" width="38" height="38" />
+        <span>
+          <strong>ROCKFALL</strong>
+          <small>WINDOWS FIELD CONSOLE</small>
+        </span>
+      </a>
+
+      <nav class="site-nav" aria-label="Primary navigation">
+        <a href="#functions">Functions</a>
+        <a href="#field-use">Field use</a>
+        <a href="#data-boundary">Data boundary</a>
+        <a class="site-nav__github" href="https://github.com/tishinanton/star-citizen-overlay"
+          >GitHub</a
+        >
+      </nav>
+
+      <a
+        class="header-download"
+        data-download-link
+        href="https://github.com/tishinanton/star-citizen-overlay/releases/download/v0.3.1/rockfall-0.3.1-setup.exe"
+      >
+        Download
+        <span data-release-version>v0.3.1</span>
+      </a>
+    </header>
+
+    <main id="main-content">
+      <section class="hero" id="top">
+        <div class="hero__copy">
+          <h1>
+            Know what the scan means
+            <span>before the rock breaks.</span>
+          </h1>
+          <p class="hero__summary">
+            Rockfall turns your installed Star Citizen data into a click-through mining overlay, a
+            blueprint workbench, and a faction reputation directory—without reading game memory or
+            taking control away from you.
+          </p>
+
+          <div class="mobile-signature-proof" aria-label="Agricium signature example">
+            <div>
+              <span>AGRICIUM (ORE)</span>
+              <strong>3,885</strong>
+              <small>BASE EM SIGNATURE</small>
+            </div>
+            <dl>
+              <div>
+                <dt>×1</dt>
+                <dd>3,885</dd>
+              </div>
+              <div>
+                <dt>×4</dt>
+                <dd>15,540</dd>
+              </div>
+              <div>
+                <dt>×8</dt>
+                <dd>31,080</dd>
+              </div>
+            </dl>
+          </div>
+
+          <div class="hero__actions">
+            <a
+              class="download-control"
+              data-download-link
+              href="https://github.com/tishinanton/star-citizen-overlay/releases/download/v0.3.1/rockfall-0.3.1-setup.exe"
+            >
+              <svg aria-hidden="true" viewBox="0 0 24 24" width="28" height="28">
+                <path
+                  d="M2 4.2 10.1 3v8.1H2V4.2Zm9.2-1.4L22 1.2v9.9H11.2V2.8ZM2 12.2h8.1v8.2L2 19.2v-7Zm9.2 0H22V22l-10.8-1.5v-8.3Z"
+                />
+              </svg>
+              <span>
+                <strong>
+                  Download Rockfall
+                  <span data-release-version>v0.3.1</span>
+                </strong>
+                <small data-release-meta>Windows 10+ · 96.5 MB</small>
+              </span>
+            </a>
+            <a
+              class="release-link"
+              data-release-notes
+              href="https://github.com/tishinanton/star-citizen-overlay/releases/tag/v0.3.1"
+            >
+              Read release notes
+              <svg aria-hidden="true" viewBox="0 0 24 24" width="16" height="16">
+                <path d="M5 12h13M13 6l6 6-6 6" />
+              </svg>
+            </a>
+          </div>
+
+          <p class="release-state" data-release-state aria-live="polite">
+            Latest stable release · published August 1, 2026
+          </p>
+
+          <dl class="hero__facts">
+            <div>
+              <dt>PLATFORM</dt>
+              <dd>Windows 10 or later</dd>
+            </div>
+            <div>
+              <dt>GAME MODES</dt>
+              <dd>Borderless or windowed</dd>
+            </div>
+            <div>
+              <dt>INPUT</dt>
+              <dd>Mouse · keyboard · optional phone</dd>
+            </div>
+          </dl>
+        </div>
+
+        <figure class="field-preview">
+          <div class="field-preview__frame" aria-hidden="true">
+            <div class="field-preview__bar">
+              <span>LIVE FIELD PREVIEW</span>
+              <span>REF / AGRICIUM-ORE</span>
+              <span class="field-preview__signal">SOURCE · GAME FILES</span>
+            </div>
+
+            <div class="scan-space">
+              <svg class="scan-map" viewBox="0 0 820 620" preserveAspectRatio="xMidYMid slice">
+                <rect width="820" height="620" fill="#071113" />
+                <g fill="none" stroke="#20383d" stroke-width="1" opacity="0.78">
+                  <path d="M-60 520C110 390 235 380 400 448s310 45 470-70" />
+                  <path d="M-40 554C120 424 247 412 410 480s306 46 460-64" />
+                  <path d="M0 586C146 466 270 448 430 510s293 44 430-53" />
+                  <path d="M66 620C196 510 314 488 464 540s268 36 376-44" />
+                  <path d="M30 112 790 112M30 224 790 224M30 336 790 336M30 448 790 448" />
+                  <path d="M134 28v560M278 28v560M422 28v560M566 28v560M710 28v560" />
+                  <circle cx="422" cy="290" r="78" />
+                  <circle cx="422" cy="290" r="144" />
+                  <circle cx="422" cy="290" r="210" />
+                </g>
+                <g fill="#66cbd6" opacity="0.88">
+                  <circle cx="112" cy="156" r="2" />
+                  <circle cx="188" cy="308" r="2.5" />
+                  <circle cx="254" cy="82" r="1.5" />
+                  <circle cx="342" cy="450" r="2" />
+                  <circle cx="526" cy="168" r="1.5" />
+                  <circle cx="616" cy="392" r="2.5" />
+                  <circle cx="732" cy="116" r="2" />
+                  <circle cx="756" cy="514" r="1.5" />
+                </g>
+                <g class="scan-sweep">
+                  <path d="M422 80v420" stroke="#8ce8ed" stroke-width="2" opacity="0.9" />
+                  <path d="M407 80h30M407 500h30" stroke="#8ce8ed" stroke-width="2" />
+                </g>
+                <g fill="none" stroke="#8ce8ed" stroke-width="2" stroke-linecap="square">
+                  <path d="m384 252 0-24 24 0M460 228h24v24M484 328v24h-24M408 352h-24v-24" />
+                  <path d="M408 290h28M422 276v28" opacity="0.7" />
+                </g>
+              </svg>
+
+              <div class="target-readout">
+                <span>TARGET 01 / LOCKED</span>
+                <strong>AGRICIUM (ORE)</strong>
+                <small>SHIP MINING · REFERENCE SIGNATURE</small>
+              </div>
+
+              <div class="overlay-readout">
+                <div class="overlay-readout__head">
+                  <span>ROCKFALL / SCAN ARRAY</span>
+                  <span>4 TARGET SLOTS</span>
+                </div>
+                <div class="overlay-readout__primary">
+                  <span>AGRICIUM (ORE)</span>
+                  <strong>3,885</strong>
+                  <small>BASE EM SIGNATURE</small>
+                </div>
+                <div class="cluster-sequence">
+                  <div><span>×1</span><strong>3,885</strong></div>
+                  <div><span>×2</span><strong>7,770</strong></div>
+                  <div><span>×4</span><strong>15,540</strong></div>
+                  <div><span>×8</span><strong>31,080</strong></div>
+                </div>
+                <div class="overlay-readout__foot">
+                  <span>DRAG HEADER TO POSITION</span>
+                  <span>BODY REMAINS CLICK-THROUGH</span>
+                </div>
+              </div>
+            </div>
+
+            <div class="console-dock">
+              <div class="console-dock__tabs">
+                <span class="is-active">Mining</span>
+                <span>Blueprints</span>
+                <span>Factions</span>
+                <span>Settings</span>
+              </div>
+              <div class="console-dock__body">
+                <div>
+                  <small>SELECTED TARGETS</small>
+                  <strong>1 / 4</strong>
+                </div>
+                <div class="console-dock__meter">
+                  <span></span><span></span><span></span><span></span> <span></span><span></span
+                  ><span></span><span></span>
+                </div>
+                <div>
+                  <small>OVERLAY</small>
+                  <strong class="status-live">VISIBLE</strong>
+                </div>
+              </div>
+            </div>
+          </div>
+          <figcaption id="preview-caption">
+            Interface preview using Rockfall's bundled Agricium reference signature. Cluster values
+            are the base signature multiplied by the rock count.
+          </figcaption>
+        </figure>
+      </section>
+
+      <aside class="signal-ledger" aria-label="Core product facts">
+        <span>READS INSTALLED <strong>DATA.P4K</strong></span>
+        <span>OVERLAY STAYS <strong>CLICK-THROUGH</strong></span>
+        <span>UP TO <strong>4 MINING TARGETS</strong></span>
+        <span>NO MEMORY READING <strong>OR INJECTION</strong></span>
+      </aside>
+
+      <section class="functions" id="functions">
+        <header class="section-heading">
+          <h2>One field console for the work between scans.</h2>
+          <p>
+            Mining is the fast read. Blueprints and factions carry the planning that follows, using
+            the same locally extracted game-data source.
+          </p>
+        </header>
+
+        <div class="telemetry-route">
+          <article class="function-module function-module--mining">
+            <div class="function-module__copy">
+              <p class="module-name">MINING / SIGNATURE ARRAY</p>
+              <h3>Identify the cluster, not just the material.</h3>
+              <p>
+                Select up to four targets, compare each base electromagnetic signature, and see
+                deterministic cluster values from one through eight rocks. The overlay keeps the
+                answer visible while game input stays untouched.
+              </p>
+              <ul class="function-list">
+                <li>Search by material and mining method</li>
+                <li>Rank high-quality mining sites for the selected ore</li>
+                <li>Correct a local signature and reset it at any time</li>
+                <li>Compact, spotlight, opacity, size, and position controls</li>
+              </ul>
+            </div>
+
+            <div class="signature-table" aria-label="Agricium signature example">
+              <div class="signature-table__header">
+                <span>AGR-01</span>
+                <span>CLUSTER RECOGNITION TABLE</span>
+                <span>EM</span>
+              </div>
+              <div class="signature-table__base">
+                <span>BASE</span>
+                <strong>3,885</strong>
+                <small>AGRICIUM (ORE)</small>
+              </div>
+              <div class="signature-table__rows">
+                <div><span>01 ROCK</span><strong>3,885</strong></div>
+                <div><span>02 ROCKS</span><strong>7,770</strong></div>
+                <div><span>03 ROCKS</span><strong>11,655</strong></div>
+                <div><span>04 ROCKS</span><strong>15,540</strong></div>
+                <div><span>08 ROCKS</span><strong>31,080</strong></div>
+              </div>
+              <p>cluster signature = base signature × rock count</p>
+            </div>
+          </article>
+
+          <article class="function-module function-module--blueprints">
+            <div class="blueprint-query" aria-hidden="true">
+              <div class="blueprint-query__rail">
+                <span>ALL</span>
+                <span class="is-active">WEAPONS</span>
+                <span>COMPONENTS</span>
+                <span>TOOLS</span>
+              </div>
+              <div class="blueprint-query__body">
+                <div class="query-line">
+                  <span>CATALOG QUERY</span>
+                  <strong>SEARCH OUTPUTS</strong>
+                </div>
+                <div class="query-line">
+                  <span>REQUIREMENTS</span>
+                  <strong>RESOURCES · QUANTITIES · CRAFT TIME</strong>
+                </div>
+                <div class="query-line">
+                  <span>ACCESS PATH</span>
+                  <strong>MISSIONS · PROVIDERS · REPUTATION GATES</strong>
+                </div>
+                <div class="query-line">
+                  <span>COLLECTION</span>
+                  <strong>LOG RECEIPTS · MANUAL MARKS</strong>
+                </div>
+              </div>
+              <div class="blueprint-query__status">
+                <span>LOCAL CATALOG</span>
+                <span>CACHED BY GAME BUILD</span>
+              </div>
+            </div>
+
+            <div class="function-module__copy">
+              <p class="module-name">BLUEPRINTS / CRAFTING WORKBENCH</p>
+              <h3>Trace every output back to what unlocks it.</h3>
+              <p>
+                Search extracted blueprint outputs, inspect resource requirements and craft time,
+                then follow the missions, providers, systems, and reputation gates that lead to the
+                reward.
+              </p>
+              <ul class="function-list">
+                <li>Filter by category, collection, and access state</li>
+                <li>Separate owned from still-obtainable blueprints</li>
+                <li>Scan Game.log receipts without guessing ambiguous names</li>
+                <li>Keep manual ownership marks explicit and reversible</li>
+              </ul>
+            </div>
+          </article>
+
+          <article class="function-module function-module--factions">
+            <div class="function-module__copy">
+              <p class="module-name">FACTIONS / REPUTATION DIRECTORY</p>
+              <h3>See what a standing actually requires.</h3>
+              <p>
+                Browse player-facing factions from the selected game build and inspect each linked
+                reputation track in aligned tables built for quick comparison.
+              </p>
+              <ul class="function-list">
+                <li>Search factions, tracks, profile text, and rank names</li>
+                <li>Filter lawful and unlawful organizations</li>
+                <li>Compare minimum thresholds and reputation drift</li>
+                <li>Read perks and gate flags without relying on color</li>
+              </ul>
+            </div>
+
+            <div class="reputation-scope" aria-hidden="true">
+              <div class="reputation-scope__axis">
+                <span>FACTION</span>
+                <i></i>
+                <span>TRACK</span>
+                <i></i>
+                <span>STANDING</span>
+              </div>
+              <div class="reputation-scope__readout">
+                <div>
+                  <small>ROSTER FILTER</small>
+                  <strong>LAWFUL / UNLAWFUL</strong>
+                </div>
+                <div>
+                  <small>RANK THRESHOLD</small>
+                  <strong>TABULAR REQUIREMENTS</strong>
+                </div>
+                <div>
+                  <small>PROGRESSION DETAIL</small>
+                  <strong>DRIFT · PERKS · GATES</strong>
+                </div>
+              </div>
+              <div class="reputation-scope__bands">
+                <span></span><span></span><span></span><span></span><span></span>
+              </div>
+            </div>
+          </article>
+        </div>
+      </section>
+
+      <section class="field-use" id="field-use">
+        <header class="section-heading section-heading--field">
+          <h2>Set it once. Keep flying.</h2>
+          <p>
+            Rockfall stays available through the tray, global shortcuts, and optional local-network
+            controls while Star Citizen keeps focus.
+          </p>
+        </header>
+
+        <ol class="field-sequence">
+          <li>
+            <span>1</span>
+            <div>
+              <h3>Point Rockfall at the game.</h3>
+              <p>
+                Common LIVE and PTU installs are detected automatically, or you can select a custom
+                Data.p4k archive.
+              </p>
+            </div>
+          </li>
+          <li>
+            <span>2</span>
+            <div>
+              <h3>Choose the reference you need.</h3>
+              <p>
+                Pin mining targets, inspect a blueprint, or compare a faction track from the control
+                console.
+              </p>
+            </div>
+          </li>
+          <li>
+            <span>3</span>
+            <div>
+              <h3>Return to the cockpit.</h3>
+              <p>
+                Drag the cyan overlay header into place. Its body remains non-focusable and
+                click-through.
+              </p>
+            </div>
+          </li>
+        </ol>
+
+        <div class="shortcut-console">
+          <div class="shortcut-console__title">
+            <span>GLOBAL CONTROL BUS</span>
+            <strong>ACTIVE WHILE THE GAME HAS FOCUS</strong>
+          </div>
+          <div class="shortcut-console__keys">
+            <div>
+              <kbd>CTRL</kbd><b>+</b><kbd>SHIFT</kbd><b>+</b><kbd>M</kbd>
+              <span>SHOW / HIDE</span>
+            </div>
+            <div>
+              <kbd>CTRL</kbd><b>+</b><kbd>SHIFT</kbd><b>+</b><kbd>N</kbd>
+              <span>NEXT TARGET</span>
+            </div>
+            <div>
+              <kbd>CTRL</kbd><b>+</b><kbd>SHIFT</kbd><b>+</b><kbd>C</kbd>
+              <span>COMPACT MODE</span>
+            </div>
+          </div>
+          <p>Every binding can be reassigned from the control console.</p>
+        </div>
+
+        <dl class="systems-ledger">
+          <div>
+            <dt>PHONE CONTROL</dt>
+            <dd>
+              Pair an Android companion over your private local network to manage targets and
+              overlay modes.
+            </dd>
+          </div>
+          <div>
+            <dt>OWNERSHIP SYNC</dt>
+            <dd>
+              Optional Discord-authenticated cloud sync keeps blueprint receipts and manual marks
+              aligned across installations.
+            </dd>
+          </div>
+          <div>
+            <dt>BACKGROUND UPDATES</dt>
+            <dd>
+              New GitHub releases download in the background and install after you approve a restart
+              or exit normally.
+            </dd>
+          </div>
+          <div>
+            <dt>TRAY LIFECYCLE</dt>
+            <dd>
+              Closing the console hides it in the Windows tray; the overlay and shortcuts remain
+              available.
+            </dd>
+          </div>
+        </dl>
+      </section>
+
+      <section class="data-boundary" id="data-boundary">
+        <div class="data-boundary__copy">
+          <h2>Reference data in. No game control out.</h2>
+          <p>
+            Rockfall reads static reference data from your selected Star Citizen archive and
+            blueprint receipts from local logs. Extraction happens outside the game process and is
+            cached by game build.
+          </p>
+          <a href="https://github.com/tishinanton/star-citizen-overlay#current-data-sources">
+            Inspect every data source
+            <svg aria-hidden="true" viewBox="0 0 24 24" width="16" height="16">
+              <path d="M5 12h13M13 6l6 6-6 6" />
+            </svg>
+          </a>
+        </div>
+
+        <div class="boundary-diagram" aria-label="Rockfall data boundary">
+          <div class="boundary-diagram__source">
+            <span>LOCAL SOURCES</span>
+            <strong>DATA.P4K</strong>
+            <strong>GAME.LOG</strong>
+          </div>
+          <div class="boundary-diagram__flow">
+            <span>READ ONLY</span>
+            <i></i>
+            <span>VALIDATED</span>
+          </div>
+          <div class="boundary-diagram__app">
+            <span>ROCKFALL</span>
+            <strong>REFERENCE + OVERLAY</strong>
+          </div>
+          <div class="boundary-diagram__stop">
+            <span>NEVER</span>
+            <strong>MEMORY</strong>
+            <strong>INJECTION</strong>
+            <strong>INPUT AUTOMATION</strong>
+          </div>
+        </div>
+      </section>
+
+      <section class="final-call">
+        <div>
+          <h2>Put the answer beside the scan.</h2>
+          <p>
+            Download the latest Rockfall installer for Windows and keep the reference visible
+            without leaving the cockpit.
+          </p>
+        </div>
+        <div class="final-call__actions">
+          <a
+            class="download-control download-control--final"
+            data-download-link
+            href="https://github.com/tishinanton/star-citizen-overlay/releases/download/v0.3.1/rockfall-0.3.1-setup.exe"
+          >
+            <svg aria-hidden="true" viewBox="0 0 24 24" width="26" height="26">
+              <path
+                d="M2 4.2 10.1 3v8.1H2V4.2Zm9.2-1.4L22 1.2v9.9H11.2V2.8ZM2 12.2h8.1v8.2L2 19.2v-7Zm9.2 0H22V22l-10.8-1.5v-8.3Z"
+              />
+            </svg>
+            <span>
+              <strong>
+                Download Rockfall
+                <span data-release-version>v0.3.1</span>
+              </strong>
+              <small data-release-meta>Windows 10+ · 96.5 MB</small>
+            </span>
+          </a>
+          <p data-release-state aria-live="polite">
+            Latest stable release · published August 1, 2026
+          </p>
+        </div>
+      </section>
+    </main>
+
+    <footer class="site-footer">
+      <div class="brand brand--footer">
+        <img src="./assets/icon.png" alt="" width="32" height="32" />
+        <span>
+          <strong>ROCKFALL</strong>
+          <small>FIELD EQUIPMENT FOR THE VERSE</small>
+        </span>
+      </div>
+      <p>Independent community project. Not affiliated with Cloud Imperium Games.</p>
+      <p>
+        © <span data-current-year>2026</span> Rockfall contributors ·
+        <a href="https://github.com/tishinanton/star-citizen-overlay">Source on GitHub</a>
+      </p>
+    </footer>
+
+    <script src="./app.js" defer></script>
+  </body>
+</html>

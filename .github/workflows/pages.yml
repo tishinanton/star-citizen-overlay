@@ -1,0 +1,85 @@
+name: Deploy landing page
+
+on:
+  push:
+    branches:
+      - master
+    paths:
+      - 'docs/**'
+      - '.github/workflows/pages.yml'
+  release:
+    types:
+      - published
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: github-pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    name: Deploy to GitHub Pages
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Assemble site with latest release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          mkdir -p _site
+          cp -R docs/. _site/
+
+          release_json="$(gh api "repos/${GITHUB_REPOSITORY}/releases/latest")"
+          installer_json="$(
+            jq -c \
+              '[.assets[] | select(.name | test("-setup\\.exe$"; "i"))][0]' \
+              <<< "${release_json}"
+          )"
+
+          if [[ "${installer_json}" == "null" ]]; then
+            echo "The latest release has no Windows setup executable." >&2
+            exit 1
+          fi
+
+          jq \
+            --argjson installer "${installer_json}" \
+            '{
+              tagName: .tag_name,
+              name: .name,
+              publishedAt: .published_at,
+              htmlUrl: .html_url,
+              installer: {
+                name: $installer.name,
+                url: $installer.browser_download_url,
+                size: $installer.size
+              }
+            }' \
+            <<< "${release_json}" > _site/release.json
+
+      - name: Configure GitHub Pages
+        uses: actions/configure-pages@v5
+        with:
+          enablement: true
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+      - name: Deploy GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

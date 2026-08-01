@@ -103,8 +103,9 @@ back to the highest-ranked site.
 The UEX API is useful for prices, routes, locations, and refinery planning, but
 it does not expose scanner signatures.
 
-Complete endpoint inventories:
+Complete data and protocol inventories:
 
+- [Star Citizen game-log inventory](docs/game-log-inventory.md)
 - [Installed Star Citizen game-data inventory](docs/game-data/README.md)
 - [UEX Corp API 2.0](docs/api/uex/README.md)
 - [Star Citizen Wiki API](docs/api/star-citizen-wiki/README.md)

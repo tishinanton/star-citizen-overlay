@@ -96,6 +96,7 @@ test('caches successful recommendations for offline use', async () => {
     displayName: 'Target Ore',
     signature: 4_000,
     methods: ['Ship'],
+    catalogMaterialId: null,
     sourceUrl: 'https://example.com/target-ore'
   }
   const payload = {
@@ -141,6 +142,7 @@ test('loads older cached recommendations without a minimum quality value', async
     displayName: 'Target Ore',
     signature: 4_000,
     methods: ['Ship'],
+    catalogMaterialId: null,
     sourceUrl: 'https://example.com/target-ore'
   }
 

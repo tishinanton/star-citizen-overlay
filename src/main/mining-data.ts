@@ -3,12 +3,16 @@ import { dirname } from 'node:path'
 
 import type { MiningDataStatus, MiningMaterial, MiningMethod } from '../shared/contracts'
 import {
-  extractGameSignatures,
   getGameArchiveFingerprint,
-  mergeGameSignatures,
+  inferCanonicalRecord,
+  methodSlug,
+  GAME_COMMODITY_IDS,
+  METHOD_ORDER,
+  PRIMARY_METHOD_ORDER,
   type GameDataArchive,
   type MiningMaterialMetadata
 } from './game-data'
+import { loadMiningCatalog, type MiningCatalog, type MiningCompositionPart } from './mining-catalog'
 
 const COMMODITIES_URL =
   'https://api.star-citizen.wiki/api/commodities?filter%5Bmineable%5D=true&filter%5Bkind%5D=mineable&page%5Bsize%5D=200'
@@ -48,6 +52,7 @@ interface MiningCache {
 
 export interface MiningDataOptions {
   cachePath: string
+  miningCatalogCachePath: string
   extractorPath: string
   gameDataArchive: GameDataArchive | null
   forceRefresh?: boolean
@@ -56,6 +61,11 @@ export interface MiningDataOptions {
 export interface MiningDataResult {
   materials: MiningMaterial[]
   status: MiningDataStatus
+  /**
+   * The full local catalog when the game path produced one, so callers (main/index.ts) can reuse
+   * it for the mining-sites pipeline without triggering a second extraction/cache read.
+   */
+  catalog: MiningCatalog | null
 }
 
 function fallback(
@@ -71,6 +81,7 @@ function fallback(
     displayName: name,
     signature,
     methods,
+    catalogMaterialId: null,
     sourceUrl: `https://api.star-citizen.wiki/api/commodities/${id}`
   }
 }
@@ -135,6 +146,7 @@ function metadataToMaterial(metadata: MiningMaterialMetadata): MiningMaterial | 
     displayName: metadata.displayName,
     signature: metadata.sourceSignature,
     methods: metadata.methods.length > 0 ? metadata.methods : ['Unclassified'],
+    catalogMaterialId: null,
     sourceUrl: metadata.sourceUrl
   }
 }
@@ -180,6 +192,160 @@ async function fetchCommodityMetadata(): Promise<MiningMaterialMetadata[]> {
     throw new Error('Star Citizen Wiki API returned no mineable commodity metadata.')
   }
   return metadata
+}
+
+// --- Local-catalog material identity (installed game data path) -----------------------------
+
+function dominantCompositionPart(
+  composition: readonly MiningCompositionPart[]
+): MiningCompositionPart | null {
+  if (composition.length === 0) return null
+  return [...composition].sort(
+    (left, right) =>
+      right.maxPercentage - left.maxPercentage || right.minPercentage - left.minPercentage
+  )[0]
+}
+
+interface CanonicalCatalogRecord {
+  key: string
+  method: MiningMethod
+  signature: number
+  catalogMaterialId: string
+}
+
+interface GroupedCatalogSignature {
+  key: string
+  signature: number
+  methods: MiningMethod[]
+  catalogMaterialId: string
+}
+
+/**
+ * Builds every `MiningMaterial` the installed game archive can supply, entirely from the local
+ * `MiningCatalog` - no Wiki commodity-list call. Reuses the same canonical-record regex
+ * (`inferCanonicalRecord`) the pre-layer-2 signature-only path used, but resolves each entity's
+ * material identity directly from its own composition (the catalog's own cross-referenced
+ * `MiningCompositionPart.materialId`) instead of matching Wiki metadata after the fact. Throws
+ * when a canonical key's variants disagree on signature or material identity, since that would
+ * indicate a broken assumption rather than something safe to silently drop or guess at.
+ */
+export function buildMaterialsFromCatalog(catalog: MiningCatalog): MiningMaterial[] {
+  const materialsById = new Map(catalog.materials.map((material) => [material.id, material]))
+
+  const byMethod = new Map<string, CanonicalCatalogRecord>()
+  for (const entity of catalog.entities) {
+    const canonical = inferCanonicalRecord(entity.path)
+    if (!canonical) continue // non-canonical/template records, same skip as the legacy signature path
+
+    const dominant = dominantCompositionPart(entity.composition)
+    if (!dominant) {
+      throw new Error(
+        `Mineable entity '${entity.key}' has no usable composition to resolve a material identity.`
+      )
+    }
+    const catalogMaterial = materialsById.get(dominant.materialId)
+    if (!catalogMaterial) {
+      throw new Error(
+        `Mineable entity '${entity.key}' references an unresolved material identifier.`
+      )
+    }
+
+    const method: MiningMethod = entity.method
+    const methodKey = `${canonical.key}:${method}`
+    const existing = byMethod.get(methodKey)
+    if (existing) {
+      if (existing.signature !== entity.signature) {
+        throw new Error(`Conflicting ${method} signatures were found for ${canonical.key}.`)
+      }
+      if (existing.catalogMaterialId !== catalogMaterial.id) {
+        throw new Error(
+          `Mineable entity variants for '${canonical.key}' (${method}) resolve to different materials.`
+        )
+      }
+      continue
+    }
+    byMethod.set(methodKey, {
+      key: canonical.key,
+      method,
+      signature: entity.signature,
+      catalogMaterialId: catalogMaterial.id
+    })
+  }
+
+  const grouped = new Map<string, GroupedCatalogSignature>()
+  for (const record of byMethod.values()) {
+    const signatureKey = `${record.key}:${record.signature}`
+    const existing = grouped.get(signatureKey)
+    if (existing) {
+      if (!existing.methods.includes(record.method)) existing.methods.push(record.method)
+    } else {
+      grouped.set(signatureKey, {
+        key: record.key,
+        signature: record.signature,
+        methods: [record.method],
+        catalogMaterialId: record.catalogMaterialId
+      })
+    }
+  }
+
+  const bySignatureKey = [...grouped.values()].map((entry) => ({
+    ...entry,
+    methods: [...entry.methods].sort((left, right) => METHOD_ORDER[left] - METHOD_ORDER[right])
+  }))
+  const signaturesByKey = new Map<string, GroupedCatalogSignature[]>()
+  for (const entry of bySignatureKey) {
+    const list = signaturesByKey.get(entry.key)
+    if (list) {
+      list.push(entry)
+    } else {
+      signaturesByKey.set(entry.key, [entry])
+    }
+  }
+
+  const materials: MiningMaterial[] = []
+  for (const [key, groups] of signaturesByKey) {
+    const catalogMaterial = materialsById.get(groups[0].catalogMaterialId)
+    if (!catalogMaterial) {
+      throw new Error(`Mining material key '${key}' resolved to an unknown catalog material.`)
+    }
+
+    // Prefer the existing Wiki-slug mapping for materials already known to the Wiki, so ids stay
+    // stable across the upgrade; fall back to the catalog's own slug for materials with no
+    // existing mapping.
+    const commodityId = GAME_COMMODITY_IDS[key] ?? catalogMaterial.slug
+    const baseName = catalogMaterial.name
+    const sourceUrl = `https://api.star-citizen.wiki/api/commodities/${encodeURIComponent(commodityId)}`
+
+    const sortedGroups = [...groups].sort(
+      (left, right) =>
+        PRIMARY_METHOD_ORDER[left.methods[0]] - PRIMARY_METHOD_ORDER[right.methods[0]]
+    )
+
+    sortedGroups.forEach((signature, index) => {
+      const hasVariants = sortedGroups.length > 1
+      const methodLabel = signature.methods.join(' / ')
+      materials.push({
+        id:
+          index === 0
+            ? commodityId
+            : `${commodityId}--${signature.methods.map(methodSlug).join('-')}`,
+        commodityId,
+        name: hasVariants ? `${baseName} (${methodLabel})` : baseName,
+        displayName: hasVariants ? `${baseName} (${methodLabel})` : baseName,
+        signature: signature.signature,
+        methods: [...signature.methods],
+        catalogMaterialId: catalogMaterial.id,
+        sourceUrl
+      })
+    })
+  }
+
+  const ids = new Set(materials.map((material) => material.id))
+  if (ids.size !== materials.length) {
+    throw new Error('Installed game mining catalog produced duplicate material identifiers.')
+  }
+
+  return materials
 }
 
 function parseCacheSource(value: unknown): MiningCacheSource | null {
@@ -249,7 +415,10 @@ function parseCachedMaterial(value: unknown): MiningMaterial | null {
     typeof value.signature !== 'number' ||
     !Number.isSafeInteger(value.signature) ||
     value.signature <= 0 ||
-    typeof value.sourceUrl !== 'string'
+    typeof value.sourceUrl !== 'string' ||
+    (value.catalogMaterialId !== undefined &&
+      value.catalogMaterialId !== null &&
+      typeof value.catalogMaterialId !== 'string')
   ) {
     return null
   }
@@ -261,6 +430,7 @@ function parseCachedMaterial(value: unknown): MiningMaterial | null {
     displayName: value.displayName,
     signature: value.signature,
     methods: methods.length > 0 ? methods : ['Unclassified'],
+    catalogMaterialId: typeof value.catalogMaterialId === 'string' ? value.catalogMaterialId : null,
     sourceUrl: value.sourceUrl
   }
 }
@@ -284,28 +454,6 @@ async function writeCache(
   return savedAt
 }
 
-function cachedMetadata(cache: MiningCache | null): MiningMaterialMetadata[] {
-  if (!cache) return []
-  const byCommodity = new Map<string, MiningMaterial>()
-  for (const material of cache.materials) {
-    const existing = byCommodity.get(material.commodityId)
-    if (!existing || material.id === material.commodityId) {
-      byCommodity.set(material.commodityId, material)
-    }
-  }
-  return [...byCommodity.values()].map((material) => ({
-    id: material.commodityId,
-    name: material.name.replace(/ \((?:Ship|Ground Vehicle|FPS)(?: \/ [^)]+)?\)$/, ''),
-    displayName: material.displayName.replace(
-      / \((?:Ship|Ground Vehicle|FPS)(?: \/ [^)]+)?\)$/,
-      ''
-    ),
-    sourceSignature: material.signature,
-    methods: material.methods,
-    sourceUrl: material.sourceUrl
-  }))
-}
-
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error)
 }
@@ -325,37 +473,22 @@ export async function loadMiningData(options: MiningDataOptions): Promise<Mining
   if (options.gameDataArchive) {
     try {
       const archiveFingerprint = await getGameArchiveFingerprint(options.gameDataArchive.path)
-      if (
-        !options.forceRefresh &&
-        cache?.schemaVersion === MINING_CACHE_VERSION &&
-        cache.source?.kind === 'game' &&
-        cache.source.archiveFingerprint === archiveFingerprint &&
-        cache.source.channel === options.gameDataArchive.channel
-      ) {
-        return {
-          materials: cache.materials,
-          status: {
-            state: 'game',
-            message: `Installed ${cache.source.channel} game signatures`,
-            updatedAt: cache.savedAt
-          }
-        }
-      }
 
-      const signatures = await extractGameSignatures(
-        options.extractorPath,
-        options.gameDataArchive.path
-      )
-      let metadata: MiningMaterialMetadata[]
-      let metadataWarning: string | null = null
-      try {
-        metadata = await fetchCommodityMetadata()
-      } catch (error) {
-        metadataWarning = errorMessage(error)
-        metadata = cachedMetadata(cache)
-      }
+      // Always resolve through the local catalog (which has its own fingerprint/channel cache and
+      // is normally near-instant on a hit) rather than short-circuiting on the older
+      // mining-signatures.json cache alone: the mining-sites pipeline needs the full `MiningCatalog`
+      // object, not just the derived material list, so skipping this call would force a second,
+      // duplicate extraction the first time a Sites request comes in.
+      const { catalog, cacheWarning } = await loadMiningCatalog({
+        cachePath: options.miningCatalogCachePath,
+        extractorPath: options.extractorPath,
+        archivePath: options.gameDataArchive.path,
+        archiveFingerprint,
+        channel: options.gameDataArchive.channel,
+        forceRefresh: options.forceRefresh
+      })
 
-      const materials = sortMaterials(mergeGameSignatures(signatures, metadata))
+      const materials = sortMaterials(buildMaterialsFromCatalog(catalog))
       const updatedAt = await writeCache(options.cachePath, materials, {
         kind: 'game',
         archiveFingerprint,
@@ -363,11 +496,12 @@ export async function loadMiningData(options: MiningDataOptions): Promise<Mining
       })
       return {
         materials,
+        catalog,
         status: {
           state: 'game',
-          message: metadataWarning
-            ? `Installed ${options.gameDataArchive.channel} game signatures. Wiki metadata unavailable: ${metadataWarning}`
-            : `Installed ${options.gameDataArchive.channel} game signatures`,
+          message: cacheWarning
+            ? `Installed ${options.gameDataArchive.channel} game data. Catalog cache unavailable: ${cacheWarning}`
+            : `Installed ${options.gameDataArchive.channel} game data`,
           updatedAt
         }
       }
@@ -387,6 +521,7 @@ export async function loadMiningData(options: MiningDataOptions): Promise<Mining
     const updatedAt = await writeCache(options.cachePath, materials, { kind: 'api' })
     return {
       materials,
+      catalog: null,
       status: {
         state: 'live',
         message: gameError
@@ -402,6 +537,7 @@ export async function loadMiningData(options: MiningDataOptions): Promise<Mining
     if (cache) {
       return {
         materials: cache.materials,
+        catalog: null,
         status: {
           state: 'cached',
           message: `Using cached signatures. ${gameError ?? ''} ${liveMessage}`.trim(),
@@ -413,6 +549,7 @@ export async function loadMiningData(options: MiningDataOptions): Promise<Mining
     const cacheMessage = cacheError ? ` Cache error: ${cacheError}` : ''
     return {
       materials: FALLBACK_MATERIALS,
+      catalog: null,
       status: {
         state: 'fallback',
         message:

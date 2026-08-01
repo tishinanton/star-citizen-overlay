@@ -185,7 +185,8 @@ function BestSite({
       state.location.highQualityProbability === null
         ? '50%+: unavailable'
         : `50%+: ${formatMiningProbability(state.location.highQualityProbability)}`
-    if (state.source === 'cached') probability += ' · cached'
+    if (state.source === 'live' || state.source === 'cached') probability += ' · wiki'
+    if (state.source === 'game-cached' || state.source === 'cached') probability += ' · cached'
   } else if (state?.status === 'empty') {
     site = 'No mining site reported'
   } else if (state?.status === 'error') {

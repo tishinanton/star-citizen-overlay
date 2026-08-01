@@ -6,6 +6,7 @@ import test from 'node:test'
 
 import type { MiningMethod } from '../shared/contracts'
 import {
+  inferCanonicalRecord,
   mergeGameSignatures,
   loadGameDataPreference,
   normalizeCommodityKey,
@@ -55,6 +56,56 @@ test('parses canonical ship, FPS, and ground-vehicle records', () => {
       { key: 'quantainium', signature: 3_170, methods: ['Ship'] },
       { key: 'carinite', signature: 4_000, methods: ['Ground Vehicle'] },
       { key: 'carinite', signature: 3_000, methods: ['FPS'] }
+    ]
+  )
+})
+
+// Regression test: verified against the installed LIVE Data.p4k, where
+// MineableRock_FPS_Carinite_Pure_small's composition resolves to a genuinely distinct
+// catalog material ("Carinite (Pure)") from the plain Carinite FPS/large/small variants.
+// A "_pure" qualifier must therefore stay part of the canonical key rather than being folded
+// into the large/small size-suffix bucket, or buildMaterialsFromCatalog's cross-material
+// consistency guard incorrectly throws for a perfectly valid game archive.
+test('keeps a "_pure" FPS qualifier as a distinct canonical key from its base material', () => {
+  assert.deepEqual(
+    inferCanonicalRecord('libs/foundry/records/entities/mineable/mineablerock_fps_carinite.xml'),
+    { key: 'carinite', method: 'FPS' }
+  )
+  assert.deepEqual(
+    inferCanonicalRecord(
+      'libs/foundry/records/entities/mineable/mineablerock_fps_carinite_large.xml'
+    ),
+    { key: 'carinite', method: 'FPS' }
+  )
+  assert.deepEqual(
+    inferCanonicalRecord(
+      'libs/foundry/records/entities/mineable/mineablerock_fps_carinite_small.xml'
+    ),
+    { key: 'carinite', method: 'FPS' }
+  )
+  assert.deepEqual(
+    inferCanonicalRecord(
+      'libs/foundry/records/entities/mineable/mineablerock_fps_carinite_pure_small.xml'
+    ),
+    { key: 'carinite_pure', method: 'FPS' }
+  )
+})
+
+test('does not collide a "_pure" FPS variant with its base material key in the signature payload', () => {
+  const signatures = parseGameSignaturePayload({
+    schemaVersion: 1,
+    records: completeRecords([
+      record('mineablerock_fps_carinite', 3_000),
+      record('mineablerock_fps_carinite_large', 3_000),
+      record('mineablerock_fps_carinite_pure_small', 3_000)
+    ])
+  })
+
+  assert.deepEqual(
+    signatures.filter((entry) => entry.key === 'carinite' || entry.key === 'carinite_pure'),
+    [
+      { key: 'carinite', signature: 3_000, methods: ['FPS'] },
+      { key: 'carinite_pure', signature: 3_000, methods: ['FPS'] }
     ]
   )
 })
@@ -132,6 +183,7 @@ test('maps game signatures onto API metadata and separates method-specific value
       displayName: 'Agricium (Ore)',
       signature: 3_885,
       methods: ['Ship'],
+      catalogMaterialId: null,
       sourceUrl: 'https://example.com/agricium'
     },
     {
@@ -141,6 +193,7 @@ test('maps game signatures onto API metadata and separates method-specific value
       displayName: 'Carinite (Ground Vehicle)',
       signature: 4_000,
       methods: ['Ground Vehicle'],
+      catalogMaterialId: null,
       sourceUrl: 'https://example.com/carinite'
     },
     {
@@ -150,6 +203,7 @@ test('maps game signatures onto API metadata and separates method-specific value
       displayName: 'Carinite (FPS)',
       signature: 3_000,
       methods: ['FPS'],
+      catalogMaterialId: null,
       sourceUrl: 'https://example.com/carinite'
     }
   ])

@@ -1,20 +1,18 @@
 /**
- * Strict, unwired parser for the local extractor's `mining` mode payload.
- *
- * This module deliberately does not integrate with the Electron app's
- * existing `MiningMaterial` / `MiningLocationRecommendation` contracts
- * (see `mining-data.ts` / `mining-locations.ts`), and does not cache or
- * expose anything over IPC. It exists so a later, dependent change can
- * consume a fully-typed, validated `MiningCatalog` sourced entirely from
- * the installed game's `Data.p4k` / `Game2.dcb`, without touching the
- * currently shipping Wiki-backed mining data path.
+ * Strict parser for the local extractor's `mining` mode payload, plus a caching wrapper
+ * (`loadMiningCatalog`) that lets the rest of the app prefer installed game data for material
+ * identity and mining-site quality/composition math, skipping the ~5s extraction on ordinary
+ * startup by keying a full-catalog cache on schema version, archive fingerprint, and channel.
  */
 import { execFile } from 'node:child_process'
+import { promises as fs } from 'node:fs'
+import { dirname } from 'node:path'
 import { promisify } from 'node:util'
 
 const execFileAsync = promisify(execFile)
 
 const EXTRACTOR_SCHEMA_VERSION = 1
+const CATALOG_CACHE_SCHEMA_VERSION = 1
 
 const MIN_MATERIAL_COUNT = 10
 const MIN_ENTITY_COUNT = 20
@@ -185,9 +183,15 @@ function isBoundedArray(value: unknown, maxLength: number): value is unknown[] {
   return Array.isArray(value) && value.length <= maxLength
 }
 
-function readString(value: Record<string, unknown>, key: string, maxLength = MAX_STRING_LENGTH): string | null {
+function readString(
+  value: Record<string, unknown>,
+  key: string,
+  maxLength = MAX_STRING_LENGTH
+): string | null {
   const candidate = value[key]
-  return typeof candidate === 'string' && candidate.trim().length > 0 && candidate.length <= maxLength
+  return typeof candidate === 'string' &&
+    candidate.trim().length > 0 &&
+    candidate.length <= maxLength
     ? candidate
     : null
 }
@@ -199,7 +203,9 @@ function readNullableString(
 ): string | null | undefined {
   const candidate = value[key]
   if (candidate === null) return null
-  return typeof candidate === 'string' && candidate.trim().length > 0 && candidate.length <= maxLength
+  return typeof candidate === 'string' &&
+    candidate.trim().length > 0 &&
+    candidate.length <= maxLength
     ? candidate
     : undefined
 }
@@ -220,7 +226,10 @@ function readFiniteNumber(value: Record<string, unknown>, key: string): number |
   return typeof candidate === 'number' && Number.isFinite(candidate) ? candidate : null
 }
 
-function readNullableFiniteNumber(value: Record<string, unknown>, key: string): number | null | undefined {
+function readNullableFiniteNumber(
+  value: Record<string, unknown>,
+  key: string
+): number | null | undefined {
   const candidate = value[key]
   if (candidate === null) return null
   return typeof candidate === 'number' && Number.isFinite(candidate) ? candidate : undefined
@@ -299,7 +308,10 @@ function parseQuantizationBand(value: unknown): MiningQuantizationBand | null {
 }
 
 function parseMaterial(value: unknown): MiningCatalogMaterial | null {
-  if (!isRecord(value) || !isBoundedArray(value.qualityLocationOverrides, MAX_QUALITY_OVERRIDES_PER_MATERIAL)) {
+  if (
+    !isRecord(value) ||
+    !isBoundedArray(value.qualityLocationOverrides, MAX_QUALITY_OVERRIDES_PER_MATERIAL)
+  ) {
     return null
   }
   if (!isBoundedArray(value.quantizationBands, MAX_QUANTIZATION_BANDS_PER_MATERIAL)) return null
@@ -443,7 +455,9 @@ function parseLocation(value: unknown): MiningCatalogLocation | null {
   ) {
     return null
   }
-  const providerIds = value.providerIds.every((entry): entry is string => typeof entry === 'string' && GUID_PATTERN.test(entry))
+  const providerIds = value.providerIds.every(
+    (entry): entry is string => typeof entry === 'string' && GUID_PATTERN.test(entry)
+  )
     ? (value.providerIds as string[])
     : null
   if (!providerIds) return null
@@ -451,14 +465,19 @@ function parseLocation(value: unknown): MiningCatalogLocation | null {
 }
 
 function parseContributionMaterial(value: unknown): MiningContributionMaterial | null {
-  if (!isRecord(value) || !isBoundedArray(value.reachableQuantizedValues, MAX_REACHABLE_VALUES_PER_CONTRIBUTION)) {
+  if (
+    !isRecord(value) ||
+    !isBoundedArray(value.reachableQuantizedValues, MAX_REACHABLE_VALUES_PER_CONTRIBUTION)
+  ) {
     return null
   }
   const materialId = readGuid(value, 'materialId')
   const effectiveQuality = parseQualityDistribution(value.effectiveQuality)
-  if (!materialId || !effectiveQuality || typeof value.usedLocationOverride !== 'boolean') return null
+  if (!materialId || !effectiveQuality || typeof value.usedLocationOverride !== 'boolean')
+    return null
   const reachableQuantizedValues = value.reachableQuantizedValues.every(
-    (entry): entry is number => typeof entry === 'number' && Number.isFinite(entry) && entry >= 0 && entry <= 1_000
+    (entry): entry is number =>
+      typeof entry === 'number' && Number.isFinite(entry) && entry >= 0 && entry <= 1_000
   )
     ? (value.reachableQuantizedValues as number[])
     : null
@@ -472,12 +491,18 @@ function parseContributionMaterial(value: unknown): MiningContributionMaterial |
 }
 
 function parseContribution(value: unknown): MiningContribution | null {
-  if (!isRecord(value) || !isBoundedArray(value.materials, MAX_MATERIALS_PER_CONTRIBUTION)) return null
+  if (!isRecord(value) || !isBoundedArray(value.materials, MAX_MATERIALS_PER_CONTRIBUTION))
+    return null
   const harvestablePresetId = readGuid(value, 'harvestablePresetId')
   const entityId = readGuid(value, 'entityId')
   const relativeProbability = readUnitInterval(value, 'relativeProbability')
   const clusterId = readNullableGuid(value, 'clusterId')
-  if (!harvestablePresetId || !entityId || relativeProbability === null || clusterId === undefined) {
+  if (
+    !harvestablePresetId ||
+    !entityId ||
+    relativeProbability === null ||
+    clusterId === undefined
+  ) {
     return null
   }
   const materials = value.materials.map(parseContributionMaterial)
@@ -492,7 +517,8 @@ function parseContribution(value: unknown): MiningContribution | null {
 }
 
 function parseProviderGroup(value: unknown): MiningProviderGroup | null {
-  if (!isRecord(value) || !isBoundedArray(value.contributions, MAX_CONTRIBUTIONS_PER_GROUP)) return null
+  if (!isRecord(value) || !isBoundedArray(value.contributions, MAX_CONTRIBUTIONS_PER_GROUP))
+    return null
   const groupName = readString(value, 'groupName', 300)
   const groupProbability = readUnitInterval(value, 'groupProbability')
   if (!groupName || groupProbability === null) return null
@@ -599,13 +625,19 @@ export function parseMiningExtractorPayload(value: unknown): MiningCatalog {
     throw new TypeError('The game data extractor returned an unsupported mining response.')
   }
   if (value.materials.length < MIN_MATERIAL_COUNT) {
-    throw new TypeError('The installed game data did not contain a complete mining material catalog.')
+    throw new TypeError(
+      'The installed game data did not contain a complete mining material catalog.'
+    )
   }
   if (value.entities.length < MIN_ENTITY_COUNT) {
-    throw new TypeError('The installed game data did not contain a complete mineable entity catalog.')
+    throw new TypeError(
+      'The installed game data did not contain a complete mineable entity catalog.'
+    )
   }
   if (value.providers.length < MIN_PROVIDER_COUNT) {
-    throw new TypeError('The installed game data did not contain a complete mining provider catalog.')
+    throw new TypeError(
+      'The installed game data did not contain a complete mining provider catalog.'
+    )
   }
 
   const gameVersion = readString(value, 'gameVersion', 300)
@@ -676,7 +708,9 @@ export function parseMiningExtractorPayload(value: unknown): MiningCatalog {
 
   for (const provider of typedProviders) {
     if (provider.locationId && !locationIds.has(provider.locationId.toLowerCase())) {
-      throw new Error(`Provider '${provider.key}' references an unknown location identifier: ${provider.locationId}.`)
+      throw new Error(
+        `Provider '${provider.key}' references an unknown location identifier: ${provider.locationId}.`
+      )
     }
     for (const group of provider.groups) {
       for (const contribution of group.contributions) {
@@ -705,7 +739,9 @@ export function parseMiningExtractorPayload(value: unknown): MiningCatalog {
     const providerIds = new Set(typedProviders.map((provider) => provider.id.toLowerCase()))
     for (const providerId of location.providerIds) {
       if (!providerIds.has(providerId.toLowerCase())) {
-        throw new Error(`Location '${location.name}' references an unknown provider identifier: ${providerId}.`)
+        throw new Error(
+          `Location '${location.name}' references an unknown provider identifier: ${providerId}.`
+        )
       }
     }
   }
@@ -725,9 +761,6 @@ export function parseMiningExtractorPayload(value: unknown): MiningCatalog {
 /**
  * Runs the local game data extractor in `mining` mode against the given
  * Data.p4k archive and returns the strictly validated mining catalog.
- *
- * Not wired into the app yet: no caching, no IPC exposure. A dependent
- * change will own surfacing this to the renderer.
  */
 export async function extractMiningCatalog(
   extractorPath: string,
@@ -743,9 +776,12 @@ export async function extractMiningCatalog(
     return parseMiningExtractorPayload(JSON.parse(stdout) as unknown)
   } catch (error) {
     if (isMissingFileError(error)) {
-      throw new Error(`Installed game mining data could not be extracted: extractor not found at ${extractorPath}.`, {
-        cause: error
-      })
+      throw new Error(
+        `Installed game mining data could not be extracted: extractor not found at ${extractorPath}.`,
+        {
+          cause: error
+        }
+      )
     }
     const stderr = isRecord(error) && typeof error.stderr === 'string' ? error.stderr.trim() : ''
     const message = stderr || (error instanceof Error ? error.message : String(error))
@@ -753,4 +789,146 @@ export async function extractMiningCatalog(
       cause: error
     })
   }
+}
+
+// --- Full-catalog caching --------------------------------------------------------------
+
+export interface MiningCatalogCacheSource {
+  archiveFingerprint: string
+  channel: string
+}
+
+interface MiningCatalogCache {
+  schemaVersion: number
+  savedAt: string
+  source: MiningCatalogCacheSource
+  catalog: MiningCatalog
+}
+
+export interface LoadMiningCatalogOptions {
+  cachePath: string
+  extractorPath: string
+  archivePath: string
+  archiveFingerprint: string
+  channel: string
+  forceRefresh?: boolean
+}
+
+export interface LoadMiningCatalogResult {
+  catalog: MiningCatalog
+  /** `true` when served from `cachePath` without re-running the extractor. */
+  fromCache: boolean
+  updatedAt: string
+  /** Set when a cache existed but could not be used (e.g. corrupted), so extraction ran instead. */
+  cacheWarning: string | null
+}
+
+function parseCatalogCacheSource(value: unknown): MiningCatalogCacheSource | null {
+  if (
+    !isRecord(value) ||
+    typeof value.archiveFingerprint !== 'string' ||
+    value.archiveFingerprint.length === 0 ||
+    typeof value.channel !== 'string' ||
+    value.channel.length === 0
+  ) {
+    return null
+  }
+  return { archiveFingerprint: value.archiveFingerprint, channel: value.channel }
+}
+
+async function readMiningCatalogCache(cachePath: string): Promise<MiningCatalogCache | null> {
+  let payload: unknown
+  try {
+    payload = JSON.parse(await fs.readFile(cachePath, 'utf8'))
+  } catch (error) {
+    if (isMissingFileError(error)) return null
+    throw new Error(
+      `The mining catalog cache could not be read: ${error instanceof Error ? error.message : String(error)}`,
+      {
+        cause: error
+      }
+    )
+  }
+
+  if (
+    !isRecord(payload) ||
+    typeof payload.schemaVersion !== 'number' ||
+    typeof payload.savedAt !== 'string' ||
+    !payload.savedAt
+  ) {
+    throw new Error('The mining catalog cache has an unexpected shape.')
+  }
+
+  const source = parseCatalogCacheSource(payload.source)
+  if (!source) {
+    throw new Error('The mining catalog cache has an invalid source record.')
+  }
+
+  // Strictly re-validate the cached catalog with the same parser used for a fresh extraction, so
+  // a hand-edited or corrupted cache file cannot silently smuggle unvalidated data into the app.
+  const catalog = parseMiningExtractorPayload(payload.catalog)
+
+  return {
+    schemaVersion: payload.schemaVersion,
+    savedAt: payload.savedAt,
+    source,
+    catalog
+  }
+}
+
+async function writeMiningCatalogCache(
+  cachePath: string,
+  source: MiningCatalogCacheSource,
+  catalog: MiningCatalog
+): Promise<string> {
+  const savedAt = new Date().toISOString()
+  const cache: MiningCatalogCache = {
+    schemaVersion: CATALOG_CACHE_SCHEMA_VERSION,
+    savedAt,
+    source,
+    catalog
+  }
+  await fs.mkdir(dirname(cachePath), { recursive: true })
+  const temporaryPath = `${cachePath}.tmp`
+  await fs.writeFile(temporaryPath, `${JSON.stringify(cache, null, 2)}\n`, 'utf8')
+  await fs.rename(temporaryPath, cachePath)
+  return savedAt
+}
+
+/**
+ * Loads the full local `MiningCatalog`, preferring a cache hit keyed on schema version, archive
+ * fingerprint, and channel over re-running the extractor. Invalidated whenever the fingerprint or
+ * channel changes (a different install/update was selected), the schema version bumps, or
+ * `forceRefresh` is requested. A corrupt/unreadable cache never blocks loading - it is treated as
+ * a miss and surfaced via `cacheWarning` so callers can report it, mirroring the existing
+ * material-signature cache's behavior. A failed extraction still throws explicitly.
+ */
+export async function loadMiningCatalog(
+  options: LoadMiningCatalogOptions
+): Promise<LoadMiningCatalogResult> {
+  let cache: MiningCatalogCache | null = null
+  let cacheWarning: string | null = null
+  try {
+    cache = await readMiningCatalogCache(options.cachePath)
+  } catch (error) {
+    cacheWarning = error instanceof Error ? error.message : String(error)
+  }
+
+  if (
+    !options.forceRefresh &&
+    cache &&
+    cache.schemaVersion === CATALOG_CACHE_SCHEMA_VERSION &&
+    cache.source.archiveFingerprint === options.archiveFingerprint &&
+    cache.source.channel === options.channel
+  ) {
+    return { catalog: cache.catalog, fromCache: true, updatedAt: cache.savedAt, cacheWarning }
+  }
+
+  const catalog = await extractMiningCatalog(options.extractorPath, options.archivePath)
+  const updatedAt = await writeMiningCatalogCache(
+    options.cachePath,
+    { archiveFingerprint: options.archiveFingerprint, channel: options.channel },
+    catalog
+  )
+  return { catalog, fromCache: false, updatedAt, cacheWarning }
 }

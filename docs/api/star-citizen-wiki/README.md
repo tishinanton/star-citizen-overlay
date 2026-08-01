@@ -18,9 +18,16 @@ The API exposes structured data assembled by the Star Citizen Wiki project:
 - unified search and a small authenticated user/image-similarity surface.
 
 For Rockfall, this API supplies commodity metadata, locations, and a fallback
-signature source. Primary base signatures come from the user's installed game
-resources. Neither source is a live game scanner or can report rocks currently
-near a player.
+signature source **only when no usable installed game archive is available**.
+When a valid local mining catalog is present (see
+[`docs/game-data/README.md`](../../game-data/README.md#local-mining-catalog-extraction-wired)),
+Rockfall sources material identity, mining-site probability, quality, and
+composition directly from the game archive instead, and narrows its use of
+this API to two roles: full fallback (list + detail) when no archive/catalog
+is usable, and detail-only **location-identity enrichment** for the handful
+of real ship-mining providers the local extractor cannot tie to a single
+`StarMapObject`. Neither source is a live game scanner or can report rocks
+currently near a player.
 
 ## Connection and conventions
 
@@ -77,7 +84,9 @@ The commodity resources expose:
   `min_proximity`, `max_proximity`, `probability`,
   `probability_percent`, and variation parameters.
 
-Rockfall requests this list for commodity metadata and API fallback values:
+Rockfall requests this list only as a fallback, for commodity metadata and
+API fallback values, when no usable installed game archive/catalog is
+available:
 
 ```text
 GET /api/commodities?filter[mineable]=true&filter[kind]=mineable&page[size]=200
@@ -87,6 +96,15 @@ When installed game extraction is unavailable, Rockfall keeps records with a
 positive numeric `signature`. It caches mapped results and calculates
 `signature × rock count` locally. The API does not observe or count a player's
 nearby cluster.
+
+When a valid local mining catalog **is** available, Rockfall never calls the
+list endpoint above. It instead calls `GET /api/commodities/{commodity}` -
+solely to resolve a named location for real ship-mining providers the local
+catalog cannot tie to a single `StarMapObject` - joining the detail
+response's per-resource `provider_names` field against the local provider
+key. Only the matched location's name/system/type/parent are taken from this
+response; probability, quality, composition, area modifiers, and clustering
+always come from the local catalog on this path.
 
 ### Factions
 

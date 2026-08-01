@@ -25,3 +25,19 @@ export function formatMiningQualityRange(location: MiningLocationRecommendation)
   const minimum = qualityFormatter.format(location.minQuality / 10)
   return minimum === maximum ? `${maximum}%` : `${minimum}–${maximum}%`
 }
+
+/**
+ * Formats the material's share of an entity's mass as a range (min–max), mirroring
+ * `formatMiningQualityRange`. Falls back to a ceiling-only phrasing when no minimum is known
+ * (legacy cached rows, or a source that never reported one), and to an "unknown" phrasing when
+ * neither bound is available.
+ */
+export function formatMiningCompositionRange(location: MiningLocationRecommendation): string {
+  if (location.maxComposition === null) return 'Unknown'
+
+  const maximum = qualityFormatter.format(location.maxComposition)
+  if (location.minComposition === null) return `Up to ${maximum}%`
+
+  const minimum = qualityFormatter.format(location.minComposition)
+  return minimum === maximum ? `${maximum}%` : `${minimum}–${maximum}%`
+}

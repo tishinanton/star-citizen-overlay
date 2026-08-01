@@ -986,6 +986,13 @@
   white-space: nowrap;
 }
 
+.mining-location-table__identity-note {
+  padding: 1px 6px;
+  border: 1px solid var(--edge);
+  border-radius: var(--radius-xs);
+  color: var(--muted) !important;
+}
+
 .mining-location-table__site > small,
 .mining-location-table__probability small,
 .mining-location-table__yield small {
@@ -1193,7 +1200,8 @@
   background: var(--success);
 }
 
-.mining-location-source--cached > span {
+.mining-location-source--cached > span,
+.mining-location-source--game-cached > span {
   background: var(--warning);
 }
 

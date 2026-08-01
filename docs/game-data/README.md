@@ -239,15 +239,64 @@ The implementation lives in:
 - [`src\main\mining-catalog.ts`](../../src/main/mining-catalog.ts) (see below); and
 - [`src\main\static-data-publication.ts`](../../src/main/static-data-publication.ts).
 
-## Local mining catalog extraction (layer 1, not yet wired)
+## Local mining catalog extraction (wired)
 
 `mining` mode and `src\main\mining-catalog.ts` extract the complete installed
 mining catalog - materials, every current mineable entity variant, harvest
 locations, provider probability groups/contributions, quality quantization,
-and cluster presets - directly from Game2.dcb. **The Electron app does not
-consume this yet**; `mining-data.ts` and `mining-locations.ts` still source
-material metadata and location recommendations from the Star Citizen Wiki API.
-Wiring the app to this local catalog is a separate, dependent change.
+and cluster presets - directly from Game2.dcb. **The Electron app prefers this
+catalog for every mining value it can supply.** `mining-data.ts` builds
+`MiningMaterial` rows directly from catalog identity/composition
+(`buildMaterialsFromCatalog`), and `mining-locations.ts` derives site
+recommendations (group probability, quality distribution, composition,
+quantized quality-roll chance) directly from the catalog
+(`buildLocalMiningLocations`). The Star Citizen Wiki API is used only in two
+reduced roles once a usable game archive/catalog is present:
+
+- **Full fallback** - when no archive is configured, extraction fails, or the
+  parsed catalog is unusable, `mining-data.ts` falls back to the Wiki
+  commodity-list endpoint (then the on-disk material cache, then bundled
+  defaults) exactly as before this layer, and `mining-locations.ts` falls back
+  to the full Wiki-driven location pipeline (`state: 'live'`/`'cached'`).
+- **Location-identity enrichment only** - on a Sites request, for the ~21
+  real ship-mining providers the extractor cannot tie to a single
+  `StarMapObject` (see below), the Wiki commodity-**detail** endpoint is
+  queried solely to resolve a named location for that provider, joining on
+  the API's `resources[].provider_names` field against the local provider
+  key. Only the location's name/system/type/parent are taken from the Wiki;
+  probability, quality, composition, area modifiers, and clustering always
+  come from the local catalog. A single local provider can map to one or many
+  named Wiki locations (e.g. "Aaron Halo" resolves to dozens of individually
+  named `ARC*` asteroid-cluster locations); each becomes its own row sharing
+  the same authoritative local numbers. If enrichment is unavailable or finds
+  no match, the provider is kept as a first-class row with a transparent,
+  technical provider-derived label and unknown hierarchy - it is never
+  silently dropped or given a fabricated StarMap name.
+
+The full parsed `MiningCatalog` is cached on disk
+(`loadMiningCatalog`/`mining-catalog.json`, keyed by schema version, archive
+fingerprint, and channel, written atomically) so normal startup reuses the
+cached catalog instead of repeating the ~5s extraction; the cache is
+invalidated on a Game files selection change, an archive fingerprint change,
+or a forced refresh. The existing `mining-signatures.json` material cache and
+`mining-locations.json` location cache continue to work unchanged for their
+respective fallback chains, extended with backward-compatible fields
+(`identitySource`, `minComposition`) that default sensibly for older cached
+entries.
+
+The 50%+ quality-roll chance is computed by a shared scoring pipeline
+(`src\main\mining-estimator.ts`) used by both the local and Wiki-fallback
+paths. On the local path, the chance is **quantization-aware**: rather than
+assuming a raw truncated-normal/uniform threshold over the full quality
+range, it integrates that distribution over the actual quantization bands
+whose `mappedValue >= 500`, intersected with each contribution's effective
+quality min/max (including any location-specific override). This is a real
+and sometimes large correction - for Hadanite at Aberdeen, the naive
+raw-threshold estimate over the same distribution is 31.06%, while the
+quantization-aware estimate is 0.75%, because most of the distribution's mass
+falls into quantization bands well below the threshold. When a material has
+no quantization bands (always true on the Wiki-fallback path), the estimator
+falls back to the raw-threshold calculation unchanged.
 
 ```text
 Data.p4k
@@ -319,11 +368,12 @@ Named cave POI tier placement (poor/medium/rich for a specific named cave)
 lives in socpak/prefab data outside Game2.dcb; `mining` mode does not
 fabricate it and instead always emits one warning noting the limitation.
 
-`src\main\mining-catalog.ts` is deliberately separate from `mining-data.ts` /
-`mining-locations.ts`: it is a strict, self-contained parser
-(`parseMiningExtractorPayload`) and process runner (`extractMiningCatalog`)
-with no caching and no IPC exposure, so a later change can wire it into the
-app without disturbing the currently shipping Wiki-backed path.
+`src\main\mining-catalog.ts` remains a strict, self-contained parser
+(`parseMiningExtractorPayload`) and process runner (`extractMiningCatalog`),
+now with an added atomic on-disk cache (`loadMiningCatalog`); it has no IPC
+exposure of its own; the app consumes it exclusively through
+`mining-data.ts` (materials) and `mining-locations.ts` (sites) in
+`src\main\index.ts`.
 
 ### Static publication boundary
 

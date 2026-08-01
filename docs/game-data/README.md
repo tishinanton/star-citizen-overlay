@@ -313,10 +313,11 @@ combined chance is `0.751%`. At target `750`, the conditional chance is
 
 The estimator assumes a material's quantization bands are disjoint and
 renormalizes against their covered mass. `effectiveQuality` already includes
-location overrides and `qualityScale`; `curveExponent` is intentionally not
-reapplied. When a material has no quantization bands, the Wiki fallback uses
-the raw-threshold calculation and cannot show a per-quantized-value
-distribution.
+matching location overrides and each composition part's `qualityScale`;
+repeated parts for the same material are combined. `curveExponent` is
+intentionally not reapplied. When a material has no quantization bands, the
+Wiki fallback uses the raw-threshold calculation and cannot show a
+per-quantized-value distribution.
 
 ```text
 Data.p4k
@@ -378,11 +379,10 @@ Two notable joins that are not direct DataForge references:
   element's raw weight divided by the **sum of sibling weights in the same
   group** (not a flat `/100`) - groups do not always sum to 100.
 
-Quantization "reachable values" are computed by overlapping each
-contribution's effective quality range (a material's default distribution,
-or its location-specific override when the provider resolves to that
-location) against the material's quantization bands, then taking the
-distinct, sorted `mappedValue`s.
+Quantization "reachable values" are computed by overlapping each composition
+part's scaled effective quality range (a material's default distribution or a
+matching location-specific override) against the material's quantization
+bands, then taking the distinct, sorted `mappedValue`s.
 
 Named cave POI tier placement (poor/medium/rich for a specific named cave)
 lives in socpak/prefab data outside Game2.dcb; `mining` mode does not

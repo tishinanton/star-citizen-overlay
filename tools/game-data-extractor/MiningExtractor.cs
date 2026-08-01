@@ -783,6 +783,22 @@ internal static partial class MiningExtractor
             buckets);
     }
 
+    private static GameMiningQualityDistribution ScaleQualityDistribution(
+        GameMiningQualityDistribution distribution,
+        double qualityScale)
+    {
+        if (!double.IsFinite(qualityScale) || qualityScale < 0)
+        {
+            throw new InvalidDataException($"Mineable composition has an invalid quality scale: {qualityScale}.");
+        }
+
+        return new GameMiningQualityDistribution(
+            distribution.Min * qualityScale,
+            distribution.Max * qualityScale,
+            distribution.Mean * qualityScale,
+            distribution.StdDev * qualityScale);
+    }
+
     private static IReadOnlyList<GameMiningContributionMaterial> BuildContributionMaterials(
         GameMiningEntity entity,
         IReadOnlyDictionary<Guid, GameMiningMaterial> materialById,
@@ -801,8 +817,9 @@ internal static partial class MiningExtractor
                 ? material.QualityLocationOverrides.FirstOrDefault(entry =>
                     string.Equals(entry.LocationId, locationId, StringComparison.OrdinalIgnoreCase))
                 : null;
-            var effective = overrideEntry?.Distribution ?? material.DefaultQuality;
-            if (effective is null) continue;
+            var baseQuality = overrideEntry?.Distribution ?? material.DefaultQuality;
+            if (baseQuality is null) continue;
+            var effective = ScaleQualityDistribution(baseQuality, part.QualityScale);
 
             var reachable = material.QuantizationBands
                 .Where(band => band.Start <= effective.Max && band.End >= effective.Min)
@@ -1035,4 +1052,3 @@ internal static partial class MiningExtractor
             .ToArray();
     }
 }
-

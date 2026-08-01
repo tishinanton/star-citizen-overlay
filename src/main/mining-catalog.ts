@@ -12,7 +12,7 @@ import { promisify } from 'node:util'
 const execFileAsync = promisify(execFile)
 
 const EXTRACTOR_SCHEMA_VERSION = 1
-const CATALOG_CACHE_SCHEMA_VERSION = 1
+const CATALOG_CACHE_SCHEMA_VERSION = 2
 
 const MIN_MATERIAL_COUNT = 10
 const MIN_ENTITY_COUNT = 20

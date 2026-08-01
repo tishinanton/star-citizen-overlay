@@ -45,9 +45,10 @@ Game2.dcb:
   (`groupName`, `groupProbability` normalized 0..1), each group's
   contributions (`relativeProbability` normalized as element weight / sum of
   sibling weights in that group - not a flat /100), the resolved mineable
-  entity, its cluster preset reference, and per-contribution effective
-  quality (using a location's quality override when one applies) plus the
-  distinct, sorted quantized values reachable within that quality range. Any
+  entity, its cluster preset reference, and per-composition-part effective
+  quality (using a matching location override and applying that part's
+  qualityScale) plus the distinct, sorted quantized values reachable within
+  that quality range. Any
   `<areas>` global/per-element modifiers are captured as area exceptions,
   resolved through the manual weak-pointer struct lookup described below.
 - Clusters: `HarvestableClusterPreset` records (probability plus size/

@@ -229,8 +229,8 @@ test('buildLocalMiningLocations derives the resolved Aberdeen row entirely from 
   assert.equal(aberdeen.identitySource, 'game')
   assert.equal(aberdeen.minComposition, 50)
   assert.equal(aberdeen.maxComposition, 100)
-  assert.equal(aberdeen.minQuality, Math.min(...REACHABLE_VALUES))
-  assert.equal(aberdeen.maxQuality, Math.max(...REACHABLE_VALUES))
+  assert.equal(aberdeen.minQuality, HADANITE_QUALITY.min)
+  assert.equal(aberdeen.maxQuality, HADANITE_QUALITY.max)
   assert.ok(Math.abs((aberdeen.rockSpawnProbability ?? 0) - 0.25 * 0.06) < 1e-9)
   assert.ok(aberdeen.qualityThresholdProbability !== null)
   assert.ok(
@@ -271,6 +271,47 @@ test('buildLocalMiningLocations applies a user-set raw quality threshold', () =>
         .filter((entry) => entry.quality >= 750)
         .reduce((sum, entry) => sum + entry.probability, 0) -
         (aberdeen.qualityThresholdProbability ?? 0)
+    ) < 1e-9
+  )
+})
+
+test('buildLocalMiningLocations combines repeated material parts and keeps their raw bounds', () => {
+  const catalog = buildCatalog([resolvedProvider()])
+  const lowQuality = { min: 100, max: 500, mean: 250, stdDev: 100 }
+  catalog.providers[0].groups[0].contributions[0].materials.push({
+    materialId: HADANITE_MATERIAL_ID,
+    effectiveQuality: lowQuality,
+    usedLocationOverride: false,
+    reachableQuantizedValues: [274, 526]
+  })
+  catalog.entities[0].composition.push({
+    materialId: HADANITE_MATERIAL_ID,
+    minPercentage: 10,
+    maxPercentage: 40,
+    probability: 1,
+    curveExponent: 1,
+    qualityScale: 0.5,
+    instability: 200,
+    resistance: 0
+  })
+
+  const locations = buildLocalMiningLocations(catalog, hadaniteMaterial(), HADANITE_MATERIAL_ID)
+  const aberdeen = locations.find((entry) => entry.id === ABERDEEN_ID)
+  assert.ok(aberdeen)
+  assert.equal(aberdeen.minQuality, lowQuality.min)
+  assert.equal(aberdeen.maxQuality, HADANITE_QUALITY.max)
+  assert.equal(aberdeen.minComposition, 10)
+  assert.equal(aberdeen.maxComposition, 100)
+
+  const highChance = estimateQuantizedThresholdProbability(HADANITE_BANDS, HADANITE_QUALITY)
+  const lowChance = estimateQuantizedThresholdProbability(HADANITE_BANDS, lowQuality)
+  const expectedChance = 1 - (1 - highChance) * (1 - lowChance)
+  assert.ok(Math.abs((aberdeen.qualityThresholdProbability ?? 0) - expectedChance) < 1e-9)
+  assert.ok(
+    Math.abs(
+      aberdeen.quantizationProbabilities
+        .filter((entry) => entry.quality >= 500)
+        .reduce((sum, entry) => sum + entry.probability, 0) - expectedChance
     ) < 1e-9
   )
 })

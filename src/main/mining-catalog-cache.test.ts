@@ -109,7 +109,7 @@ test('serves a fingerprint/channel-matching cache hit without invoking the extra
     await writeFile(
       cachePath,
       JSON.stringify({
-        schemaVersion: 1,
+        schemaVersion: 2,
         savedAt,
         source: { archiveFingerprint: 'fp-1', channel: 'LIVE' },
         catalog
@@ -140,7 +140,7 @@ test('misses the cache and re-extracts when the archive fingerprint changes', as
     await writeFile(
       cachePath,
       JSON.stringify({
-        schemaVersion: 1,
+        schemaVersion: 2,
         savedAt: '2024-01-01T00:00:00.000Z',
         source: { archiveFingerprint: 'fp-old', channel: 'LIVE' },
         catalog: buildValidCatalogPayload('4.0.0-LIVE')
@@ -173,7 +173,7 @@ test('misses the cache and re-extracts when the channel changes', async () => {
     await writeFile(
       cachePath,
       JSON.stringify({
-        schemaVersion: 1,
+        schemaVersion: 2,
         savedAt: '2024-01-01T00:00:00.000Z',
         source: { archiveFingerprint: 'fp-1', channel: 'LIVE' },
         catalog: buildValidCatalogPayload('4.0.0-LIVE')
@@ -202,7 +202,7 @@ test('misses the cache and re-extracts when the cache schema version is stale', 
     await writeFile(
       cachePath,
       JSON.stringify({
-        schemaVersion: 0,
+        schemaVersion: 1,
         savedAt: '2024-01-01T00:00:00.000Z',
         source: { archiveFingerprint: 'fp-1', channel: 'LIVE' },
         catalog: buildValidCatalogPayload('4.0.0-LIVE')
@@ -231,7 +231,7 @@ test('re-extracts on a forced refresh even when the cache otherwise matches', as
     await writeFile(
       cachePath,
       JSON.stringify({
-        schemaVersion: 1,
+        schemaVersion: 2,
         savedAt: '2024-01-01T00:00:00.000Z',
         source: { archiveFingerprint: 'fp-1', channel: 'LIVE' },
         catalog: buildValidCatalogPayload('4.0.0-LIVE')
@@ -285,7 +285,7 @@ test('falls back to extraction with a cacheWarning when the cached catalog fails
     await writeFile(
       cachePath,
       JSON.stringify({
-        schemaVersion: 1,
+        schemaVersion: 2,
         savedAt: '2024-01-01T00:00:00.000Z',
         source: { archiveFingerprint: 'fp-1', channel: 'LIVE' },
         catalog: invalidCatalog

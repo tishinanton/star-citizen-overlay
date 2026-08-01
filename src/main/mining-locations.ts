@@ -341,15 +341,25 @@ function scoreProvider(
 
   for (const group of provider.groups) {
     for (const contribution of group.contributions) {
-      const contributionMaterial = contribution.materials.find(
+      const contributionMaterials = contribution.materials.filter(
         (entry) => entry.materialId === catalogMaterialId
       )
-      if (!contributionMaterial) continue
+      if (contributionMaterials.length === 0) continue
 
       const entity = entitiesById.get(contribution.entityId)
-      const compositionPart =
-        entity?.composition.find((part) => part.materialId === catalogMaterialId) ?? null
-      const reachable = contributionMaterial.reachableQuantizedValues
+      const compositionParts =
+        entity?.composition.filter((part) => part.materialId === catalogMaterialId) ?? []
+      const materialProbabilities = contributionMaterials.map((material) => ({
+        highQualityProbability: estimateQuantizedThresholdProbability(
+          catalogMaterial.quantizationBands,
+          material.effectiveQuality,
+          qualityThreshold
+        ),
+        quantizationProbabilities: estimateQuantizedValueProbabilities(
+          catalogMaterial.quantizationBands,
+          material.effectiveQuality
+        )
+      }))
 
       const areaModifiers = new Map<string, number>()
       for (const area of provider.areas) {
@@ -363,23 +373,35 @@ function scoreProvider(
         groupName: group.groupName,
         groupProbability: group.groupProbability,
         relativeProbability: contribution.relativeProbability,
-        highQualityProbability: estimateQuantizedThresholdProbability(
-          catalogMaterial.quantizationBands,
-          contributionMaterial.effectiveQuality,
-          qualityThreshold
+        highQualityProbability:
+          1 -
+          materialProbabilities.reduce(
+            (noHighQuality, material) => noHighQuality * (1 - material.highQualityProbability),
+            1
+          ),
+        quantizationProbabilities:
+          materialProbabilities.length === 1
+            ? materialProbabilities[0].quantizationProbabilities
+            : combineIndependentQuantizationProbabilities(
+                materialProbabilities.map((material) => ({
+                  rockSpawnProbability: 1,
+                  quantizationProbabilities: material.quantizationProbabilities
+                }))
+              ),
+        minQuality: Math.min(
+          ...contributionMaterials.map((material) => material.effectiveQuality.min)
         ),
-        quantizationProbabilities: estimateQuantizedValueProbabilities(
-          catalogMaterial.quantizationBands,
-          contributionMaterial.effectiveQuality
+        maxQuality: Math.max(
+          ...contributionMaterials.map((material) => material.effectiveQuality.max)
         ),
-        // Prefer the quantized reachable output range over the raw effective distribution: it is
-        // what the game can actually roll to, given this material's quantization bands.
-        minQuality:
-          reachable.length > 0 ? Math.min(...reachable) : contributionMaterial.effectiveQuality.min,
-        maxQuality:
-          reachable.length > 0 ? Math.max(...reachable) : contributionMaterial.effectiveQuality.max,
-        minComposition: compositionPart?.minPercentage ?? null,
-        maxComposition: compositionPart?.maxPercentage ?? null,
+        minComposition:
+          compositionParts.length > 0
+            ? Math.min(...compositionParts.map((part) => part.minPercentage))
+            : null,
+        maxComposition:
+          compositionParts.length > 0
+            ? Math.max(...compositionParts.map((part) => part.maxPercentage))
+            : null,
         areaModifiers
       })
     }

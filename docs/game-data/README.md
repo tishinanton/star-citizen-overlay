@@ -235,8 +235,74 @@ The implementation lives in:
 - [`src\main\game-data.ts`](../../src/main/game-data.ts);
 - [`src\main\blueprint-data.ts`](../../src/main/blueprint-data.ts); and
 - [`src\main\mining-data.ts`](../../src/main/mining-data.ts);
-- [`src\main\faction-data.ts`](../../src/main/faction-data.ts); and
+- [`src\main\faction-data.ts`](../../src/main/faction-data.ts);
+- [`src\main\mining-catalog.ts`](../../src/main/mining-catalog.ts) (see below); and
 - [`src\main\static-data-publication.ts`](../../src/main/static-data-publication.ts).
+
+## Local mining catalog extraction (layer 1, not yet wired)
+
+`mining` mode and `src\main\mining-catalog.ts` extract the complete installed
+mining catalog - materials, every current mineable entity variant, harvest
+locations, provider probability groups/contributions, quality quantization,
+and cluster presets - directly from Game2.dcb. **The Electron app does not
+consume this yet**; `mining-data.ts` and `mining-locations.ts` still source
+material metadata and location recommendations from the Star Citizen Wiki API.
+Wiring the app to this local catalog is a separate, dependent change.
+
+```text
+Data.p4k
+  -> Data/Game2.dcb
+  -> libs/foundry/records/entities/mineable/*.xml
+  -> MineableParams -> MineableComposition -> MineableCompositionPart
+  -> MineableElement -> ResourceType (+ quality distribution/quantization)
+  -> libs/foundry/records/harvestable/providerpresets/*.xml
+  -> HarvestableProviderPreset -> HarvestableElementGroup -> HarvestableElement
+  -> HarvestablePreset -> entityClass (joins back to the mineable entity)
+  -> HarvestableClusterPreset
+  -> libs/foundry/records/starmap/* (StarMapObject location/parent/system)
+  -> Data/Localization/english/global.ini
+```
+
+Validated against the installed LIVE build (`4.9.188.23497-LIVE`): 38
+materials, 76 mineable entities, 26 resolvable locations, 49 provider presets,
+and 8 cluster presets, extracted in roughly 8-11 seconds producing a ~790 KB
+payload. The verified Hadanite/Aberdeen chain from the task brief reproduces
+exactly: material default quality distribution `min 201, max 1000, mean 201,
+stdDev 298`; quantization bands mapping to `274, 526, 665, 762, 867, 916, 959,
+1000`; provider `HPP_Stanton1b` group `FPS_Mineables` probability `0.25`;
+Hadanite's relative probability within that group `0.06`; cluster
+`MiningCluster_Med_Lrg` probability `1` with buckets `(0.2, 10-22, 3-5)`,
+`(0.3, 13-24, 2-8)`, `(0.5, 15-25, 1.5-10)`; and zero area overrides for that
+provider.
+
+Two notable joins that are not direct DataForge references:
+
+- **Provider -> location.** No record references a `HarvestableProviderPreset`
+  by GUID. The link is a naming convention: stripping the `HPP_` prefix from
+  a provider's local record name and matching it against `StarMapObject`
+  local names resolves 26 of 49 providers. The remaining 23 (asteroid belts,
+  Lagrange points, event/derelict spawns) are not tied to a single celestial
+  body in Game2.dcb; they are still included with `locationId: null` and one
+  bundled warning, never fabricated or dropped.
+- **Relative probability normalization.** `relativeProbability` is each
+  element's raw weight divided by the **sum of sibling weights in the same
+  group** (not a flat `/100`) - groups do not always sum to 100.
+
+Quantization "reachable values" are computed by overlapping each
+contribution's effective quality range (a material's default distribution,
+or its location-specific override when the provider resolves to that
+location) against the material's quantization bands, then taking the
+distinct, sorted `mappedValue`s.
+
+Named cave POI tier placement (poor/medium/rich for a specific named cave)
+lives in socpak/prefab data outside Game2.dcb; `mining` mode does not
+fabricate it and instead always emits one warning noting the limitation.
+
+`src\main\mining-catalog.ts` is deliberately separate from `mining-data.ts` /
+`mining-locations.ts`: it is a strict, self-contained parser
+(`parseMiningExtractorPayload`) and process runner (`extractMiningCatalog`)
+with no caching and no IPC exposure, so a later change can wire it into the
+app without disturbing the currently shipping Wiki-backed path.
 
 ### Static publication boundary
 

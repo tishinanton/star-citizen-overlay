@@ -6,16 +6,75 @@ signatures. `blueprints` mode prints localized crafting recipes, output items,
 default availability, reward missions, and allowlisted loadout icons converted
 from packaged DDS files to PNG data URLs. `factions` mode prints localized
 faction profiles and their linked reputation scopes, standing thresholds,
-drift, perks, and gate flags.
+drift, perks, and gate flags. `mining` mode prints the complete installed
+mining catalog: materials, mineable entity variants, harvest locations,
+provider probability groups/contributions, quality quantization, and cluster
+presets (see below).
 
 Usage:
 
-Rockfall.GameDataExtractor <Data.p4k|Game2.dcb> [signatures|blueprints|factions]
+Rockfall.GameDataExtractor <Data.p4k|Game2.dcb> [signatures|blueprints|factions|mining]
 
-Blueprint and faction modes require Data.p4k. They read the adjacent English
-localization pack when available and otherwise read that allowlisted file from
-the archive. The helper does not read game memory, modify game files, connect
-to the running game, or redistribute extracted assets.
+Blueprint, faction, and mining modes require Data.p4k. They read the adjacent
+English localization pack when available and otherwise read that allowlisted
+file from the archive. The helper does not read game memory, modify game
+files, connect to the running game, or redistribute extracted assets.
+
+Mining mode (MiningExtractor.cs)
+
+Reads the full material/entity/location/provider/cluster chain directly from
+Game2.dcb:
+
+- Materials: one entry per distinct `ResourceType` reachable from a mineable
+  entity's composition, with its English display name, a stable kebab-case
+  slug, density (when the game defines a `GramsPerCubicCentimeter` density
+  unit), per-material instability/resistance (only when consistent across
+  every entity that uses the material - otherwise omitted with a bundled
+  warning, since the true values remain visible per composition part), its
+  default `CraftingQualityDistributionRecord`, any per-location quality
+  overrides, and its `CraftingQualityQuantizationRecord` bands.
+- Entities: every `libs/foundry/records/entities/mineable/` record, classified
+  Ship / Ground Vehicle / FPS using the same filename patterns as
+  `signatures` mode, with its composition parts (material, min/max
+  percentage, probability, curveExponent, qualityScale, and the part's own
+  instability/resistance).
+- Locations: `StarMapObject` records that a provider preset resolves to (see
+  below), with localized name, immediate parent, topmost system ancestor, and
+  `navIcon` as a human-readable type (Moon/Planet/Default/etc).
+- Providers: every `HarvestableProviderPreset`, with its element groups
+  (`groupName`, `groupProbability` normalized 0..1), each group's
+  contributions (`relativeProbability` normalized as element weight / sum of
+  sibling weights in that group - not a flat /100), the resolved mineable
+  entity, its cluster preset reference, and per-contribution effective
+  quality (using a location's quality override when one applies) plus the
+  distinct, sorted quantized values reachable within that quality range. Any
+  `<areas>` global/per-element modifiers are captured as area exceptions,
+  resolved through the manual weak-pointer struct lookup described below.
+- Clusters: `HarvestableClusterPreset` records (probability plus size/
+  proximity variation buckets).
+
+Provider -> location linking: Game2.dcb has no direct reference from a
+`HarvestableProviderPreset` to its owning `StarMapObject`. The link is a
+naming convention confirmed against the installed archive: stripping the
+`HPP_` prefix from a provider's local record name and matching it
+(case-insensitively) against `StarMapObject` local names resolves the large
+majority of providers (including every planet/moon-tied provider). Providers
+that do not resolve this way are asteroid belts, Lagrange points, and event/
+derelict spawns that are not tied to a single celestial body in Game2.dcb;
+these are still included, with `locationId` left null and a single bundled
+warning listing them, rather than fabricated or dropped.
+
+Weak-pointer resolution: some struct fields (single-value `varWeakPointer`,
+used for provider area element pointers) are only exposed by the vendored
+Unforge parser as unresolved `"{StructName}[{VariantIndex}]"` text. The
+extractor resolves these manually by indexing every struct definition by name
+and calling the struct's own `ReadStructAtIndexAsXml` with the parsed variant
+index.
+
+Named cave POI tiers (poor/medium/rich placement for named cave points of
+interest) live in socpak/prefab data outside Game2.dcb and are intentionally
+not extracted; `mining` mode always emits one warning noting this rather than
+fabricating a placement.
 
 The DataForge parser in Vendor/Unforge is derived from dolkensp/unp4k commit
 b492ab14d26280c6ec91c4365ff0faf5f3e24a6b under the MIT License. See

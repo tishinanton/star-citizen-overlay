@@ -305,6 +305,19 @@ export function parseMiningLocationRecommendations(
     .slice(0, MAX_RECOMMENDED_MINING_LOCATIONS)
 }
 
+export function resolvePreferredMiningLocation(
+  locations: readonly MiningLocationRecommendation[],
+  favoriteLocationId: string | undefined
+): MiningLocationRecommendation | null {
+  return (
+    (favoriteLocationId
+      ? locations.find((location) => location.id === favoriteLocationId)
+      : undefined) ??
+    locations[0] ??
+    null
+  )
+}
+
 async function fetchLiveMiningLocations(
   material: MiningMaterial
 ): Promise<MiningLocationRecommendation[]> {

@@ -95,7 +95,10 @@ ranks up to five distinct locations by the estimated chance of a 50% or higher
 quality roll. The estimate combines the reported spawn-group probability,
 relative deposit probability, quality distribution, and any boosted area
 modifier. Location results are cached separately and identify when cached data
-is being shown.
+is being shown. Sites expand inline beneath their material so all ranked
+locations can be compared in one table. Star one location per material to show
+it in the overlay; clearing the star, or an unavailable saved location, falls
+back to the highest-ranked site.
 
 The UEX API is useful for prices, routes, locations, and refinery planning, but
 it does not expose scanner signatures.

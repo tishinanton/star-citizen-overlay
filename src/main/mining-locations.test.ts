@@ -8,7 +8,8 @@ import type { MiningMaterial } from '../shared/contracts'
 import {
   estimateHighQualityProbability,
   loadMiningLocations,
-  parseMiningLocationRecommendations
+  parseMiningLocationRecommendations,
+  resolvePreferredMiningLocation
 } from './mining-locations'
 
 const COMMODITY_UUID = 'commodity-target'
@@ -56,6 +57,9 @@ test('ranks the top five distinct locations by high-quality probability', () => 
   assert.ok(Math.abs(result[2].highQualityProbability - 0.1) < 0.0001)
   assert.equal(result[0].maxQuality, 1_000)
   assert.equal(result[0].maxComposition, 75)
+  assert.equal(resolvePreferredMiningLocation(result, 'location-echo')?.name, 'Echo')
+  assert.equal(resolvePreferredMiningLocation(result, 'missing-location')?.name, 'Alpha')
+  assert.equal(resolvePreferredMiningLocation([], 'location-echo'), null)
 })
 
 test('rejects mismatched or malformed commodity detail payloads', () => {

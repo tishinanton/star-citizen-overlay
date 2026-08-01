@@ -255,10 +255,12 @@ export interface OverlayContentMetrics {
 }
 
 export type SignatureOverrides = Record<string, number>
+export type FavoriteMiningLocationIds = Record<string, string>
 
 export interface OverlaySettings {
   selectedMaterialIds: string[]
   signatureOverrides: SignatureOverrides
+  favoriteMiningLocationIds: FavoriteMiningLocationIds
   clusterMax: number
   visible: boolean
   compact: boolean

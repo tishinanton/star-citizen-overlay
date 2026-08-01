@@ -475,7 +475,7 @@
 .material-table__header,
 .material-row {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 62px 58px;
+  grid-template-columns: minmax(0, 1fr) 62px 68px;
   gap: 8px;
   align-items: center;
 }
@@ -536,6 +536,10 @@
   background: color-mix(in oklch, var(--surface-selected) 82%, var(--surface-high));
 }
 
+.material-row--expanded {
+  background: var(--surface);
+}
+
 .material-row__select {
   align-self: stretch;
   min-width: 0;
@@ -588,6 +592,15 @@
   border-color: var(--edge-strong);
   background: var(--surface-high);
   color: var(--accent-bright);
+}
+
+.material-row__disclosure {
+  flex: 0 0 auto;
+  transition: transform var(--duration-fast) var(--ease-out);
+}
+
+.material-row__locations.is-active .material-row__disclosure {
+  transform: rotate(180deg);
 }
 
 .material-row__target {
@@ -792,35 +805,27 @@
   opacity: 0.45;
 }
 
-.mining-location-flyout {
-  position: fixed;
-  z-index: var(--z-flyout);
-  width: min(410px, calc(100vw - 24px));
-  max-height: calc(100vh - 24px);
+.mining-location-panel {
+  grid-column: 1 / -1;
+  min-width: 0;
   overflow: hidden;
-  border: 1px solid var(--edge-strong);
-  border-radius: var(--radius-md);
-  background: var(--surface-low);
+  border-top: 1px solid var(--edge);
+  background: var(--bg);
   color: var(--ink);
-  animation: location-flyout-in var(--duration-fast) var(--ease-out);
 }
 
-.mining-location-flyout:focus {
-  outline: none;
-}
-
-.mining-location-flyout__header {
+.mining-location-panel__header {
   display: grid;
-  grid-template-columns: 30px minmax(0, 1fr) 28px;
+  grid-template-columns: 30px minmax(0, 1fr);
   align-items: center;
-  min-height: 60px;
-  padding: 10px 10px 10px 12px;
+  min-height: 56px;
+  padding: 10px 12px;
   gap: 9px;
   border-bottom: 1px solid var(--edge);
   background: var(--surface);
 }
 
-.mining-location-flyout__icon {
+.mining-location-panel__icon {
   display: grid;
   width: 30px;
   height: 30px;
@@ -831,66 +836,102 @@
   color: var(--accent-bright);
 }
 
-.mining-location-flyout__header h2 {
+.mining-location-panel__header h2 {
   color: var(--ink);
   font-size: 1rem;
   font-weight: 650;
 }
 
-.mining-location-flyout__header p {
-  overflow: hidden;
+.mining-location-panel__header p {
   margin-top: 3px;
   color: var(--muted);
   font-size: 1rem;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
-.mining-location-flyout__close {
-  display: grid;
-  width: 28px;
-  height: 28px;
-  place-items: center;
-  border-radius: var(--radius-sm);
-  background: transparent;
-  color: var(--muted);
+.mining-location-panel__body {
+  min-width: 0;
 }
 
-.mining-location-flyout__close:hover {
-  background: var(--surface-high);
-  color: var(--ink);
+.mining-location-table-wrap {
+  min-width: 0;
+  overflow-x: auto;
 }
 
-.mining-location-flyout__body {
-  max-height: min(430px, calc(100vh - 140px));
-  overflow-y: auto;
+.mining-location-table {
+  width: 100%;
+  min-width: 520px;
+  border-collapse: collapse;
+  table-layout: fixed;
 }
 
-.mining-location-list {
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-.mining-location-list > li {
-  display: grid;
-  grid-template-columns: 24px minmax(0, 1fr) 70px;
-  align-items: start;
-  min-height: 74px;
-  padding: 10px 12px;
-  gap: 10px;
+.mining-location-table th,
+.mining-location-table td {
   border-bottom: 1px solid color-mix(in oklch, var(--edge) 65%, transparent);
 }
 
-.mining-location-list > li:first-child {
-  background: color-mix(in oklch, var(--surface-selected) 56%, transparent);
+.mining-location-table thead th {
+  height: 30px;
+  padding: 6px 8px;
+  background: var(--surface-low);
+  color: var(--muted);
+  font-size: 1rem;
+  font-weight: 400;
+  text-align: left;
 }
 
-.mining-location-list > li:last-child {
+.mining-location-table thead th:first-child {
+  width: 36px;
+  text-align: center;
+}
+
+.mining-location-table thead th:nth-child(3) {
+  width: 92px;
+  text-align: right;
+}
+
+.mining-location-table thead th:nth-child(4) {
+  width: 112px;
+  text-align: right;
+}
+
+.mining-location-table thead th:last-child {
+  width: 80px;
+  text-align: right;
+}
+
+.mining-location-table tbody tr {
+  background: transparent;
+  transition: background-color var(--duration-fast) var(--ease-out);
+}
+
+.mining-location-table tbody tr:hover {
+  background: var(--surface-low);
+}
+
+.mining-location-table tbody tr.is-best {
+  background: color-mix(in oklch, var(--surface-selected) 34%, transparent);
+}
+
+.mining-location-table tbody tr.is-favorite {
+  background: color-mix(in oklch, var(--surface-selected) 64%, transparent);
+}
+
+.mining-location-table tbody tr:last-child > * {
   border-bottom: 0;
 }
 
-.mining-location-list__rank {
+.mining-location-table tbody th,
+.mining-location-table tbody td {
+  height: 66px;
+  padding: 9px 8px;
+  vertical-align: middle;
+}
+
+.mining-location-table__rank {
+  text-align: center;
+}
+
+.mining-location-table__rank > span {
   display: grid;
   width: 22px;
   height: 22px;
@@ -903,111 +944,158 @@
   font-variant-numeric: tabular-nums;
 }
 
-.mining-location-list > li:first-child .mining-location-list__rank {
+.mining-location-table tr.is-best .mining-location-table__rank > span {
   border-color: var(--edge-strong);
   background: var(--accent-soft);
   color: var(--accent-bright);
 }
 
-.mining-location-list__site {
+.mining-location-table__site {
   min-width: 0;
+  font-weight: 400;
+  text-align: left;
 }
 
-.mining-location-list__site > strong {
-  display: inline;
+.mining-location-table__site-name {
+  display: flex;
+  align-items: baseline;
+  min-width: 0;
+  gap: 7px;
+}
+
+.mining-location-table__site-name > strong {
+  min-width: 0;
+  overflow: hidden;
   color: var(--ink);
   font-size: 1rem;
   font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.mining-location-list__area {
+.mining-location-table__site-name > span {
   display: inline-flex;
+  flex: 0 1 auto;
   align-items: center;
-  margin-left: 7px;
+  min-width: 0;
+  overflow: hidden;
   gap: 3px;
   color: var(--warning);
-  font-size: 1rem;
-}
-
-.mining-location-list__site > small,
-.mining-location-list__details {
-  display: block;
-  overflow: hidden;
-  color: var(--muted);
   font-size: 1rem;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.mining-location-list__site > small {
-  margin-top: 3px;
-}
-
-.mining-location-list__details {
+.mining-location-table__site > small,
+.mining-location-table__probability small,
+.mining-location-table__yield small {
+  display: block;
+  overflow: hidden;
   margin-top: 4px;
-  color: var(--ink-soft);
+  color: var(--muted);
+  font-size: 1rem;
+  font-weight: 400;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.mining-location-list__meter {
+.mining-location-table__meter {
+  display: block;
+  width: 64px;
   height: 2px;
-  margin-top: 8px;
+  margin: 6px 0 0 auto;
   overflow: hidden;
   background: var(--surface-high);
 }
 
-.mining-location-list__meter > span {
+.mining-location-table__meter > span {
   display: block;
   height: 100%;
   background: var(--accent);
 }
 
-.mining-location-list__probability {
+.mining-location-table__probability,
+.mining-location-table__yield,
+.mining-location-table__favorite {
   text-align: right;
 }
 
-.mining-location-list__probability strong,
-.mining-location-list__probability small {
+.mining-location-table__probability strong,
+.mining-location-table__yield strong {
   display: block;
-}
-
-.mining-location-list__probability strong {
-  color: var(--accent-bright);
+  overflow: hidden;
   font-size: 1rem;
   font-variant-numeric: tabular-nums;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mining-location-table__probability strong {
+  color: var(--accent-bright);
   font-weight: 650;
 }
 
-.mining-location-list__probability small {
-  margin-top: 2px;
-  color: var(--muted);
-  font-size: 1rem;
+.mining-location-table__yield strong {
+  color: var(--ink-soft);
+  font-weight: 600;
 }
 
-.mining-location-flyout__state {
+.mining-location-table__favorite button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 64px;
+  height: 30px;
+  padding: 0 8px;
+  gap: 5px;
+  border: 1px solid var(--edge);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--muted);
+  font-size: 1rem;
+  transition:
+    border-color var(--duration-fast) var(--ease-out),
+    background-color var(--duration-fast) var(--ease-out),
+    color var(--duration-fast) var(--ease-out);
+}
+
+.mining-location-table__favorite button:hover {
+  border-color: var(--edge-strong);
+  background: var(--surface-high);
+  color: var(--ink);
+}
+
+.mining-location-table__favorite button.is-active {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  color: var(--accent-bright);
+}
+
+.mining-location-panel__state {
   display: flex;
   align-items: center;
   flex-direction: column;
   justify-content: center;
-  min-height: 210px;
+  min-height: 180px;
   padding: 24px;
   color: var(--muted);
   text-align: center;
 }
 
-.mining-location-flyout__state > strong {
+.mining-location-panel__state > strong {
   margin-top: 10px;
   color: var(--ink-soft);
   font-size: 1rem;
 }
 
-.mining-location-flyout__state > span {
+.mining-location-panel__state > span {
   max-width: 38ch;
   margin-top: 5px;
   font-size: 1rem;
   line-height: 1.45;
 }
 
-.mining-location-flyout__state > button {
+.mining-location-panel__state > button {
   display: inline-flex;
   align-items: center;
   min-height: 29px;
@@ -1021,18 +1109,23 @@
   font-size: 1rem;
 }
 
-.mining-location-flyout__state > button:hover {
+.mining-location-panel__state > button:hover {
   border-color: var(--edge-strong);
   background: var(--surface-high);
   color: var(--ink);
 }
 
+.mining-location-skeleton {
+  overflow-x: auto;
+}
+
 .mining-location-skeleton > span {
   display: grid;
-  grid-template-columns: 22px minmax(0, 1fr) 64px;
+  grid-template-columns: 28px minmax(180px, 1fr) 76px 96px 64px;
   align-items: center;
-  height: 74px;
-  padding: 10px 12px;
+  min-width: 520px;
+  height: 66px;
+  padding: 9px 8px;
   gap: 10px;
   border-bottom: 1px solid color-mix(in oklch, var(--edge) 65%, transparent);
 }
@@ -1050,13 +1143,17 @@
   height: 22px;
 }
 
-.mining-location-skeleton i:last-child {
+.mining-location-skeleton i:nth-child(n + 3) {
   justify-self: end;
   width: 54px;
-  height: 13px;
 }
 
-.mining-location-flyout__footer {
+.mining-location-skeleton i:last-child {
+  width: 60px;
+  height: 28px;
+}
+
+.mining-location-panel__footer {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -4166,7 +4263,7 @@ a.mission-row:hover {
 
 .app-shell--large-type .material-table__header,
 .app-shell--large-type .material-row {
-  grid-template-columns: minmax(0, 1fr) 72px 68px;
+  grid-template-columns: minmax(0, 1fr) 72px 80px;
   gap: 10px;
 }
 
@@ -4443,6 +4540,11 @@ a.mission-row:hover {
   color: var(--danger-ink);
 }
 
+.signature-row__site--favorite > svg,
+.signature-row__site--favorite > strong {
+  color: var(--accent-bright);
+}
+
 .cluster-strip {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(calc(44px * var(--overlay-font-scale)), 1fr));
@@ -4607,18 +4709,11 @@ a.mission-row:hover {
   50% {
     opacity: 0.4;
   }
+}
 
-  @keyframes location-flyout-in {
-    from {
-      opacity: 0;
-      transform: translateY(-4px);
-    }
-  }
-
-  @keyframes location-skeleton-pulse {
-    50% {
-      opacity: 0.45;
-    }
+@keyframes location-skeleton-pulse {
+  50% {
+    opacity: 0.45;
   }
 }
 

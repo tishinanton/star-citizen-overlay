@@ -1,6 +1,7 @@
 import { useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from 'react'
 import {
   BookOpen,
+  ChevronDown,
   Crosshair,
   Database,
   Download,
@@ -43,7 +44,7 @@ import { getAccelerator } from '../lib/shortcut-accelerator'
 import { pinSelectedMaterials } from '../lib/material-order'
 import BlueprintBrowser from './BlueprintBrowser'
 import FactionBrowser from './FactionBrowser'
-import MiningLocationFlyout from './MiningLocationFlyout'
+import MiningLocationPanel from './MiningLocationPanel'
 import SettingsPage from './SettingsPage'
 import SignatureBoard from './SignatureBoard'
 import SignatureOverrideEditor from './SignatureOverrideEditor'
@@ -55,11 +56,6 @@ interface LocationLoadState {
   loading: boolean
   result: MiningLocationResult | null
   error: string | null
-}
-
-interface LocationFlyoutTarget {
-  material: MiningMaterial
-  anchor: HTMLButtonElement
 }
 
 const FILTERS: MaterialFilter[] = ['All', 'Ship', 'Ground Vehicle', 'FPS']
@@ -104,7 +100,7 @@ export default function ControlApp(): React.JSX.Element {
   const [filter, setFilter] = useState<MaterialFilter>('All')
   const [recordingShortcut, setRecordingShortcut] = useState<ShortcutId | null>(null)
   const [locationStates, setLocationStates] = useState<Record<string, LocationLoadState>>({})
-  const [locationFlyout, setLocationFlyout] = useState<LocationFlyoutTarget | null>(null)
+  const [expandedLocationId, setExpandedLocationId] = useState<string | null>(null)
   const [editingSignatureId, setEditingSignatureId] = useState<string | null>(null)
   const locationGeneration = useRef(0)
 
@@ -187,28 +183,20 @@ export default function ControlApp(): React.JSX.Element {
     }
   }
 
-  const closeLocations = (restoreFocus: boolean): void => {
-    const anchor = locationFlyout?.anchor
-    setLocationFlyout(null)
-    if (restoreFocus && anchor?.isConnected) {
-      requestAnimationFrame(() => anchor.focus())
-    }
-  }
-
-  const openLocations = (material: MiningMaterial, anchor: HTMLButtonElement): void => {
-    if (locationFlyout?.material.id === material.id) {
-      closeLocations(false)
+  const toggleLocations = (material: MiningMaterial): void => {
+    if (expandedLocationId === material.id) {
+      setExpandedLocationId(null)
       return
     }
 
     setEditingSignatureId(null)
-    setLocationFlyout({ material, anchor })
+    setExpandedLocationId(material.id)
     const state = locationStates[material.id]
     if (!state || state.error) void loadLocations(material)
   }
 
   const openSignatureEditor = (materialId: string): void => {
-    setLocationFlyout(null)
+    setExpandedLocationId(null)
     setEditingSignatureId((current) => (current === materialId ? null : materialId))
   }
 
@@ -229,6 +217,16 @@ export default function ControlApp(): React.JSX.Element {
     delete signatureOverrides[materialId]
     setEditingSignatureId(null)
     void updateSettings({ signatureOverrides })
+  }
+
+  const setFavoriteMiningLocation = (materialId: string, locationId: string | null): void => {
+    const favoriteMiningLocationIds = { ...settings.favoriteMiningLocationIds }
+    if (locationId) {
+      favoriteMiningLocationIds[materialId] = locationId
+    } else {
+      delete favoriteMiningLocationIds[materialId]
+    }
+    void updateSettings({ favoriteMiningLocationIds })
   }
 
   const beginShortcutCapture = (id: ShortcutId): void => {
@@ -276,7 +274,7 @@ export default function ControlApp(): React.JSX.Element {
 
   const activateTab = (tab: AppTab): void => {
     if (tab === activeTab) return
-    setLocationFlyout(null)
+    setExpandedLocationId(null)
     setEditingSignatureId(null)
     if (recordingShortcut) endShortcutCapture()
     setActiveTab(tab)
@@ -448,7 +446,7 @@ export default function ControlApp(): React.JSX.Element {
               onClick={() => {
                 locationGeneration.current += 1
                 setLocationStates({})
-                setLocationFlyout(null)
+                setExpandedLocationId(null)
                 setEditingSignatureId(null)
                 void refreshMaterials()
               }}
@@ -467,7 +465,7 @@ export default function ControlApp(): React.JSX.Element {
               onClick={() => {
                 locationGeneration.current += 1
                 setLocationStates({})
-                setLocationFlyout(null)
+                setExpandedLocationId(null)
                 setEditingSignatureId(null)
                 void chooseGameData()
               }}
@@ -500,7 +498,7 @@ export default function ControlApp(): React.JSX.Element {
                 <span>Base signature</span>
               </span>
               <span>Correct</span>
-              <span>Places</span>
+              <span>Sites</span>
             </div>
             <div className="material-table__body">
               {visibleMaterials.map((material) => {
@@ -511,10 +509,15 @@ export default function ControlApp(): React.JSX.Element {
                   settings.signatureOverrides
                 )
                 const isEditingSignature = editingSignatureId === material.id
+                const areLocationsExpanded = expandedLocationId === material.id
 
                 return (
                   <div
-                    className={['material-row', isSelected ? 'material-row--selected' : '']
+                    className={[
+                      'material-row',
+                      isSelected ? 'material-row--selected' : '',
+                      areLocationsExpanded ? 'material-row--expanded' : ''
+                    ]
                       .filter(Boolean)
                       .join(' ')}
                     role="listitem"
@@ -577,21 +580,24 @@ export default function ControlApp(): React.JSX.Element {
                     </button>
                     <button
                       className={`material-row__locations ${
-                        locationFlyout?.material.id === material.id ? 'is-active' : ''
+                        areLocationsExpanded ? 'is-active' : ''
                       }`}
                       type="button"
-                      aria-label={`Show best mining locations for ${material.name}`}
-                      aria-expanded={locationFlyout?.material.id === material.id}
+                      aria-label={`${areLocationsExpanded ? 'Hide' : 'Show'} mining locations for ${material.name}`}
+                      aria-expanded={areLocationsExpanded}
                       aria-controls={
-                        locationFlyout?.material.id === material.id
-                          ? 'mining-location-flyout'
-                          : undefined
+                        areLocationsExpanded ? `mining-location-panel-${material.id}` : undefined
                       }
-                      title={`Best mining locations for ${material.name}`}
-                      onClick={(event) => openLocations(material, event.currentTarget)}
+                      title={`Mining locations for ${material.name}`}
+                      onClick={() => toggleLocations(material)}
                     >
                       <MapPin size={13} />
                       Sites
+                      <ChevronDown
+                        className="material-row__disclosure"
+                        size={11}
+                        aria-hidden="true"
+                      />
                     </button>
                     {isEditingSignature && (
                       <SignatureOverrideEditor
@@ -601,6 +607,19 @@ export default function ControlApp(): React.JSX.Element {
                         onApply={(signature) => saveSignatureOverride(material, signature)}
                         onCancel={() => setEditingSignatureId(null)}
                         onReset={() => resetSignatureOverride(material.id)}
+                      />
+                    )}
+                    {areLocationsExpanded && (
+                      <MiningLocationPanel
+                        material={material}
+                        loading={locationStates[material.id]?.loading ?? true}
+                        result={locationStates[material.id]?.result ?? null}
+                        error={locationStates[material.id]?.error ?? null}
+                        favoriteLocationId={settings.favoriteMiningLocationIds[material.id] ?? null}
+                        onFavoriteChange={(locationId) =>
+                          setFavoriteMiningLocation(material.id, locationId)
+                        }
+                        onRetry={() => void loadLocations(material)}
                       />
                     )}
                   </div>
@@ -849,18 +868,6 @@ export default function ControlApp(): React.JSX.Element {
           </span>
         )}
       </footer>
-
-      {activeTab === 'mining' && locationFlyout && (
-        <MiningLocationFlyout
-          anchor={locationFlyout.anchor}
-          material={locationFlyout.material}
-          loading={locationStates[locationFlyout.material.id]?.loading ?? true}
-          result={locationStates[locationFlyout.material.id]?.result ?? null}
-          error={locationStates[locationFlyout.material.id]?.error ?? null}
-          onClose={closeLocations}
-          onRetry={() => void loadLocations(locationFlyout.material)}
-        />
-      )}
     </div>
   )
 }

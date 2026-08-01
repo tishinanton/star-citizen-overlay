@@ -8,6 +8,7 @@ function createSettings(overrides: OverlaySettingsPatch = {}): OverlaySettings {
   return {
     selectedMaterialIds: ['agricium-ore', 'laranite-raw', 'riccite-ore'],
     signatureOverrides: {},
+    favoriteMiningLocationIds: {},
     clusterMax: 5,
     visible: true,
     compact: false,
@@ -71,5 +72,12 @@ test('changes the layout key only for settings that affect rendered dimensions',
   assert.notEqual(
     getOverlayLayoutKey(settings),
     getOverlayLayoutKey({ ...settings, clusterMax: 8 })
+  )
+  assert.notEqual(
+    getOverlayLayoutKey(settings),
+    getOverlayLayoutKey({
+      ...settings,
+      favoriteMiningLocationIds: { 'agricium-ore': 'location-daymar' }
+    })
   )
 })

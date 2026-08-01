@@ -29,6 +29,7 @@ test('normalizes persisted settings and clamps opacity', () => {
     {
       selectedMaterialIds: ['agricium-ore', 'riccite-ore'],
       signatureOverrides: {},
+      favoriteMiningLocationIds: {},
       clusterMax: 7,
       visible: false,
       compact: true,
@@ -100,6 +101,31 @@ test('normalizes valid signature overrides and rejects invalid values', () => {
   )
 })
 
+test('normalizes favorite mining locations and rejects invalid location IDs', () => {
+  assert.deepEqual(
+    normalizeSettings({
+      ...DEFAULT_SETTINGS,
+      favoriteMiningLocationIds: {
+        'agricium-ore': ' location-daymar ',
+        'riccite-ore': 'location-aberdeen'
+      }
+    }).favoriteMiningLocationIds,
+    {
+      'agricium-ore': 'location-daymar',
+      'riccite-ore': 'location-aberdeen'
+    }
+  )
+
+  assert.throws(
+    () =>
+      normalizeSettings({
+        ...DEFAULT_SETTINGS,
+        favoriteMiningLocationIds: { 'agricium-ore': '' }
+      }),
+    /valid location/
+  )
+})
+
 test('migrates previous backdrop defaults without changing target selection', () => {
   const loaded = parsePersistedSettings({
     ...DEFAULT_SETTINGS,
@@ -140,6 +166,7 @@ test('preserves newer-version opacity while adding signature override settings',
 
   assert.equal(loaded.settings.opacity, 0.72)
   assert.deepEqual(loaded.settings.signatureOverrides, {})
+  assert.deepEqual(loaded.settings.favoriteMiningLocationIds, {})
   assert.equal(loaded.needsSave, true)
 })
 

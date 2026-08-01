@@ -17,6 +17,7 @@ import {
   SHORTCUT_IDS,
   type OverlayPosition,
   type OverlayPlacement,
+  type FavoriteMiningLocationIds,
   type OverlaySettings,
   type OverlaySettingsPatch,
   type SignatureOverrides,
@@ -29,11 +30,12 @@ import {
 } from '../shared/lan-control'
 import { DEFAULT_CLOUD_API_URL, normalizeCloudApiUrl } from './cloud-url'
 
-export const SETTINGS_VERSION = 9
+export const SETTINGS_VERSION = 10
 
 export const DEFAULT_SETTINGS: OverlaySettings = {
   selectedMaterialIds: ['agricium-ore', 'laranite-raw', 'riccite-ore'],
   signatureOverrides: {},
+  favoriteMiningLocationIds: {},
   clusterMax: 5,
   visible: true,
   compact: false,
@@ -111,6 +113,35 @@ function normalizeSignatureOverrides(
   return Object.fromEntries(normalizedEntries)
 }
 
+function normalizeFavoriteMiningLocationIds(
+  value: unknown,
+  fallback: FavoriteMiningLocationIds
+): FavoriteMiningLocationIds {
+  if (value === undefined) return { ...fallback }
+  if (!isRecord(value) || Array.isArray(value)) {
+    throw new TypeError('Favorite mining locations must be keyed by mining material.')
+  }
+
+  const entries = Object.entries(value)
+  if (entries.length > 500) {
+    throw new RangeError('No more than 500 favorite mining locations can be saved.')
+  }
+
+  const normalizedEntries = entries.map(([materialId, locationId]): [string, string] => {
+    const normalizedMaterialId = materialId.trim()
+    const normalizedLocationId = typeof locationId === 'string' ? locationId.trim() : ''
+    if (normalizedMaterialId.length === 0 || normalizedMaterialId.length > 200) {
+      throw new TypeError('Favorite mining locations require a valid mining material.')
+    }
+    if (normalizedLocationId.length === 0 || normalizedLocationId.length > 200) {
+      throw new TypeError('Favorite mining locations require a valid location.')
+    }
+    return [normalizedMaterialId, normalizedLocationId]
+  })
+
+  return Object.fromEntries(normalizedEntries)
+}
+
 function normalizeShortcuts(
   value: unknown,
   fallback: Record<ShortcutId, string>
@@ -145,6 +176,7 @@ export function normalizeSettings(
       ...fallback,
       selectedMaterialIds: [...fallback.selectedMaterialIds],
       signatureOverrides: { ...fallback.signatureOverrides },
+      favoriteMiningLocationIds: { ...fallback.favoriteMiningLocationIds },
       shortcuts: { ...fallback.shortcuts },
       lanControl: { ...fallback.lanControl }
     }
@@ -202,6 +234,10 @@ export function normalizeSettings(
     value.signatureOverrides,
     fallback.signatureOverrides
   )
+  const favoriteMiningLocationIds = normalizeFavoriteMiningLocationIds(
+    value.favoriteMiningLocationIds,
+    fallback.favoriteMiningLocationIds
+  )
   const shortcuts = normalizeShortcuts(value.shortcuts, fallback.shortcuts)
   const cloudApiUrl =
     value.cloudApiUrl === undefined ? fallback.cloudApiUrl : normalizeCloudApiUrl(value.cloudApiUrl)
@@ -217,6 +253,7 @@ export function normalizeSettings(
   return {
     selectedMaterialIds,
     signatureOverrides,
+    favoriteMiningLocationIds,
     clusterMax,
     visible: typeof value.visible === 'boolean' ? value.visible : fallback.visible,
     compact: typeof value.compact === 'boolean' ? value.compact : fallback.compact,
@@ -281,6 +318,7 @@ export async function loadSettings(path: string): Promise<LoadedSettings> {
           ...DEFAULT_SETTINGS,
           selectedMaterialIds: [...DEFAULT_SETTINGS.selectedMaterialIds],
           signatureOverrides: { ...DEFAULT_SETTINGS.signatureOverrides },
+          favoriteMiningLocationIds: { ...DEFAULT_SETTINGS.favoriteMiningLocationIds },
           shortcuts: { ...DEFAULT_SETTINGS.shortcuts },
           lanControl: { ...DEFAULT_SETTINGS.lanControl }
         },
@@ -295,6 +333,7 @@ export async function loadSettings(path: string): Promise<LoadedSettings> {
         ...DEFAULT_SETTINGS,
         selectedMaterialIds: [...DEFAULT_SETTINGS.selectedMaterialIds],
         signatureOverrides: { ...DEFAULT_SETTINGS.signatureOverrides },
+        favoriteMiningLocationIds: { ...DEFAULT_SETTINGS.favoriteMiningLocationIds },
         shortcuts: { ...DEFAULT_SETTINGS.shortcuts },
         lanControl: { ...DEFAULT_SETTINGS.lanControl }
       },

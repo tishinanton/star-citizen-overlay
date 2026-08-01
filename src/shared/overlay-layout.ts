@@ -22,7 +22,8 @@ export function getOverlayLayoutKey(settings: OverlaySettings): string {
     settings.compact,
     settings.clusterMax,
     settings.spotlightMaterialId,
-    settings.selectedMaterialIds
+    settings.selectedMaterialIds,
+    settings.favoriteMiningLocationIds
   ])
 }
 

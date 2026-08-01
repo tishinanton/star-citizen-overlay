@@ -72,7 +72,7 @@ import {
   type GameDataArchive
 } from './game-data'
 import { loadMiningData } from './mining-data'
-import { loadMiningLocations } from './mining-locations'
+import { loadMiningLocations, resolvePreferredMiningLocation } from './mining-locations'
 import {
   LanControlServer,
   type LanCommandExecutionContext,
@@ -157,6 +157,7 @@ let settings: OverlaySettings = {
   ...DEFAULT_SETTINGS,
   selectedMaterialIds: [...DEFAULT_SETTINGS.selectedMaterialIds],
   signatureOverrides: { ...DEFAULT_SETTINGS.signatureOverrides },
+  favoriteMiningLocationIds: { ...DEFAULT_SETTINGS.favoriteMiningLocationIds },
   shortcuts: { ...DEFAULT_SETTINGS.shortcuts },
   lanControl: { ...DEFAULT_SETTINGS.lanControl }
 }
@@ -491,6 +492,7 @@ function updateSettings(patch: OverlaySettingsPatch): Promise<AppSnapshot> {
 
 async function applySettingsPatch(patch: OverlaySettingsPatch): Promise<AppSnapshot> {
   const shortcutsChanged = patch.shortcuts !== undefined
+  const favoriteMiningLocationsChanged = patch.favoriteMiningLocationIds !== undefined
   const next = mergeSettings(settings, patch)
   const cloudApiChanged = next.cloudApiUrl !== settings.cloudApiUrl
   if (getOverlayLayoutKey(next) !== getOverlayLayoutKey(settings)) {
@@ -498,6 +500,7 @@ async function applySettingsPatch(patch: OverlaySettingsPatch): Promise<AppSnaps
   }
   await saveSettings(settingsPath, next)
   settings = next
+  if (favoriteMiningLocationsChanged) refreshPreferredMiningLocationStates()
   warning = null
   if (cloudApiChanged && cloudSyncController) {
     cloudSync = await cloudSyncController.changeApiUrl(next.cloudApiUrl)
@@ -1221,19 +1224,7 @@ async function loadAndStoreMiningLocations(
       miningLocationResults.set(material.id, result)
       bestMiningLocations = {
         ...bestMiningLocations,
-        [material.id]: result.locations[0]
-          ? {
-              status: 'ready',
-              location: result.locations[0],
-              source: result.state,
-              message: result.message
-            }
-          : {
-              status: 'empty',
-              location: null,
-              source: result.state,
-              message: 'No 50%+ quality mining site is reported for this material.'
-            }
+        [material.id]: getPreferredMiningLocationState(result)
       }
       broadcastSnapshot()
     }
@@ -1254,6 +1245,39 @@ async function loadAndStoreMiningLocations(
     }
     throw error
   }
+}
+
+function getPreferredMiningLocationState(result: MiningLocationResult): BestMiningLocationState {
+  const favoriteLocationId = settings.favoriteMiningLocationIds[result.materialId]
+  const location = resolvePreferredMiningLocation(result.locations, favoriteLocationId)
+  if (!location) {
+    return {
+      status: 'empty',
+      location: null,
+      source: result.state,
+      message: 'No 50%+ quality mining site is reported for this material.'
+    }
+  }
+
+  return {
+    status: 'ready',
+    location,
+    source: result.state,
+    message:
+      favoriteLocationId === location.id
+        ? `Favorite mining site. ${result.message}`
+        : result.message
+  }
+}
+
+function refreshPreferredMiningLocationStates(): void {
+  if (miningLocationResults.size === 0) return
+
+  const next = { ...bestMiningLocations }
+  for (const [materialId, result] of miningLocationResults) {
+    next[materialId] = getPreferredMiningLocationState(result)
+  }
+  bestMiningLocations = next
 }
 
 function queueSelectedMiningLocations(): void {

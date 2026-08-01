@@ -30,21 +30,27 @@ colors:
 typography:
   display:
     fontFamily: 'Bahnschrift, "Segoe UI Variable", "Segoe UI", sans-serif'
-    fontSize: '17px'
+    fontSize: '1.214rem'
     fontWeight: 650
     lineHeight: 1.15
     letterSpacing: '-0.01em'
   body:
     fontFamily: 'Bahnschrift, "Segoe UI Variable", "Segoe UI", sans-serif'
-    fontSize: '14px'
+    fontSize: '1rem'
     fontWeight: 400
     lineHeight: 1.45
     letterSpacing: 'normal'
   label:
     fontFamily: 'Bahnschrift, "Segoe UI Variable", "Segoe UI", sans-serif'
-    fontSize: '14px'
+    fontSize: '1rem'
     fontWeight: 400
     lineHeight: 1.2
+    letterSpacing: '0.015em'
+  signature:
+    fontFamily: 'Bahnschrift, "Segoe UI Variable", "Segoe UI", sans-serif'
+    fontSize: '1.5rem'
+    fontWeight: 650
+    lineHeight: 1.15
     letterSpacing: '0.015em'
 rounded:
   hairline: '1px'
@@ -258,12 +264,14 @@ where those states apply.
 - **Structure:** Instrument header, one to four target rows, base signature,
   cluster strip, and source footer.
 - **Behavior:** Compact mode removes secondary metadata. Spotlight mode displays
-  one selected target while preserving all selections. A shaped transparent
-  native drag-handle window tracks the visible header; the rest of the overlay
-  remains genuinely click-through. Overlay emphasis scales from 80% to 160%
-  without dropping labels below the saved application font size. The native
-  overlay and drag target resize from measured content so no readout is clipped.
-  Dragged coordinates persist until the user selects a named screen corner.
+  one selected target while preserving all selections. Each target shows its
+  saved favorite mining site when available and otherwise falls back to the
+  highest-ranked site. A shaped transparent native drag-handle window tracks
+  the visible header; the rest of the overlay remains genuinely click-through.
+  Overlay emphasis scales from 80% to 160% without dropping labels below the
+  saved application font size. The native overlay and drag target resize from
+  measured content so no readout is clipped. Dragged coordinates persist until
+  the user selects a named screen corner.
 - **Surface:** Content-fit translucent Overlay Field at a 58% default backdrop
   opacity. Header and value cells honor the same control; text stays fully
   opaque. No backdrop blur, panel shadow, or glass treatment.

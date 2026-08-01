@@ -1,5 +1,5 @@
 import type { CSSProperties } from 'react'
-import { Crosshair, MapPin, Move } from 'lucide-react'
+import { Crosshair, MapPin, Move, Star } from 'lucide-react'
 
 import type {
   AppSnapshot,
@@ -79,6 +79,7 @@ export default function SignatureBoard({
               key={material.id}
               material={material}
               bestLocation={bestMiningLocations[material.id]}
+              favoriteLocationId={settings.favoriteMiningLocationIds[material.id]}
               clusterMax={settings.clusterMax}
               compact={settings.compact}
               signatureOverrides={settings.signatureOverrides}
@@ -99,6 +100,7 @@ export default function SignatureBoard({
 interface SignatureRowProps {
   material: MiningMaterial
   bestLocation?: BestMiningLocationState
+  favoriteLocationId?: string
   clusterMax: number
   compact: boolean
   signatureOverrides: SignatureOverrides
@@ -107,6 +109,7 @@ interface SignatureRowProps {
 function SignatureRow({
   material,
   bestLocation,
+  favoriteLocationId,
   clusterMax,
   compact,
   signatureOverrides
@@ -147,7 +150,12 @@ function SignatureRow({
           </strong>
         </div>
       </div>
-      <BestSite state={bestLocation} />
+      <BestSite
+        state={bestLocation}
+        isFavorite={
+          bestLocation?.status === 'ready' && bestLocation.location.id === favoriteLocationId
+        }
+      />
       <div className="cluster-strip" aria-label={`${material.name} cluster signatures`}>
         {clusters.map((cluster) => (
           <div className="cluster-value" key={cluster.count}>
@@ -160,7 +168,13 @@ function SignatureRow({
   )
 }
 
-function BestSite({ state }: { state?: BestMiningLocationState }): React.JSX.Element {
+function BestSite({
+  state,
+  isFavorite
+}: {
+  state?: BestMiningLocationState
+  isFavorite: boolean
+}): React.JSX.Element {
   const status = state?.status ?? 'loading'
   let site = 'Finding best site…'
   let probability = ''
@@ -177,11 +191,19 @@ function BestSite({ state }: { state?: BestMiningLocationState }): React.JSX.Ele
 
   return (
     <div
-      className={`signature-row__site signature-row__site--${status}`}
+      className={[
+        'signature-row__site',
+        `signature-row__site--${status}`,
+        isFavorite ? 'signature-row__site--favorite' : ''
+      ]
+        .filter(Boolean)
+        .join(' ')}
       title={state?.message ?? 'Finding the best mining site'}
     >
-      <MapPin aria-hidden="true" />
-      <span className="signature-row__site-label">Best site</span>
+      {isFavorite ? <Star aria-hidden="true" fill="currentColor" /> : <MapPin aria-hidden="true" />}
+      <span className="signature-row__site-label">
+        {isFavorite ? 'Favorite site' : 'Best site'}
+      </span>
       <strong>{site}</strong>
       {probability && <span className="signature-row__site-probability">{probability}</span>}
     </div>

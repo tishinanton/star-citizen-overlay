@@ -2,12 +2,12 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 
 import type { CloudSyncState } from '../../../shared/contracts'
-import { canShowStaticDataSync } from './static-data-visibility'
+import { canShowAdminCloudSettings } from './cloud-admin-visibility'
 
-test('shows static publication only to the exact server admin role', () => {
-  assert.equal(canShowStaticDataSync(cloud(null)), false)
-  assert.equal(canShowStaticDataSync(cloud('user')), false)
-  assert.equal(canShowStaticDataSync(cloud('admin')), true)
+test('shows admin cloud settings only to the exact server admin role', () => {
+  assert.equal(canShowAdminCloudSettings(cloud(null)), false)
+  assert.equal(canShowAdminCloudSettings(cloud('user')), false)
+  assert.equal(canShowAdminCloudSettings(cloud('admin')), true)
 })
 
 function cloud(role: 'user' | 'admin' | null): CloudSyncState {

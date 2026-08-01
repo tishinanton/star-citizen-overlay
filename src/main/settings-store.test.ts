@@ -9,6 +9,10 @@ import {
   parsePersistedSettings
 } from './settings-store'
 
+test('uses the hosted cloud API by default', () => {
+  assert.equal(DEFAULT_SETTINGS.cloudApiUrl, 'https://sc-overlay-api.antontishin.com')
+})
+
 test('normalizes persisted settings and clamps opacity', () => {
   assert.deepEqual(
     normalizeSettings({

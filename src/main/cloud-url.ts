@@ -1,4 +1,4 @@
-export const DEFAULT_CLOUD_API_URL = 'https://localhost:7065'
+export const DEFAULT_CLOUD_API_URL = 'https://sc-overlay-api.antontishin.com'
 
 const LOOPBACK_HOSTS = new Set(['localhost', '127.0.0.1', '[::1]'])
 

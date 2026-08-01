@@ -31,7 +31,7 @@ import type {
   LanControlState,
   LanPairingSession
 } from '../../../shared/lan-control'
-import { canShowStaticDataSync } from '../lib/static-data-visibility'
+import { canShowAdminCloudSettings } from '../lib/cloud-admin-visibility'
 import LanControlSettings from './LanControlSettings'
 
 interface SettingsPageProps {
@@ -100,6 +100,7 @@ export default function SettingsPage({
   ].includes(staticData.status)
   const starStringsBusy = ['checking', 'downloading', 'installing'].includes(starStrings.status)
   const interactionBusy = busy || staticDataBusy
+  const showAdminCloudSettings = canShowAdminCloudSettings(cloud)
   const displayedApiUrl = apiUrlDraft ?? apiUrl
   const handoffCode = handoffDraft.loginExpiresAt === cloud.loginExpiresAt ? handoffDraft.value : ''
   const endpointChanged = apiUrlDraft !== null && apiUrlDraft.trim() !== apiUrl
@@ -294,45 +295,47 @@ export default function SettingsPage({
               </form>
             )}
 
-            <form className="api-endpoint-form" onSubmit={saveApiUrl}>
-              <div className="api-endpoint-form__heading">
-                <Link size={16} aria-hidden="true" />
-                <div>
-                  <label htmlFor="cloud-api-url">Cloud API URL</label>
-                  <span>
-                    Use the service root. A local Swagger or OpenAPI URL is normalized
-                    automatically.
-                  </span>
+            {showAdminCloudSettings && (
+              <form className="api-endpoint-form" onSubmit={saveApiUrl}>
+                <div className="api-endpoint-form__heading">
+                  <Link size={16} aria-hidden="true" />
+                  <div>
+                    <label htmlFor="cloud-api-url">Cloud API URL</label>
+                    <span>
+                      Use the service root. A local Swagger or OpenAPI URL is normalized
+                      automatically.
+                    </span>
+                  </div>
                 </div>
-              </div>
-              <div className="inline-field">
-                <input
-                  id="cloud-api-url"
-                  type="url"
-                  inputMode="url"
-                  spellCheck={false}
-                  value={displayedApiUrl}
-                  disabled={interactionBusy}
-                  onChange={(event) => setApiUrlDraft(event.target.value)}
-                  placeholder="https://localhost:7065"
-                />
-                <button
-                  type="submit"
-                  disabled={interactionBusy || !endpointChanged || !displayedApiUrl.trim()}
-                >
-                  Apply
-                </button>
-              </div>
-              <span className="api-endpoint-form__note">
-                <ShieldCheck size={15} aria-hidden="true" />
-                Changing endpoints signs out the current cloud session. Self-signed certificates are
-                accepted only for loopback development URLs.
-              </span>
-            </form>
+                <div className="inline-field">
+                  <input
+                    id="cloud-api-url"
+                    type="url"
+                    inputMode="url"
+                    spellCheck={false}
+                    value={displayedApiUrl}
+                    disabled={interactionBusy}
+                    onChange={(event) => setApiUrlDraft(event.target.value)}
+                    placeholder="https://sc-overlay-api.antontishin.com"
+                  />
+                  <button
+                    type="submit"
+                    disabled={interactionBusy || !endpointChanged || !displayedApiUrl.trim()}
+                  >
+                    Apply
+                  </button>
+                </div>
+                <span className="api-endpoint-form__note">
+                  <ShieldCheck size={15} aria-hidden="true" />
+                  Changing endpoints signs out the current cloud session. Self-signed certificates
+                  are accepted only for loopback development URLs.
+                </span>
+              </form>
+            )}
           </div>
         </section>
 
-        {canShowStaticDataSync(cloud) && (
+        {showAdminCloudSettings && (
           <section className="settings-section" aria-labelledby="static-data-title">
             <div className="settings-section__heading">
               <Database size={18} aria-hidden="true" />

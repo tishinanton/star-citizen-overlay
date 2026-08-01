@@ -66,6 +66,43 @@ export interface MiningQuantizationProbability {
   probability: number
 }
 
+export interface MiningRockCompositionPart {
+  id: string
+  materialId: string
+  name: string
+  isTarget: boolean
+  minPercentage: number | null
+  maxPercentage: number | null
+  probability: number | null
+  qualityScale: number | null
+  curveExponent: number | null
+  minQuality: number | null
+  maxQuality: number | null
+  meanQuality: number | null
+  qualityStdDev: number | null
+  quantizedValues: number[]
+}
+
+export interface MiningRockCluster {
+  key: string
+  probability: number
+  minSize: number | null
+  maxSize: number | null
+}
+
+export interface MiningRockType {
+  id: string
+  key: string
+  name: string
+  signature: number | null
+  groupName: string
+  groupProbability: number | null
+  relativeProbability: number | null
+  minimumCompositionCount: number | null
+  cluster: MiningRockCluster | null
+  compositions: MiningRockCompositionPart[]
+}
+
 export interface MiningLocationRecommendation {
   id: string
   name: string
@@ -81,6 +118,7 @@ export interface MiningLocationRecommendation {
   maxQuality: number
   minComposition: number | null
   maxComposition: number | null
+  rockTypes: MiningRockType[]
   identitySource: MiningLocationIdentitySource
   sourceUrl: string
 }

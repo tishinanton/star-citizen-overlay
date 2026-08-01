@@ -114,7 +114,10 @@ together, this is the distribution of the best result. The estimate combines spa
 relative deposit probability, quality distribution, quantization, and any
 boosted area modifier. Location results are cached per quality target and
 identify when cached data is being shown. Sites expand inline beneath their
-material so all ranked locations can be compared in one table. Star one
+material so all ranked locations can be compared in one table. Expand a
+location to inspect every rock preset that can contain the selected ore and
+each ordered composition slot, including duplicate material slots with
+different percentage and quality ranges. Star one
 location per material to show it in the overlay; clearing the star, or an
 unavailable saved location, falls back to the highest-ranked site.
 

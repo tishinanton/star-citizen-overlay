@@ -7,7 +7,10 @@ import {
   type MiningLocationRecommendation,
   type MiningLocationResult,
   type MiningLocationSourceState,
-  type MiningMaterial
+  type MiningMaterial,
+  type MiningRockCluster,
+  type MiningRockCompositionPart,
+  type MiningRockType
 } from '../shared/contracts'
 import {
   type AreaCandidate,
@@ -21,9 +24,13 @@ import {
 } from './mining-estimator'
 import {
   type MiningCatalog,
+  type MiningCatalogCluster,
   type MiningCatalogEntity,
   type MiningCatalogMaterial,
-  type MiningCatalogProvider
+  type MiningCatalogProvider,
+  type MiningContribution,
+  type MiningContributionMaterial,
+  type MiningProviderGroup
 } from './mining-catalog'
 
 export { estimateHighQualityProbability } from './mining-estimator'
@@ -110,6 +117,132 @@ function parseAreaCandidates(value: unknown): AreaCandidate[] {
   return areas
 }
 
+function wikiPercentage(value: unknown): number | null {
+  const parsed = finiteNumber(value)
+  return parsed !== null && parsed >= 0 && parsed <= 100 ? parsed : null
+}
+
+function wikiQuality(value: unknown): number | null {
+  const parsed = finiteNumber(value)
+  return parsed !== null && parsed >= 0 && parsed <= 1_000 ? parsed : null
+}
+
+function parseWikiQuantizedValues(value: unknown): number[] {
+  if (!Array.isArray(value)) return []
+  return [
+    ...new Set(
+      value.filter(
+        (entry): entry is number =>
+          typeof entry === 'number' && Number.isFinite(entry) && entry >= 0 && entry <= 1_000
+      )
+    )
+  ].sort((left, right) => left - right)
+}
+
+function parseWikiRockCluster(value: unknown): MiningRockCluster | null {
+  if (!isRecord(value)) return null
+  const key = typeof value.key === 'string' && value.key.trim() ? value.key.trim() : 'Cluster'
+  const clusterProbability = probability(value.probability)
+  const minSize = finiteNumber(value.min_size)
+  const maxSize = finiteNumber(value.max_size)
+  if (
+    clusterProbability === null ||
+    (minSize !== null && minSize < 0) ||
+    (maxSize !== null && (maxSize < 0 || (minSize !== null && maxSize < minSize)))
+  ) {
+    return null
+  }
+  return { key, probability: clusterProbability, minSize, maxSize }
+}
+
+function parseWikiRockType(
+  value: unknown,
+  commodityUuid: string,
+  index: number
+): MiningRockType | null {
+  if (!isRecord(value) || !Array.isArray(value.materials)) return null
+
+  const compositions = value.materials
+    .map((entry, compositionIndex): MiningRockCompositionPart | null => {
+      if (!isRecord(entry)) return null
+      const materialId =
+        typeof entry.uuid === 'string' && entry.uuid.trim()
+          ? entry.uuid.trim()
+          : typeof entry.key === 'string' && entry.key.trim()
+            ? entry.key.trim()
+            : `composition-${compositionIndex}`
+      const name =
+        typeof entry.name === 'string' && entry.name.trim()
+          ? entry.name.trim()
+          : typeof entry.key === 'string' && entry.key.trim()
+            ? entry.key.trim().replaceAll('_', ' ')
+            : materialId
+      const minPercentage = wikiPercentage(entry.min_percentage)
+      const maxPercentage = wikiPercentage(entry.max_percentage)
+      const minQuality = wikiQuality(entry.quality_min)
+      const maxQuality = wikiQuality(entry.quality_max)
+      if (
+        (minPercentage !== null && maxPercentage !== null && minPercentage > maxPercentage) ||
+        (minQuality !== null && maxQuality !== null && minQuality > maxQuality)
+      ) {
+        return null
+      }
+      return {
+        id: `${materialId}:${compositionIndex}`,
+        materialId,
+        name,
+        isTarget: entry.uuid === commodityUuid || entry.is_current === true,
+        minPercentage,
+        maxPercentage,
+        probability: null,
+        qualityScale: null,
+        curveExponent: null,
+        minQuality,
+        maxQuality,
+        meanQuality: wikiQuality(entry.quality_mean),
+        qualityStdDev: finiteNumber(entry.quality_stddev),
+        quantizedValues: parseWikiQuantizedValues(
+          entry.quality_quantized_values ?? entry.quality_quantization
+        )
+      }
+    })
+    .filter((entry): entry is MiningRockCompositionPart => entry !== null)
+  const targetComposition = compositions.find((entry) => entry.isTarget)
+  if (!targetComposition) return null
+  const targetMaterial = value.materials.find(
+    (entry) => isRecord(entry) && (entry.uuid === commodityUuid || entry.is_current === true)
+  ) as Record<string, unknown> | undefined
+
+  const key =
+    typeof value.key === 'string' && value.key.trim() ? value.key.trim() : `Rock type ${index + 1}`
+  const name = key.startsWith('MineableRock_')
+    ? humanizeRockTypeKey(key)
+    : typeof value.label === 'string' && value.label.trim()
+      ? value.label.trim()
+      : humanizeRockTypeKey(key)
+  const signature = finiteNumber(value.signature)
+  return {
+    id:
+      typeof value.resource_uuid === 'string' && value.resource_uuid.trim()
+        ? value.resource_uuid.trim()
+        : `wiki-rock:${index}`,
+    key,
+    name,
+    signature: signature !== null && signature >= 0 ? signature : null,
+    groupName:
+      typeof value.group_name === 'string' && value.group_name.trim()
+        ? value.group_name.trim()
+        : 'Mineables',
+    groupProbability: probability(targetMaterial?.group_probability ?? value.group_probability),
+    relativeProbability: probability(
+      targetMaterial?.relative_probability ?? value.relative_probability_min
+    ),
+    minimumCompositionCount: null,
+    cluster: parseWikiRockCluster(value.clustering),
+    compositions
+  }
+}
+
 function parseDepositContribution(
   value: unknown,
   commodityUuid: string,
@@ -161,14 +294,11 @@ function parseDepositContribution(
     }
     const materialMinComposition = finiteNumber(material.min_percentage)
     if (materialMinComposition !== null) {
-      minComposition =
-        minComposition === null
-          ? materialMinComposition
-          : Math.min(minComposition, materialMinComposition)
+      minComposition = (minComposition ?? 0) + materialMinComposition
     }
     const materialMaxComposition = finiteNumber(material.max_percentage)
     if (materialMaxComposition !== null) {
-      maxComposition = Math.max(maxComposition ?? 0, materialMaxComposition)
+      maxComposition = (maxComposition ?? 0) + materialMaxComposition
     }
   }
 
@@ -210,6 +340,9 @@ function parseLocation(
     .map((resource) => parseDepositContribution(resource, commodityUuid, qualityThreshold))
     .filter((entry): entry is DepositContribution => entry !== null)
   if (contributions.length === 0) return null
+  const rockTypes = value.resources
+    .map((resource, index) => parseWikiRockType(resource, commodityUuid, index))
+    .filter((entry): entry is MiningRockType => entry !== null)
 
   let bestArea: AreaCandidate = { name: null, globalModifier: 1 }
   let probability = scoreProbabilityBreakdown(contributions, bestArea)
@@ -254,6 +387,7 @@ function parseLocation(
           : Math.max(maximum ?? 0, contribution.maxComposition),
       null
     ),
+    rockTypes,
     identitySource: 'wiki',
     sourceUrl:
       typeof value.link === 'string'
@@ -311,6 +445,83 @@ export function resolvePreferredMiningLocation(
 
 // --- Local-catalog derivation (installed game data path) ---------------------------------
 
+function humanizeRockTypeKey(key: string): string {
+  return key
+    .replace(/^MineableRock_/i, '')
+    .replaceAll('_', ' ')
+    .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
+    .trim()
+}
+
+function summarizeCluster(cluster: MiningCatalogCluster | undefined): MiningRockCluster | null {
+  if (!cluster) return null
+  return {
+    key: cluster.key,
+    probability: cluster.probability,
+    minSize:
+      cluster.buckets.length > 0
+        ? Math.min(...cluster.buckets.map((bucket) => bucket.minSize))
+        : null,
+    maxSize:
+      cluster.buckets.length > 0
+        ? Math.max(...cluster.buckets.map((bucket) => bucket.maxSize))
+        : null
+  }
+}
+
+function buildLocalRockType(
+  provider: MiningCatalogProvider,
+  group: MiningProviderGroup,
+  contribution: MiningContribution,
+  entity: MiningCatalogEntity,
+  catalogMaterialId: string,
+  materialsById: ReadonlyMap<string, MiningCatalogMaterial>,
+  clustersById: ReadonlyMap<string, MiningCatalogCluster>
+): MiningRockType {
+  const qualityByMaterialId = new Map<string, MiningContributionMaterial[]>()
+  for (const material of contribution.materials) {
+    const queue = qualityByMaterialId.get(material.materialId) ?? []
+    queue.push(material)
+    qualityByMaterialId.set(material.materialId, queue)
+  }
+
+  const compositions = entity.composition.map((part, index): MiningRockCompositionPart => {
+    const contributionMaterial = qualityByMaterialId.get(part.materialId)?.shift() ?? null
+    const catalogMaterial = materialsById.get(part.materialId)
+    return {
+      id: `${part.materialId}:${index}`,
+      materialId: part.materialId,
+      name: catalogMaterial?.name ?? part.materialId,
+      isTarget: part.materialId === catalogMaterialId,
+      minPercentage: part.minPercentage,
+      maxPercentage: part.maxPercentage,
+      probability: part.probability,
+      qualityScale: part.qualityScale,
+      curveExponent: part.curveExponent,
+      minQuality: contributionMaterial?.effectiveQuality.min ?? null,
+      maxQuality: contributionMaterial?.effectiveQuality.max ?? null,
+      meanQuality: contributionMaterial?.effectiveQuality.mean ?? null,
+      qualityStdDev: contributionMaterial?.effectiveQuality.stdDev ?? null,
+      quantizedValues: contributionMaterial?.reachableQuantizedValues ?? []
+    }
+  })
+
+  return {
+    id: `${provider.id}:${group.groupName}:${contribution.harvestablePresetId}`,
+    key: entity.key,
+    name: humanizeRockTypeKey(entity.key),
+    signature: entity.signature,
+    groupName: group.groupName,
+    groupProbability: group.groupProbability,
+    relativeProbability: contribution.relativeProbability,
+    minimumCompositionCount: entity.minimumDistinctElements,
+    cluster: contribution.clusterId
+      ? summarizeCluster(clustersById.get(contribution.clusterId))
+      : null,
+    compositions
+  }
+}
+
 interface ProviderScore {
   bestArea: AreaCandidate
   rockSpawnProbability: number | null
@@ -321,6 +532,7 @@ interface ProviderScore {
   maxQuality: number
   minComposition: number | null
   maxComposition: number | null
+  rockTypes: MiningRockType[]
 }
 
 /**
@@ -335,9 +547,12 @@ function scoreProvider(
   catalogMaterialId: string,
   catalogMaterial: MiningCatalogMaterial,
   entitiesById: ReadonlyMap<string, MiningCatalogEntity>,
+  materialsById: ReadonlyMap<string, MiningCatalogMaterial>,
+  clustersById: ReadonlyMap<string, MiningCatalogCluster>,
   qualityThreshold: number
 ): ProviderScore | null {
   const contributions: DepositContribution[] = []
+  const rockTypes: MiningRockType[] = []
 
   for (const group of provider.groups) {
     for (const contribution of group.contributions) {
@@ -347,8 +562,10 @@ function scoreProvider(
       if (contributionMaterials.length === 0) continue
 
       const entity = entitiesById.get(contribution.entityId)
-      const compositionParts =
-        entity?.composition.filter((part) => part.materialId === catalogMaterialId) ?? []
+      if (!entity) continue
+      const compositionParts = entity.composition.filter(
+        (part) => part.materialId === catalogMaterialId
+      )
       const materialProbabilities = contributionMaterials.map((material) => ({
         highQualityProbability: estimateQuantizedThresholdProbability(
           catalogMaterial.quantizationBands,
@@ -368,6 +585,17 @@ function scoreProvider(
         )
         if (exception) areaModifiers.set(area.debugName, exception.modifier)
       }
+      rockTypes.push(
+        buildLocalRockType(
+          provider,
+          group,
+          contribution,
+          entity,
+          catalogMaterialId,
+          materialsById,
+          clustersById
+        )
+      )
 
       contributions.push({
         groupName: group.groupName,
@@ -396,11 +624,11 @@ function scoreProvider(
         ),
         minComposition:
           compositionParts.length > 0
-            ? Math.min(...compositionParts.map((part) => part.minPercentage))
+            ? compositionParts.reduce((sum, part) => sum + part.minPercentage, 0)
             : null,
         maxComposition:
           compositionParts.length > 0
-            ? Math.max(...compositionParts.map((part) => part.maxPercentage))
+            ? compositionParts.reduce((sum, part) => sum + part.maxPercentage, 0)
             : null,
         areaModifiers
       })
@@ -445,7 +673,8 @@ function scoreProvider(
       (maximum, entry) =>
         entry.maxComposition === null ? maximum : Math.max(maximum ?? 0, entry.maxComposition),
       null
-    )
+    ),
+    rockTypes
   }
 }
 
@@ -464,6 +693,7 @@ function combineProviderScores(scores: readonly ProviderScore[]): {
   maxQuality: number
   minComposition: number | null
   maxComposition: number | null
+  rockTypes: MiningRockType[]
   area: string | null
 } {
   let noRockProbability = 1
@@ -522,6 +752,13 @@ function combineProviderScores(scores: readonly ProviderScore[]): {
         entry.maxComposition === null ? maximum : Math.max(maximum ?? 0, entry.maxComposition),
       null
     ),
+    rockTypes: [
+      ...new Map(
+        scores.flatMap((score) =>
+          score.rockTypes.map((rockType) => [rockType.id, rockType] as const)
+        )
+      ).values()
+    ],
     area: bestScore.bestArea.name
   }
 }
@@ -578,6 +815,8 @@ export function buildLocalMiningLocations(
 
   const locationsById = new Map(catalog.locations.map((entry) => [entry.id, entry]))
   const entitiesById = new Map(catalog.entities.map((entry) => [entry.id, entry]))
+  const materialsById = new Map(catalog.materials.map((entry) => [entry.id, entry]))
+  const clustersById = new Map(catalog.clusters.map((entry) => [entry.id, entry]))
 
   const resolvedProviders = new Map<string, MiningCatalogProvider[]>()
   const unresolvedProviders: MiningCatalogProvider[] = []
@@ -599,7 +838,15 @@ export function buildLocalMiningLocations(
 
     const scores = providers
       .map((provider) =>
-        scoreProvider(provider, catalogMaterialId, catalogMaterial, entitiesById, qualityThreshold)
+        scoreProvider(
+          provider,
+          catalogMaterialId,
+          catalogMaterial,
+          entitiesById,
+          materialsById,
+          clustersById,
+          qualityThreshold
+        )
       )
       .filter((score): score is ProviderScore => score !== null)
     if (scores.length === 0) continue
@@ -620,6 +867,7 @@ export function buildLocalMiningLocations(
       maxQuality: combined.maxQuality,
       minComposition: combined.minComposition,
       maxComposition: combined.maxComposition,
+      rockTypes: combined.rockTypes,
       identitySource: 'game',
       sourceUrl: material.sourceUrl
     })
@@ -643,6 +891,8 @@ export function buildLocalMiningLocations(
       catalogMaterialId,
       catalogMaterial,
       entitiesById,
+      materialsById,
+      clustersById,
       qualityThreshold
     )
     if (!score) continue
@@ -677,6 +927,7 @@ export function buildLocalMiningLocations(
       maxQuality: combined.maxQuality,
       minComposition: combined.minComposition,
       maxComposition: combined.maxComposition,
+      rockTypes: combined.rockTypes,
       identitySource: 'game-wiki',
       sourceUrl: identity.sourceUrl
     })
@@ -698,6 +949,7 @@ export function buildLocalMiningLocations(
       maxQuality: score.maxQuality,
       minComposition: score.minComposition,
       maxComposition: score.maxComposition,
+      rockTypes: score.rockTypes,
       identitySource: 'game',
       sourceUrl: material.sourceUrl
     })
@@ -847,6 +1099,148 @@ function parseCachedQuantizationProbabilities(
   return result.sort((left, right) => left.quality - right.quality)
 }
 
+function parseCachedQuantizedValues(value: unknown): number[] | null {
+  if (!Array.isArray(value) || value.length > 100) return null
+  const values = new Set<number>()
+  for (const entry of value) {
+    if (
+      typeof entry !== 'number' ||
+      !Number.isFinite(entry) ||
+      entry < 0 ||
+      entry > 1_000 ||
+      values.has(entry)
+    ) {
+      return null
+    }
+    values.add(entry)
+  }
+  return [...values].sort((left, right) => left - right)
+}
+
+function parseCachedRockComposition(value: unknown): MiningRockCompositionPart | null {
+  if (!isRecord(value)) return null
+  const minPercentage = value.minPercentage === null ? null : wikiPercentage(value.minPercentage)
+  const maxPercentage = value.maxPercentage === null ? null : wikiPercentage(value.maxPercentage)
+  const partProbability = value.probability === null ? null : probability(value.probability)
+  const qualityScale = value.qualityScale === null ? null : finiteNumber(value.qualityScale)
+  const curveExponent = value.curveExponent === null ? null : finiteNumber(value.curveExponent)
+  const minQuality = value.minQuality === null ? null : wikiQuality(value.minQuality)
+  const maxQuality = value.maxQuality === null ? null : wikiQuality(value.maxQuality)
+  const meanQuality = value.meanQuality === null ? null : wikiQuality(value.meanQuality)
+  const qualityStdDev = value.qualityStdDev === null ? null : finiteNumber(value.qualityStdDev)
+  const quantizedValues = parseCachedQuantizedValues(value.quantizedValues)
+  if (
+    typeof value.id !== 'string' ||
+    !value.id ||
+    typeof value.materialId !== 'string' ||
+    !value.materialId ||
+    typeof value.name !== 'string' ||
+    !value.name ||
+    typeof value.isTarget !== 'boolean' ||
+    (value.minPercentage !== null && minPercentage === null) ||
+    (value.maxPercentage !== null && maxPercentage === null) ||
+    (minPercentage !== null && maxPercentage !== null && minPercentage > maxPercentage) ||
+    (value.probability !== null && partProbability === null) ||
+    (value.qualityScale !== null && (qualityScale === null || qualityScale < 0)) ||
+    (value.curveExponent !== null && (curveExponent === null || curveExponent < 0)) ||
+    (value.minQuality !== null && minQuality === null) ||
+    (value.maxQuality !== null && maxQuality === null) ||
+    (minQuality !== null && maxQuality !== null && minQuality > maxQuality) ||
+    (value.meanQuality !== null && meanQuality === null) ||
+    (value.qualityStdDev !== null && (qualityStdDev === null || qualityStdDev < 0)) ||
+    quantizedValues === null
+  ) {
+    return null
+  }
+  return {
+    id: value.id,
+    materialId: value.materialId,
+    name: value.name,
+    isTarget: value.isTarget,
+    minPercentage,
+    maxPercentage,
+    probability: partProbability,
+    qualityScale,
+    curveExponent,
+    minQuality,
+    maxQuality,
+    meanQuality,
+    qualityStdDev,
+    quantizedValues
+  }
+}
+
+function parseCachedRockCluster(value: unknown): MiningRockCluster | null {
+  if (!isRecord(value) || typeof value.key !== 'string' || !value.key) return null
+  const clusterProbability = probability(value.probability)
+  const minSize = value.minSize === null ? null : finiteNumber(value.minSize)
+  const maxSize = value.maxSize === null ? null : finiteNumber(value.maxSize)
+  if (
+    clusterProbability === null ||
+    (value.minSize !== null && (minSize === null || minSize < 0)) ||
+    (value.maxSize !== null && (maxSize === null || maxSize < 0)) ||
+    (minSize !== null && maxSize !== null && minSize > maxSize)
+  ) {
+    return null
+  }
+  return { key: value.key, probability: clusterProbability, minSize, maxSize }
+}
+
+function parseCachedRockType(value: unknown): MiningRockType | null {
+  if (!isRecord(value) || !Array.isArray(value.compositions) || value.compositions.length > 100) {
+    return null
+  }
+  const signature = value.signature === null ? null : finiteNumber(value.signature)
+  const groupProbability =
+    value.groupProbability === null ? null : probability(value.groupProbability)
+  const relativeProbability =
+    value.relativeProbability === null ? null : probability(value.relativeProbability)
+  const minimumCompositionCount =
+    value.minimumCompositionCount === null ? null : finiteNumber(value.minimumCompositionCount)
+  const cluster = value.cluster === null ? null : parseCachedRockCluster(value.cluster)
+  const compositions = value.compositions.map(parseCachedRockComposition)
+  if (
+    typeof value.id !== 'string' ||
+    !value.id ||
+    typeof value.key !== 'string' ||
+    !value.key ||
+    typeof value.name !== 'string' ||
+    !value.name ||
+    typeof value.groupName !== 'string' ||
+    !value.groupName ||
+    (value.signature !== null && (signature === null || signature < 0)) ||
+    (value.groupProbability !== null && groupProbability === null) ||
+    (value.relativeProbability !== null && relativeProbability === null) ||
+    (value.minimumCompositionCount !== null &&
+      (minimumCompositionCount === null ||
+        minimumCompositionCount < 0 ||
+        !Number.isSafeInteger(minimumCompositionCount))) ||
+    (value.cluster !== null && cluster === null) ||
+    compositions.some((entry) => entry === null)
+  ) {
+    return null
+  }
+  return {
+    id: value.id,
+    key: value.key,
+    name: value.name,
+    signature,
+    groupName: value.groupName,
+    groupProbability,
+    relativeProbability,
+    minimumCompositionCount,
+    cluster,
+    compositions: compositions as MiningRockCompositionPart[]
+  }
+}
+
+function parseCachedRockTypes(value: unknown): MiningRockType[] | null {
+  if (value === undefined) return []
+  if (!Array.isArray(value) || value.length > 500) return null
+  const rockTypes = value.map(parseCachedRockType)
+  return rockTypes.some((entry) => entry === null) ? null : (rockTypes as MiningRockType[])
+}
+
 function parseCachedRecommendation(value: unknown): MiningLocationRecommendation | null {
   if (!isRecord(value)) return null
 
@@ -869,6 +1263,7 @@ function parseCachedRecommendation(value: unknown): MiningLocationRecommendation
   const quantizationProbabilities = parseCachedQuantizationProbabilities(
     value.quantizationProbabilities
   )
+  const rockTypes = parseCachedRockTypes(value.rockTypes)
   const hasMinQuality = value.minQuality !== undefined && value.minQuality !== null
   const minQuality = hasMinQuality ? finiteNumber(value.minQuality) : null
   const maxQuality = finiteNumber(value.maxQuality)
@@ -896,6 +1291,7 @@ function parseCachedRecommendation(value: unknown): MiningLocationRecommendation
       value.qualityThresholdProbability !== null &&
       qualityThresholdProbability === null) ||
     quantizationProbabilities === null ||
+    rockTypes === null ||
     maxQuality === null ||
     maxQuality < 0 ||
     maxQuality > 1_000 ||
@@ -927,6 +1323,7 @@ function parseCachedRecommendation(value: unknown): MiningLocationRecommendation
     maxQuality,
     minComposition,
     maxComposition,
+    rockTypes,
     identitySource,
     sourceUrl: value.sourceUrl
   }

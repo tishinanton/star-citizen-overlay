@@ -60,7 +60,33 @@ test('ranks every distinct location and retains zero or unavailable probabilitie
   assert.ok(Math.abs(boostedProbability - 0.1) < 0.0001)
   assert.equal(result[0].minQuality, 501)
   assert.equal(result[0].maxQuality, 1_000)
+  assert.equal(result[0].minComposition, 25)
   assert.equal(result[0].maxComposition, 75)
+  assert.equal(result[0].rockTypes.length, 1)
+  assert.equal(result[0].rockTypes[0].name, 'Surface Target')
+  assert.equal(result[0].rockTypes[0].cluster?.minSize, 3)
+  assert.deepEqual(
+    result[0].rockTypes[0].compositions.map((part) => ({
+      name: part.name,
+      isTarget: part.isTarget,
+      minPercentage: part.minPercentage,
+      maxPercentage: part.maxPercentage
+    })),
+    [
+      {
+        name: 'Another Commodity',
+        isTarget: false,
+        minPercentage: 10,
+        maxPercentage: 25
+      },
+      {
+        name: 'Target Ore',
+        isTarget: true,
+        minPercentage: 25,
+        maxPercentage: 75
+      }
+    ]
+  )
   assert.equal(result[6].combinedProbability, 0)
   assert.equal(result[6].minQuality, 0)
   assert.equal(result[6].maxQuality, 499)
@@ -310,6 +336,7 @@ test('loads older cached recommendations without a minimum quality value', async
     assert.equal(cached.locations[0].rockSpawnProbability, null)
     assert.equal(cached.locations[0].qualityThresholdProbability, null)
     assert.equal(cached.locations[0].combinedProbability, 0.25)
+    assert.deepEqual(cached.locations[0].rockTypes, [])
 
     globalThis.fetch = async () =>
       new Response(
@@ -363,30 +390,47 @@ function location(
     areas: options.areas ?? null,
     resources: [
       {
+        resource_uuid: `rock-${name.toLocaleLowerCase().replaceAll(' ', '-')}`,
+        key: 'MineableRock_SurfaceTarget',
+        label: 'Target rock',
+        signature: 4_000,
         group_name: 'SpaceShip_Mineables',
         area_exceptions: null,
+        clustering: {
+          key: 'Target_Cluster',
+          probability: 1,
+          min_size: 3,
+          max_size: 5
+        },
         materials: [
           {
             uuid: 'another-commodity',
+            key: 'Another_Commodity',
+            name: 'Another Commodity',
             is_current: false,
             quality_min: 501,
             quality_max: 1_000,
             quality_mean: 500,
             quality_stddev: 150,
-            max_percentage: 100,
+            min_percentage: 10,
+            max_percentage: 25,
             group_probability: 1,
             relative_probability: 1
           },
           {
             uuid: COMMODITY_UUID,
+            key: 'Target_Ore',
+            name: 'Target Ore',
             is_current: true,
             quality_min: qualityMin,
             quality_max: qualityMax,
             quality_mean: options.qualityMean ?? qualityMin,
             quality_stddev: options.qualityStdDev ?? 100,
+            min_percentage: 25,
             max_percentage: 75,
             group_probability: groupProbability,
-            relative_probability: relativeProbability
+            relative_probability: relativeProbability,
+            quality_quantized_values: [526, 762, 1_000]
           }
         ]
       }

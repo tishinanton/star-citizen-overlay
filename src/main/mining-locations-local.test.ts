@@ -231,6 +231,16 @@ test('buildLocalMiningLocations derives the resolved Aberdeen row entirely from 
   assert.equal(aberdeen.maxComposition, 100)
   assert.equal(aberdeen.minQuality, HADANITE_QUALITY.min)
   assert.equal(aberdeen.maxQuality, HADANITE_QUALITY.max)
+  assert.equal(aberdeen.rockTypes.length, 1)
+  assert.equal(aberdeen.rockTypes[0].key, 'MineableRock_FPS_Hadanite')
+  assert.equal(aberdeen.rockTypes[0].groupProbability, 0.25)
+  assert.equal(aberdeen.rockTypes[0].relativeProbability, 0.06)
+  assert.equal(aberdeen.rockTypes[0].minimumCompositionCount, 1)
+  assert.equal(aberdeen.rockTypes[0].compositions.length, 1)
+  assert.equal(aberdeen.rockTypes[0].compositions[0].isTarget, true)
+  assert.equal(aberdeen.rockTypes[0].compositions[0].qualityScale, 1)
+  assert.equal(aberdeen.rockTypes[0].compositions[0].curveExponent, 1)
+  assert.deepEqual(aberdeen.rockTypes[0].compositions[0].quantizedValues, REACHABLE_VALUES)
   assert.ok(Math.abs((aberdeen.rockSpawnProbability ?? 0) - 0.25 * 0.06) < 1e-9)
   assert.ok(aberdeen.qualityThresholdProbability !== null)
   assert.ok(
@@ -287,21 +297,36 @@ test('buildLocalMiningLocations combines repeated material parts and keeps their
   catalog.entities[0].composition.push({
     materialId: HADANITE_MATERIAL_ID,
     minPercentage: 10,
-    maxPercentage: 40,
+    maxPercentage: 20,
     probability: 1,
     curveExponent: 1,
     qualityScale: 0.5,
     instability: 200,
     resistance: 0
   })
+  catalog.entities[0].composition[0].maxPercentage = 70
 
   const locations = buildLocalMiningLocations(catalog, hadaniteMaterial(), HADANITE_MATERIAL_ID)
   const aberdeen = locations.find((entry) => entry.id === ABERDEEN_ID)
   assert.ok(aberdeen)
   assert.equal(aberdeen.minQuality, lowQuality.min)
   assert.equal(aberdeen.maxQuality, HADANITE_QUALITY.max)
-  assert.equal(aberdeen.minComposition, 10)
-  assert.equal(aberdeen.maxComposition, 100)
+  assert.equal(aberdeen.minComposition, 60)
+  assert.equal(aberdeen.maxComposition, 90)
+  assert.equal(aberdeen.rockTypes.length, 1)
+  assert.equal(aberdeen.rockTypes[0].compositions.length, 2)
+  assert.deepEqual(
+    aberdeen.rockTypes[0].compositions.map((part) => ({
+      minPercentage: part.minPercentage,
+      maxPercentage: part.maxPercentage,
+      minQuality: part.minQuality,
+      maxQuality: part.maxQuality
+    })),
+    [
+      { minPercentage: 50, maxPercentage: 70, minQuality: 201, maxQuality: 1_000 },
+      { minPercentage: 10, maxPercentage: 20, minQuality: 100, maxQuality: 500 }
+    ]
+  )
 
   const highChance = estimateQuantizedThresholdProbability(HADANITE_BANDS, HADANITE_QUALITY)
   const lowChance = estimateQuantizedThresholdProbability(HADANITE_BANDS, lowQuality)

@@ -23,6 +23,7 @@ const location: MiningLocationRecommendation = {
   maxQuality: 1_000,
   minComposition: null,
   maxComposition: 75,
+  rockTypes: [],
   identitySource: 'wiki',
   sourceUrl: 'https://example.com/location-test'
 }

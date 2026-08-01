@@ -873,7 +873,7 @@
 }
 
 .mining-quality-target button,
-.mining-location-table__quantization-toggle {
+.mining-location-table__rock-toggle {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -888,7 +888,7 @@
 }
 
 .mining-quality-target button:hover:not(:disabled),
-.mining-location-table__quantization-toggle:hover {
+.mining-location-table__rock-toggle:hover {
   border-color: var(--edge-strong);
   background: var(--surface-high);
   color: var(--ink);
@@ -937,12 +937,13 @@
   table-layout: fixed;
 }
 
-.mining-location-table th,
-.mining-location-table td {
+.mining-location-table > thead > tr > th,
+.mining-location-table > tbody > tr > th,
+.mining-location-table > tbody > tr > td {
   border-bottom: 1px solid color-mix(in oklch, var(--edge) 65%, transparent);
 }
 
-.mining-location-table thead th {
+.mining-location-table > thead > tr > th {
   height: 30px;
   padding: 6px 8px;
   background: var(--surface-low);
@@ -952,59 +953,59 @@
   text-align: left;
 }
 
-.mining-location-table thead th:first-child {
+.mining-location-table > thead > tr > th:first-child {
   width: 36px;
   text-align: center;
 }
 
-.mining-location-table thead th:nth-child(3) {
+.mining-location-table > thead > tr > th:nth-child(3) {
   width: 94px;
   text-align: right;
 }
 
-.mining-location-table thead th:nth-child(4) {
+.mining-location-table > thead > tr > th:nth-child(4) {
   width: 112px;
   text-align: right;
 }
 
-.mining-location-table thead th:nth-child(5) {
+.mining-location-table > thead > tr > th:nth-child(5) {
   width: 104px;
   text-align: right;
 }
 
-.mining-location-table thead th:nth-child(6) {
+.mining-location-table > thead > tr > th:nth-child(6) {
   width: 150px;
   text-align: right;
 }
 
-.mining-location-table thead th:last-child {
+.mining-location-table > thead > tr > th:last-child {
   width: 80px;
   text-align: right;
 }
 
-.mining-location-table tbody tr {
+.mining-location-table > tbody > tr {
   background: transparent;
   transition: background-color var(--duration-fast) var(--ease-out);
 }
 
-.mining-location-table tbody tr:hover {
+.mining-location-table > tbody > tr:hover {
   background: var(--surface-low);
 }
 
-.mining-location-table tbody tr.is-best {
+.mining-location-table > tbody > tr.is-best {
   background: color-mix(in oklch, var(--surface-selected) 34%, transparent);
 }
 
-.mining-location-table tbody tr.is-favorite {
+.mining-location-table > tbody > tr.is-favorite {
   background: color-mix(in oklch, var(--surface-selected) 64%, transparent);
 }
 
-.mining-location-table tbody tr:last-child > * {
+.mining-location-table > tbody > tr:last-child > * {
   border-bottom: 0;
 }
 
-.mining-location-table tbody th,
-.mining-location-table tbody td {
+.mining-location-table > tbody > tr > th,
+.mining-location-table > tbody > tr > td {
   height: 66px;
   padding: 9px 8px;
   vertical-align: middle;
@@ -1089,7 +1090,7 @@
   white-space: nowrap;
 }
 
-.mining-location-table__quantization-toggle {
+.mining-location-table__rock-toggle {
   min-height: 24px;
   margin: 5px 0 0 auto;
   padding-inline: 6px;
@@ -1097,45 +1098,182 @@
   white-space: nowrap;
 }
 
-.mining-location-table__quantization-toggle[aria-expanded='true'] svg {
+.mining-location-table__rock-toggle svg:last-child {
+  transition: transform var(--duration-fast) var(--ease-out);
+}
+
+.mining-location-table__rock-toggle[aria-expanded='true'] svg:last-child {
   transform: rotate(180deg);
 }
 
-.mining-location-table__quantization-row > td {
+.mining-location-table__rock-row > td {
   height: auto !important;
   padding: 0 !important;
   background: var(--surface-low);
 }
 
-.mining-quantization-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(76px, 1fr));
+.mining-location-table > tbody > .mining-location-table__rock-row:hover {
+  background: transparent;
+}
+
+.mining-rock-browser {
+  border-top: 1px solid var(--edge);
+  background: var(--bg);
+  text-align: left;
+}
+
+.mining-rock-browser__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 40px;
+  padding: 8px 12px;
+  gap: 12px;
+  border-bottom: 1px solid var(--edge);
+  background: var(--surface-low);
+}
+
+.mining-rock-browser__header > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  color: var(--ink);
+}
+
+.mining-rock-browser__header strong {
+  font-weight: 650;
+}
+
+.mining-rock-browser__header small {
+  color: var(--muted);
+  font-size: 1rem;
+}
+
+.mining-rock-type + .mining-rock-type {
   border-top: 1px solid var(--edge);
 }
 
-.mining-quantization-grid > span {
-  display: flex;
-  min-height: 46px;
-  padding: 7px 9px;
-  flex-direction: column;
-  justify-content: center;
+.mining-rock-type__header {
+  display: grid;
+  grid-template-columns: minmax(180px, 0.85fr) minmax(0, 1.15fr);
+  align-items: center;
+  min-height: 54px;
+  padding: 8px 12px;
+  gap: 16px;
+  background: color-mix(in oklch, var(--surface) 72%, var(--bg));
 }
 
-.mining-quantization-grid > span + span {
-  border-left: 1px solid color-mix(in oklch, var(--edge) 65%, transparent);
+.mining-rock-type__header > div:first-child {
+  display: grid;
+  min-width: 0;
+  gap: 3px;
 }
 
-.mining-quantization-grid strong {
+.mining-rock-type__header h3 {
+  margin: 0;
+  overflow: hidden;
   color: var(--ink);
   font-size: 1rem;
+  font-weight: 650;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mining-rock-type__header code {
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 1rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mining-rock-type__facts {
+  display: flex;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 5px 12px;
+}
+
+.mining-rock-type__facts span {
+  color: var(--ink-soft);
+  font-size: 1rem;
   font-variant-numeric: tabular-nums;
 }
 
-.mining-quantization-grid small {
-  margin-top: 2px;
-  color: var(--accent-bright);
+.mining-rock-composition-wrap {
+  overflow-x: auto;
+}
+
+.mining-rock-composition-table {
+  width: 100%;
+  min-width: 760px;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+
+.mining-rock-composition-table th,
+.mining-rock-composition-table td {
+  height: auto;
+  padding: 8px 10px;
+  border-bottom: 1px solid color-mix(in oklch, var(--edge) 55%, transparent);
+  color: var(--ink-soft);
   font-size: 1rem;
   font-variant-numeric: tabular-nums;
+  text-align: left;
+  vertical-align: middle;
+}
+
+.mining-rock-composition-table thead th {
+  padding-block: 6px;
+  background: var(--surface-low);
+  color: var(--muted);
+  font-weight: 400;
+}
+
+.mining-rock-composition-table th:first-child {
+  width: 25%;
+}
+
+.mining-rock-composition-table th:nth-child(2) {
+  width: 13%;
+}
+
+.mining-rock-composition-table th:nth-child(3) {
+  width: 18%;
+}
+
+.mining-rock-composition-table th:nth-child(4) {
+  width: 10%;
+}
+
+.mining-rock-composition-table tbody tr:last-child > * {
+  border-bottom: 0;
+}
+
+.mining-rock-composition-table tbody tr.is-target {
+  background: color-mix(in oklch, var(--surface-selected) 42%, transparent);
+}
+
+.mining-rock-composition-table tbody th {
+  color: var(--ink);
+  font-weight: 600;
+}
+
+.mining-rock-composition-table tbody th span,
+.mining-rock-composition-table tbody td > span {
+  display: block;
+}
+
+.mining-rock-composition-table tbody small {
+  display: block;
+  margin-top: 3px;
+  color: var(--muted);
+  font-size: 1rem;
+  font-weight: 400;
+}
+
+.mining-rock-composition-table tbody tr.is-target th small {
+  color: var(--accent-bright);
 }
 
 .mining-location-table__yield small {

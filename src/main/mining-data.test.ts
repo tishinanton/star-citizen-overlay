@@ -92,7 +92,7 @@ test('buildMaterialsFromCatalog derives a stable Hadanite material from its own 
     ]
   })
 
-  const materials = buildMaterialsFromCatalog(catalog)
+  const { materials, catalogMaterialIdByMaterialId } = buildMaterialsFromCatalog(catalog)
   assert.equal(materials.length, 1)
   const [result] = materials
   // 'hadanite' is a pre-existing GAME_COMMODITY_IDS mapping, so the id must stay 'hadanite' (stable
@@ -102,7 +102,7 @@ test('buildMaterialsFromCatalog derives a stable Hadanite material from its own 
   assert.equal(result.name, 'Hadanite')
   assert.equal(result.signature, 3_000)
   assert.deepEqual(result.methods, ['FPS'])
-  assert.equal(result.catalogMaterialId, hadanite.id)
+  assert.equal(catalogMaterialIdByMaterialId.get(result.id), hadanite.id)
 })
 
 test('buildMaterialsFromCatalog falls back to the catalog slug for materials with no existing Wiki mapping', () => {
@@ -125,7 +125,9 @@ test('buildMaterialsFromCatalog falls back to the catalog slug for materials wit
     ]
   })
 
-  const [result] = buildMaterialsFromCatalog(catalog)
+  const {
+    materials: [result]
+  } = buildMaterialsFromCatalog(catalog)
   assert.equal(result.id, 'novel-ore')
   assert.equal(result.commodityId, 'novel-ore')
 })
@@ -157,7 +159,7 @@ test('buildMaterialsFromCatalog assigns stable suffixed ids to multi-method vari
     ]
   })
 
-  const materials = buildMaterialsFromCatalog(catalog)
+  const { materials, catalogMaterialIdByMaterialId } = buildMaterialsFromCatalog(catalog)
   assert.equal(materials.length, 2)
   const ship = materials.find((entry) => entry.methods.includes('Ship'))
   const fps = materials.find((entry) => entry.methods.includes('FPS'))
@@ -165,8 +167,8 @@ test('buildMaterialsFromCatalog assigns stable suffixed ids to multi-method vari
   // Ship sorts first per PRIMARY_METHOD_ORDER, keeps the bare commodity id; FPS gets a suffix.
   assert.equal(ship.id, 'hadanite')
   assert.equal(fps.id, 'hadanite--fps')
-  assert.equal(ship.catalogMaterialId, hadanite.id)
-  assert.equal(fps.catalogMaterialId, hadanite.id)
+  assert.equal(catalogMaterialIdByMaterialId.get(ship.id), hadanite.id)
+  assert.equal(catalogMaterialIdByMaterialId.get(fps.id), hadanite.id)
 })
 
 test('buildMaterialsFromCatalog merges same-signature variants sharing one canonical key and method set', () => {
@@ -191,7 +193,7 @@ test('buildMaterialsFromCatalog merges same-signature variants sharing one canon
     ]
   })
 
-  const materials = buildMaterialsFromCatalog(catalog)
+  const { materials } = buildMaterialsFromCatalog(catalog)
   assert.equal(materials.length, 1)
   assert.equal(materials[0].signature, 4_000)
 })
@@ -292,11 +294,14 @@ test('buildMaterialsFromCatalog treats a "_pure" FPS variant as a distinct mater
     ]
   })
 
-  const materials = buildMaterialsFromCatalog(catalog)
+  const { materials, catalogMaterialIdByMaterialId } = buildMaterialsFromCatalog(catalog)
   assert.equal(materials.length, 2)
   const bySlug = new Map(materials.map((entry) => [entry.commodityId, entry]))
-  assert.equal(bySlug.get('carinite')?.catalogMaterialId, carinite.id)
-  assert.equal(bySlug.get('carinite-pure')?.catalogMaterialId, carinitePure.id)
+  assert.equal(catalogMaterialIdByMaterialId.get(bySlug.get('carinite')?.id ?? ''), carinite.id)
+  assert.equal(
+    catalogMaterialIdByMaterialId.get(bySlug.get('carinite-pure')?.id ?? ''),
+    carinitePure.id
+  )
 })
 
 test('buildMaterialsFromCatalog throws for an entity with no composition', () => {
@@ -351,7 +356,10 @@ test('buildMaterialsFromCatalog skips non-canonical/template entity paths', () =
     ]
   })
 
-  assert.deepEqual(buildMaterialsFromCatalog(catalog), [])
+  assert.deepEqual(buildMaterialsFromCatalog(catalog), {
+    materials: [],
+    catalogMaterialIdByMaterialId: new Map()
+  })
 })
 
 // --- loadMiningData integration: game path vs. Wiki fallback --------------------------------
@@ -510,7 +518,7 @@ test('loadMiningData builds materials from the local catalog without any Wiki li
       const hadanite = result.materials.find((entry) => entry.id === 'hadanite')
       assert.ok(hadanite)
       assert.equal(hadanite?.signature, 3_000)
-      assert.equal(hadanite?.catalogMaterialId, fillerGuid(1, 1))
+      assert.equal(result.catalogMaterialIdByMaterialId.get('hadanite'), fillerGuid(1, 1))
 
       const writtenCache = JSON.parse(await readFile(cachePath, 'utf8')) as {
         source: { kind: string; archiveFingerprint: string; channel: string }

@@ -60,7 +60,6 @@ function material(id: string): MiningMaterial {
     displayName: id.toUpperCase(),
     signature: 4_000,
     methods: ['FPS', 'Ship'],
-    catalogMaterialId: null,
     sourceUrl: `https://example.test/commodities/${id}`
   }
 }

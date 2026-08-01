@@ -44,13 +44,6 @@ export interface MiningMaterial {
   signature: number
   methods: MiningMethod[]
   sourceUrl: string
-  /**
-   * The installed local catalog's material GUID when this material was
-   * sourced from game data (`MiningDataStatus.state === 'game'`); `null` when
-   * sourced from the Star Citizen Wiki API. Joins a material back to its
-   * `MiningCatalog` entry for local mining-site derivation.
-   */
-  catalogMaterialId: string | null
 }
 
 /**

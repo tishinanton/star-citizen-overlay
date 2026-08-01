@@ -233,6 +233,7 @@ let lanControlPath = ''
 let gameDataArchive: GameDataArchive | null = null
 let extractorPath = ''
 let miningCatalog: MiningCatalog | null = null
+let miningCatalogMaterialIdByMaterialId: ReadonlyMap<string, string> = new Map()
 let appUpdater: AppUpdaterController | null = null
 let isQuitting = false
 let lanShutdownComplete = false
@@ -1026,6 +1027,7 @@ function applyPreparedStaticData(prepared: PreparedStaticData): void {
   materials = prepared.mining.materials
   dataStatus = prepared.mining.status
   miningCatalog = prepared.mining.catalog
+  miningCatalogMaterialIdByMaterialId = prepared.mining.catalogMaterialIdByMaterialId
   blueprintDataGeneration += 1
   pendingBlueprintData = null
   blueprintDataResult = prepared.blueprints
@@ -1115,6 +1117,7 @@ async function refreshMaterials(): Promise<AppSnapshot> {
     materials = result.materials
     dataStatus = result.status
     miningCatalog = result.catalog
+    miningCatalogMaterialIdByMaterialId = result.catalogMaterialIdByMaterialId
 
     const availableIds = new Set(materials.map((material) => material.id))
     const selectedMaterialIds = settings.selectedMaterialIds.filter((id) => availableIds.has(id))
@@ -1226,7 +1229,12 @@ async function loadAndStoreMiningLocations(
   generation: number
 ): Promise<MiningLocationResult> {
   try {
-    const result = await loadMiningLocations(locationCachePath, material, miningCatalog)
+    const result = await loadMiningLocations(
+      locationCachePath,
+      material,
+      miningCatalog,
+      miningCatalogMaterialIdByMaterialId.get(material.id) ?? null
+    )
     if (generation === miningLocationGeneration) {
       miningLocationResults.set(material.id, result)
       bestMiningLocations = {

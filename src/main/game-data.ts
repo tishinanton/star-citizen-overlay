@@ -335,7 +335,6 @@ export function mergeGameSignatures(
         displayName: hasVariants ? `${baseDisplayName} (${methodLabel})` : baseDisplayName,
         signature: signature.signature,
         methods: [...signature.methods],
-        catalogMaterialId: null,
         sourceUrl
       })
     })

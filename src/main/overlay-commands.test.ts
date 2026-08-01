@@ -13,7 +13,6 @@ const materials: MiningMaterial[] = [
     displayName: 'Agricium',
     signature: 3_885,
     methods: ['Ship'],
-    catalogMaterialId: null,
     sourceUrl: 'https://example.test/agricium'
   },
   {
@@ -23,7 +22,6 @@ const materials: MiningMaterial[] = [
     displayName: 'Riccite (FPS)',
     signature: 3_385,
     methods: ['FPS'],
-    catalogMaterialId: null,
     sourceUrl: 'https://example.test/riccite'
   }
 ]

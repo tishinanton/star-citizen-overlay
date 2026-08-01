@@ -108,6 +108,44 @@ function unresolvedProvider(): MiningCatalogProvider {
   }
 }
 
+const SECOND_UNRESOLVED_PROVIDER_ID = '5a2b3c4d-5e6f-7890-1234-56789abcdef0'
+
+// A second, structurally distinct unresolved ship-mining provider used to regression-test the
+// Fix-2 enrichment-grouping bug: two different local providers that both enrich to the same
+// Wiki location identity must combine into one row via `combineProviderScores`, not emit two
+// duplicate rows for the same physical place.
+function secondUnresolvedProvider(): MiningCatalogProvider {
+  return {
+    id: SECOND_UNRESOLVED_PROVIDER_ID,
+    key: 'HPP_LagrangeA_Occupied',
+    locationId: null,
+    locationName: null,
+    groups: [
+      {
+        groupName: 'Ship_Mineables',
+        groupProbability: 0.4,
+        contributions: [
+          {
+            harvestablePresetId: HARVESTABLE_PRESET_ID,
+            entityId: HADANITE_ENTITY_ID,
+            relativeProbability: 0.08,
+            clusterId: null,
+            materials: [
+              {
+                materialId: HADANITE_MATERIAL_ID,
+                effectiveQuality: HADANITE_QUALITY,
+                usedLocationOverride: false,
+                reachableQuantizedValues: REACHABLE_VALUES
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    areas: []
+  }
+}
+
 function buildCatalog(
   providers: MiningCatalogProvider[] = [resolvedProvider(), unresolvedProvider()]
 ): MiningCatalog {
@@ -164,7 +202,6 @@ function hadaniteMaterial(): MiningMaterial {
     displayName: 'Hadanite',
     signature: 3_000,
     methods: ['FPS'],
-    catalogMaterialId: HADANITE_MATERIAL_ID,
     sourceUrl: 'https://api.star-citizen.wiki/api/commodities/hadanite'
   }
 }
@@ -179,7 +216,7 @@ test('buildLocalMiningLocations derives the resolved Aberdeen row entirely from 
   const catalog = buildCatalog()
   const material = hadaniteMaterial()
 
-  const locations = buildLocalMiningLocations(catalog, material)
+  const locations = buildLocalMiningLocations(catalog, material, HADANITE_MATERIAL_ID)
   const aberdeen = locations.find((entry) => entry.id === ABERDEEN_ID)
   assert.ok(aberdeen)
   assert.equal(aberdeen.name, 'Aberdeen')
@@ -199,7 +236,7 @@ test('buildLocalMiningLocations keeps an unresolved real mining provider as a fi
   const catalog = buildCatalog()
   const material = hadaniteMaterial()
 
-  const locations = buildLocalMiningLocations(catalog, material)
+  const locations = buildLocalMiningLocations(catalog, material, HADANITE_MATERIAL_ID)
   const unresolved = locations.find((entry) => entry.id === `provider:${UNRESOLVED_PROVIDER_ID}`)
   assert.ok(unresolved)
   // Deterministic, transparent technical label - never a fabricated StarMap name.
@@ -211,10 +248,11 @@ test('buildLocalMiningLocations keeps an unresolved real mining provider as a fi
   assert.ok(unresolved.highQualityProbability !== null)
 })
 
-test('buildLocalMiningLocations returns nothing for a material with no local catalog identity', () => {
+test('buildLocalMiningLocations returns nothing when the catalog material id does not resolve', () => {
   const catalog = buildCatalog()
-  const material: MiningMaterial = { ...hadaniteMaterial(), catalogMaterialId: null }
-  assert.deepEqual(buildLocalMiningLocations(catalog, material), [])
+  const material = hadaniteMaterial()
+  const unknownCatalogMaterialId = '00000000-0000-0000-0000-000000000000'
+  assert.deepEqual(buildLocalMiningLocations(catalog, material, unknownCatalogMaterialId), [])
 })
 
 test('loadMiningLocations enriches an unresolved provider with one or more named Wiki locations, keeping local numbers', async () => {
@@ -224,7 +262,7 @@ test('loadMiningLocations enriches an unresolved provider with one or more named
   try {
     const catalog = buildCatalog()
     const material = hadaniteMaterial()
-    const baseline = buildLocalMiningLocations(catalog, material)
+    const baseline = buildLocalMiningLocations(catalog, material, HADANITE_MATERIAL_ID)
     const baselineAberdeen = baseline.find((entry) => entry.id === ABERDEEN_ID)
     assert.ok(baselineAberdeen)
 
@@ -257,7 +295,7 @@ test('loadMiningLocations enriches an unresolved provider with one or more named
         { status: 200, headers: { 'Content-Type': 'application/json' } }
       )
 
-    const result = await loadMiningLocations(cachePath, material, catalog)
+    const result = await loadMiningLocations(cachePath, material, catalog, HADANITE_MATERIAL_ID)
     assert.equal(result.state, 'game')
 
     const enrichedNames = result.locations
@@ -268,7 +306,7 @@ test('loadMiningLocations enriches an unresolved provider with one or more named
 
     // Wiki contributes only identity fields; the numeric fields must stay the local, authoritative
     // unresolved-provider score for every emitted named row.
-    const rawUnresolvedScore = buildLocalMiningLocations(catalog, material).find(
+    const rawUnresolvedScore = buildLocalMiningLocations(catalog, material, HADANITE_MATERIAL_ID).find(
       (entry) => entry.id === `provider:${UNRESOLVED_PROVIDER_ID}`
     )
     assert.ok(rawUnresolvedScore)
@@ -316,7 +354,7 @@ test('loadMiningLocations keeps the unresolved provider row when Wiki enrichment
       throw new Error('network unavailable')
     }
 
-    const result = await loadMiningLocations(cachePath, material, catalog)
+    const result = await loadMiningLocations(cachePath, material, catalog, HADANITE_MATERIAL_ID)
     assert.equal(result.state, 'game')
     assert.match(result.message, /Location-name enrichment unavailable/)
 
@@ -344,7 +382,7 @@ test('loadMiningLocations falls back to the cached game-derived result when loca
     const catalog = buildCatalog([resolvedProvider()])
     const material = hadaniteMaterial()
 
-    const first = await loadMiningLocations(cachePath, material, catalog)
+    const first = await loadMiningLocations(cachePath, material, catalog, HADANITE_MATERIAL_ID)
     assert.equal(first.state, 'game')
 
     // Simulate a corrupted/defensive-programming-violating catalog slipping through (e.g. an
@@ -355,10 +393,98 @@ test('loadMiningLocations falls back to the cached game-derived result when loca
       materials: [{ ...hadaniteCatalogMaterial(), quantizationBands: undefined as unknown as [] }]
     }
 
-    const second = await loadMiningLocations(cachePath, material, corruptCatalog)
+    const second = await loadMiningLocations(cachePath, material, corruptCatalog, HADANITE_MATERIAL_ID)
     assert.equal(second.state, 'game-cached')
     assert.match(second.message, /Using cached mining site data\./)
     assert.deepEqual(second.locations, first.locations)
+  } finally {
+    globalThis.fetch = originalFetch
+    await rm(directory, { recursive: true, force: true })
+  }
+})
+
+// Regression test for the Fix-2 enrichment-grouping bug: two structurally distinct unresolved
+// providers that both enrich to the *same* Wiki location identity must combine into one stable
+// row (via `combineProviderScores`, the same combinator used for providers sharing a resolved
+// `locationId`) rather than emitting two duplicate rows for the same physical place.
+test('loadMiningLocations combines two unresolved providers that enrich to the same Wiki location into one row', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'rockfall-local-locations-collision-'))
+  const cachePath = join(directory, 'locations.json')
+  const originalFetch = globalThis.fetch
+  try {
+    const catalog = buildCatalog([
+      resolvedProvider(),
+      unresolvedProvider(),
+      secondUnresolvedProvider()
+    ])
+    const material = hadaniteMaterial()
+
+    // Individual raw (pre-enrichment) scores for each unresolved provider, derived from a
+    // catalog containing only that one unresolved provider, so the expected combined
+    // probability can be computed with the same `1 - Π(1 - p)` semantics as
+    // `combineProviderScores` without duplicating its implementation.
+    const soloFirst = buildLocalMiningLocations(
+      buildCatalog([unresolvedProvider()]),
+      material,
+      HADANITE_MATERIAL_ID
+    ).find((entry) => entry.id === `provider:${UNRESOLVED_PROVIDER_ID}`)
+    const soloSecond = buildLocalMiningLocations(
+      buildCatalog([secondUnresolvedProvider()]),
+      material,
+      HADANITE_MATERIAL_ID
+    ).find((entry) => entry.id === `provider:${SECOND_UNRESOLVED_PROVIDER_ID}`)
+    assert.ok(soloFirst && soloSecond)
+    assert.ok(
+      soloFirst.highQualityProbability !== null && soloSecond.highQualityProbability !== null
+    )
+    const expectedCombined =
+      1 -
+      (1 - (soloFirst.highQualityProbability ?? 0)) * (1 - (soloSecond.highQualityProbability ?? 0))
+
+    globalThis.fetch = async () =>
+      new Response(
+        JSON.stringify({
+          data: {
+            locations: [
+              {
+                uuid: 'wiki-shared-loc',
+                name: 'Shared Belt Outpost',
+                system: 'Stanton',
+                type: 'Outpost',
+                parent_name: 'Stanton II',
+                link: 'https://example.com/wiki-shared-loc',
+                resources: [
+                  { provider_names: ['HPP_Stanton2c_Belt', 'HPP_LagrangeA_Occupied'] }
+                ]
+              }
+            ]
+          }
+        }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } }
+      )
+
+    const result = await loadMiningLocations(cachePath, material, catalog, HADANITE_MATERIAL_ID)
+    assert.equal(result.state, 'game')
+
+    const combinedRows = result.locations.filter(
+      (entry) => entry.id === 'wiki-location:wiki-shared-loc'
+    )
+    assert.equal(combinedRows.length, 1)
+    const [combined] = combinedRows
+    assert.equal(combined.name, 'Shared Belt Outpost')
+    assert.equal(combined.identitySource, 'game-wiki')
+    assert.ok(combined.highQualityProbability !== null)
+    assert.ok(Math.abs((combined.highQualityProbability ?? 0) - expectedCombined) < 1e-9)
+
+    // No leftover per-provider technical rows for either provider that fed the combined row.
+    assert.equal(
+      result.locations.some(
+        (entry) =>
+          entry.id === `provider:${UNRESOLVED_PROVIDER_ID}` ||
+          entry.id === `provider:${SECOND_UNRESOLVED_PROVIDER_ID}`
+      ),
+      false
+    )
   } finally {
     globalThis.fetch = originalFetch
     await rm(directory, { recursive: true, force: true })

@@ -11,7 +11,6 @@ const materials: MiningMaterial[] = ['a', 'b', 'c', 'd'].map((id, index) => ({
   displayName: `Material ${id.toUpperCase()}`,
   signature: 100 + index,
   methods: ['Ship'],
-  catalogMaterialId: null,
   sourceUrl: 'https://example.com'
 }))
 

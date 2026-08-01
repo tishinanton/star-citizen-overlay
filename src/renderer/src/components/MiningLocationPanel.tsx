@@ -152,9 +152,7 @@ export default function MiningLocationPanel({
                             : formatMiningProbability(location.highQualityProbability)}
                         </strong>
                         <small>
-                          {location.highQualityProbability === null
-                            ? 'source incomplete'
-                            : 'estimated'}
+                          {location.highQualityProbability === null ? 'incomplete' : 'estimated'}
                         </small>
                         {location.highQualityProbability !== null && (
                           <span className="mining-location-table__meter" aria-hidden="true">

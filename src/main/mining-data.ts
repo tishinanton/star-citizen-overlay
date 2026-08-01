@@ -66,6 +66,13 @@ export interface MiningDataResult {
    * it for the mining-sites pipeline without triggering a second extraction/cache read.
    */
   catalog: MiningCatalog | null
+  /**
+   * Internal-only join from a built `MiningMaterial.id` back to its `MiningCatalog` material GUID.
+   * Never exposed over IPC/the shared contract - the renderer has no use for a raw catalog GUID,
+   * and keeping it out of `MiningMaterial` keeps the public material shape identical regardless of
+   * data source. Empty when `catalog` is `null` (no game path was used).
+   */
+  catalogMaterialIdByMaterialId: ReadonlyMap<string, string>
 }
 
 function fallback(
@@ -81,7 +88,6 @@ function fallback(
     displayName: name,
     signature,
     methods,
-    catalogMaterialId: null,
     sourceUrl: `https://api.star-citizen.wiki/api/commodities/${id}`
   }
 }
@@ -146,7 +152,6 @@ function metadataToMaterial(metadata: MiningMaterialMetadata): MiningMaterial | 
     displayName: metadata.displayName,
     signature: metadata.sourceSignature,
     methods: metadata.methods.length > 0 ? metadata.methods : ['Unclassified'],
-    catalogMaterialId: null,
     sourceUrl: metadata.sourceUrl
   }
 }
@@ -221,6 +226,17 @@ interface GroupedCatalogSignature {
 }
 
 /**
+ * Result of {@link buildMaterialsFromCatalog}: the public `MiningMaterial[]` alongside an
+ * internal-only join back to each material's `MiningCatalog` GUID. The join is never part of the
+ * shared/IPC `MiningMaterial` contract - it stays main-process-only and is threaded separately
+ * (see `MiningDataResult.catalogMaterialIdByMaterialId`) into the mining-sites pipeline.
+ */
+export interface BuiltCatalogMaterials {
+  materials: MiningMaterial[]
+  catalogMaterialIdByMaterialId: Map<string, string>
+}
+
+/**
  * Builds every `MiningMaterial` the installed game archive can supply, entirely from the local
  * `MiningCatalog` - no Wiki commodity-list call. Reuses the same canonical-record regex
  * (`inferCanonicalRecord`) the pre-layer-2 signature-only path used, but resolves each entity's
@@ -229,7 +245,7 @@ interface GroupedCatalogSignature {
  * when a canonical key's variants disagree on signature or material identity, since that would
  * indicate a broken assumption rather than something safe to silently drop or guess at.
  */
-export function buildMaterialsFromCatalog(catalog: MiningCatalog): MiningMaterial[] {
+export function buildMaterialsFromCatalog(catalog: MiningCatalog): BuiltCatalogMaterials {
   const materialsById = new Map(catalog.materials.map((material) => [material.id, material]))
 
   const byMethod = new Map<string, CanonicalCatalogRecord>()
@@ -303,6 +319,7 @@ export function buildMaterialsFromCatalog(catalog: MiningCatalog): MiningMateria
   }
 
   const materials: MiningMaterial[] = []
+  const catalogMaterialIdByMaterialId = new Map<string, string>()
   for (const [key, groups] of signaturesByKey) {
     const catalogMaterial = materialsById.get(groups[0].catalogMaterialId)
     if (!catalogMaterial) {
@@ -324,19 +341,18 @@ export function buildMaterialsFromCatalog(catalog: MiningCatalog): MiningMateria
     sortedGroups.forEach((signature, index) => {
       const hasVariants = sortedGroups.length > 1
       const methodLabel = signature.methods.join(' / ')
+      const materialId =
+        index === 0 ? commodityId : `${commodityId}--${signature.methods.map(methodSlug).join('-')}`
       materials.push({
-        id:
-          index === 0
-            ? commodityId
-            : `${commodityId}--${signature.methods.map(methodSlug).join('-')}`,
+        id: materialId,
         commodityId,
         name: hasVariants ? `${baseName} (${methodLabel})` : baseName,
         displayName: hasVariants ? `${baseName} (${methodLabel})` : baseName,
         signature: signature.signature,
         methods: [...signature.methods],
-        catalogMaterialId: catalogMaterial.id,
         sourceUrl
       })
+      catalogMaterialIdByMaterialId.set(materialId, catalogMaterial.id)
     })
   }
 
@@ -345,7 +361,7 @@ export function buildMaterialsFromCatalog(catalog: MiningCatalog): MiningMateria
     throw new Error('Installed game mining catalog produced duplicate material identifiers.')
   }
 
-  return materials
+  return { materials, catalogMaterialIdByMaterialId }
 }
 
 function parseCacheSource(value: unknown): MiningCacheSource | null {
@@ -415,10 +431,7 @@ function parseCachedMaterial(value: unknown): MiningMaterial | null {
     typeof value.signature !== 'number' ||
     !Number.isSafeInteger(value.signature) ||
     value.signature <= 0 ||
-    typeof value.sourceUrl !== 'string' ||
-    (value.catalogMaterialId !== undefined &&
-      value.catalogMaterialId !== null &&
-      typeof value.catalogMaterialId !== 'string')
+    typeof value.sourceUrl !== 'string'
   ) {
     return null
   }
@@ -430,7 +443,6 @@ function parseCachedMaterial(value: unknown): MiningMaterial | null {
     displayName: value.displayName,
     signature: value.signature,
     methods: methods.length > 0 ? methods : ['Unclassified'],
-    catalogMaterialId: typeof value.catalogMaterialId === 'string' ? value.catalogMaterialId : null,
     sourceUrl: value.sourceUrl
   }
 }
@@ -488,7 +500,8 @@ export async function loadMiningData(options: MiningDataOptions): Promise<Mining
         forceRefresh: options.forceRefresh
       })
 
-      const materials = sortMaterials(buildMaterialsFromCatalog(catalog))
+      const built = buildMaterialsFromCatalog(catalog)
+      const materials = sortMaterials(built.materials)
       const updatedAt = await writeCache(options.cachePath, materials, {
         kind: 'game',
         archiveFingerprint,
@@ -497,6 +510,7 @@ export async function loadMiningData(options: MiningDataOptions): Promise<Mining
       return {
         materials,
         catalog,
+        catalogMaterialIdByMaterialId: built.catalogMaterialIdByMaterialId,
         status: {
           state: 'game',
           message: cacheWarning
@@ -522,6 +536,7 @@ export async function loadMiningData(options: MiningDataOptions): Promise<Mining
     return {
       materials,
       catalog: null,
+      catalogMaterialIdByMaterialId: new Map(),
       status: {
         state: 'live',
         message: gameError
@@ -538,6 +553,7 @@ export async function loadMiningData(options: MiningDataOptions): Promise<Mining
       return {
         materials: cache.materials,
         catalog: null,
+        catalogMaterialIdByMaterialId: new Map(),
         status: {
           state: 'cached',
           message: `Using cached signatures. ${gameError ?? ''} ${liveMessage}`.trim(),
@@ -550,6 +566,7 @@ export async function loadMiningData(options: MiningDataOptions): Promise<Mining
     return {
       materials: FALLBACK_MATERIALS,
       catalog: null,
+      catalogMaterialIdByMaterialId: new Map(),
       status: {
         state: 'fallback',
         message:

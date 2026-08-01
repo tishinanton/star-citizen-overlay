@@ -290,12 +290,28 @@ paths. On the local path, the chance is **quantization-aware**: rather than
 assuming a raw truncated-normal/uniform threshold over the full quality
 range, it integrates that distribution over the actual quantization bands
 whose `mappedValue >= 500`, intersected with each contribution's effective
-quality min/max (including any location-specific override). This is a real
-and sometimes large correction - for Hadanite at Aberdeen, the naive
-raw-threshold estimate over the same distribution is 31.06%, while the
-quantization-aware estimate is 0.75%, because most of the distribution's mass
-falls into quantization bands well below the threshold. When a material has
-no quantization bands (always true on the Wiki-fallback path), the estimator
+quality min/max (including any location-specific override). This can move
+the estimate in either direction versus the naive raw-threshold calculation,
+and for Hadanite at Aberdeen it raises it: the conditional (single-
+contribution) raw-threshold estimate over that distribution is 31.06%, while
+the quantization-aware conditional estimate is 50.04%. This is *not* because
+mass moved below the threshold - it is because a raw quality roll in
+`[400, 599)`, which sits below the naive 500 cutoff, is quantized through
+band `[400, 599] -> mappedValue 526`, an output that clears the threshold.
+Quantization can convert an apparently sub-threshold raw roll into an
+above-threshold mapped result, so the quantization-aware number is not
+directly comparable to a plain "fraction of raw mass above 500" reading.
+After combining with this provider's group probability `0.25` and Hadanite's
+relative probability `0.06` within that group, the final row-level chance
+goes from 0.466% (raw-threshold) to 0.751% (quantization-aware) - do not
+compare the 31.06%/50.04% conditional figures directly against the
+0.466%/0.751% combined figures; they answer different questions (single
+contribution vs. the fully combined site chance). This estimate assumes the
+material's quantization bands are disjoint (non-overlapping) and exhaustive
+enough to renormalize against; `effectiveQuality` already folds in any
+location-specific override and `qualityScale`, and `curveExponent` is
+intentionally not reapplied by this estimation step. When a material has no
+quantization bands (always true on the Wiki-fallback path), the estimator
 falls back to the raw-threshold calculation unchanged.
 
 ```text

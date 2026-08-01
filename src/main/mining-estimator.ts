@@ -112,6 +112,14 @@ function bandMass(distribution: QualityDistributionLike, lo: number, hi: number)
  * not tile the full effective range). Falls back to the raw estimator when no
  * bands are supplied, or when the bands carry no usable mass in range (e.g.
  * every band falls entirely outside `[qualityMin, qualityMax]`).
+ *
+ * Assumptions: the caller's `bands` are treated as disjoint (non-overlapping)
+ * - overlapping bands would double-count mass in the overlap. `distribution`
+ * is expected to already be the *effective* quality range/mean/stdDev (i.e.
+ * any material location-quality override and `qualityScale` have already
+ * been folded in by the caller); this function does not know about or
+ * reapply `curveExponent` - that shaping is intentionally left out of this
+ * probability estimate.
  */
 export function estimateQuantizedThresholdProbability(
   bands: readonly QuantizationBandLike[],

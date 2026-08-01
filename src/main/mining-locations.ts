@@ -462,19 +462,22 @@ function humanizeProviderKey(key: string): string {
  * Builds every mining-site recommendation the installed game archive can supply for one
  * material: one row per `MiningCatalogLocation` resolved via layer 1's provider->location
  * mapping (or combined across multiple providers sharing a location), plus one row per
- * structurally unresolved real ship-mining provider (kept as first-class, never dropped).
- * `wikiIdentityByProviderKey` is empty on the first pass; callers that also want Wiki
- * location-identity enrichment for unresolved providers call this twice (see `loadMiningLocations`).
+ * distinct Wiki-enriched location identity reachable from the unresolved providers (combined
+ * across every unresolved provider that maps to that same identity, using the same
+ * `combineProviderScores` semantics as resolved locations), plus one row per remaining
+ * structurally unresolved real ship-mining provider with no identity match (kept as
+ * first-class, never dropped). `wikiIdentityByProviderKey` is empty on the first pass; callers
+ * that also want Wiki location-identity enrichment for unresolved providers call this twice
+ * (see `loadMiningLocations`).
  */
 export function buildLocalMiningLocations(
   catalog: MiningCatalog,
   material: MiningMaterial,
+  catalogMaterialId: string,
   wikiIdentityByProviderKey: ReadonlyMap<string, readonly WikiLocationIdentity[]> = new Map()
 ): MiningLocationRecommendation[] {
-  if (!material.catalogMaterialId) return []
-  const catalogMaterial = catalog.materials.find((entry) => entry.id === material.catalogMaterialId)
+  const catalogMaterial = catalog.materials.find((entry) => entry.id === catalogMaterialId)
   if (!catalogMaterial) return []
-  const catalogMaterialId = catalogMaterial.id
 
   const locationsById = new Map(catalog.locations.map((entry) => [entry.id, entry]))
   const entitiesById = new Map(catalog.entities.map((entry) => [entry.id, entry]))
@@ -520,6 +523,18 @@ export function buildLocalMiningLocations(
     })
   }
 
+  // Score every unresolved provider once, then split into those with a matched Wiki identity
+  // and those without. A single provider can fan out to several identities (kept, one row per
+  // identity); several distinct providers can also enrich to the *same* identity (e.g. two
+  // different ship-mining presets both named as sources of one named cave/outpost) - those must
+  // combine into one stable row via `combineProviderScores`, exactly like providers sharing a
+  // resolved `locationId` above, instead of emitting duplicate rows for the same place.
+  const scoresByIdentityId = new Map<
+    string,
+    { identity: WikiLocationIdentity; scores: ProviderScore[] }
+  >()
+  const withoutIdentity: Array<{ provider: MiningCatalogProvider; score: ProviderScore }> = []
+
   for (const provider of unresolvedProviders) {
     const score = scoreProvider(provider, catalogMaterialId, catalogMaterial, entitiesById)
     if (!score) continue
@@ -527,25 +542,36 @@ export function buildLocalMiningLocations(
     const identities = wikiIdentityByProviderKey.get(provider.key)
     if (identities && identities.length > 0) {
       for (const identity of identities) {
-        recommendations.push({
-          id: `provider:${provider.id}:${identity.id}`,
-          name: identity.name,
-          area: score.bestArea.name,
-          system: identity.system,
-          type: identity.type,
-          parentName: identity.parentName,
-          highQualityProbability: score.highQualityProbability,
-          minQuality: score.minQuality,
-          maxQuality: score.maxQuality,
-          minComposition: score.minComposition,
-          maxComposition: score.maxComposition,
-          identitySource: 'game-wiki',
-          sourceUrl: identity.sourceUrl
-        })
+        const group = scoresByIdentityId.get(identity.id) ?? { identity, scores: [] }
+        group.scores.push(score)
+        scoresByIdentityId.set(identity.id, group)
       }
       continue
     }
 
+    withoutIdentity.push({ provider, score })
+  }
+
+  for (const { identity, scores } of scoresByIdentityId.values()) {
+    const combined = combineProviderScores(scores)
+    recommendations.push({
+      id: `wiki-location:${identity.id}`,
+      name: identity.name,
+      area: combined.area,
+      system: identity.system,
+      type: identity.type,
+      parentName: identity.parentName,
+      highQualityProbability: combined.highQualityProbability,
+      minQuality: combined.minQuality,
+      maxQuality: combined.maxQuality,
+      minComposition: combined.minComposition,
+      maxComposition: combined.maxComposition,
+      identitySource: 'game-wiki',
+      sourceUrl: identity.sourceUrl
+    })
+  }
+
+  for (const { provider, score } of withoutIdentity) {
     recommendations.push({
       id: `provider:${provider.id}`,
       name: humanizeProviderKey(provider.key),
@@ -798,7 +824,7 @@ async function writeLocationCacheEntry(
 /**
  * Loads mining-site recommendations for one material, preferring the installed game archive.
  *
- * - When `material.catalogMaterialId` is set and a `catalog` is supplied, every value
+ * - When `catalogMaterialId` is set and a `catalog` is supplied, every value
  *   (group/relative probability, quality, composition, area modifiers) comes from the local
  *   catalog; the Wiki commodity-detail endpoint is only ever consulted to enrich the name of
  *   structurally unresolved real ship-mining providers, and never overrides local numbers.
@@ -807,10 +833,11 @@ async function writeLocationCacheEntry(
 export async function loadMiningLocations(
   cachePath: string,
   material: MiningMaterial,
-  catalog: MiningCatalog | null = null
+  catalog: MiningCatalog | null = null,
+  catalogMaterialId: string | null = null
 ): Promise<MiningLocationResult> {
-  if (material.catalogMaterialId && catalog) {
-    return loadLocalMiningLocations(cachePath, material, catalog)
+  if (catalogMaterialId && catalog) {
+    return loadLocalMiningLocations(cachePath, material, catalog, catalogMaterialId)
   }
   return loadWikiMiningLocations(cachePath, material)
 }
@@ -818,10 +845,11 @@ export async function loadMiningLocations(
 async function loadLocalMiningLocations(
   cachePath: string,
   material: MiningMaterial,
-  catalog: MiningCatalog
+  catalog: MiningCatalog,
+  catalogMaterialId: string
 ): Promise<MiningLocationResult> {
   try {
-    const baseline = buildLocalMiningLocations(catalog, material)
+    const baseline = buildLocalMiningLocations(catalog, material, catalogMaterialId)
     const hasUnresolvedProviders = baseline.some(
       (entry) => entry.identitySource === 'game' && entry.id.startsWith('provider:')
     )
@@ -831,7 +859,7 @@ async function loadLocalMiningLocations(
     if (hasUnresolvedProviders) {
       try {
         const identities = await fetchWikiProviderIdentities(material)
-        locations = buildLocalMiningLocations(catalog, material, identities)
+        locations = buildLocalMiningLocations(catalog, material, catalogMaterialId, identities)
       } catch (enrichError) {
         const enrichMessage =
           enrichError instanceof Error ? enrichError.message : String(enrichError)

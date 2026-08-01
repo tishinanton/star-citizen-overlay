@@ -183,7 +183,6 @@ test('maps game signatures onto API metadata and separates method-specific value
       displayName: 'Agricium (Ore)',
       signature: 3_885,
       methods: ['Ship'],
-      catalogMaterialId: null,
       sourceUrl: 'https://example.com/agricium'
     },
     {
@@ -193,7 +192,6 @@ test('maps game signatures onto API metadata and separates method-specific value
       displayName: 'Carinite (Ground Vehicle)',
       signature: 4_000,
       methods: ['Ground Vehicle'],
-      catalogMaterialId: null,
       sourceUrl: 'https://example.com/carinite'
     },
     {
@@ -203,7 +201,6 @@ test('maps game signatures onto API metadata and separates method-specific value
       displayName: 'Carinite (FPS)',
       signature: 3_000,
       methods: ['FPS'],
-      catalogMaterialId: null,
       sourceUrl: 'https://example.com/carinite'
     }
   ])

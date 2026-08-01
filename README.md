@@ -1,5 +1,8 @@
 # Rockfall
 
+[Download the latest Windows release](https://tishinanton.github.io/star-citizen-overlay/)
+· [View release notes](https://github.com/tishinanton/star-citizen-overlay/releases/latest)
+
 Rockfall is a Windows desktop field companion for Star Citizen. It combines a
 web-based control console with a transparent, click-through, always-on-top
 mining overlay, blueprint reference workspace, and faction reputation directory.

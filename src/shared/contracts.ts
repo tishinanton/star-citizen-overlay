@@ -17,7 +17,6 @@ export const MAX_OVERLAY_FONT_SCALE = 1.6
 export const DEFAULT_OVERLAY_FONT_SCALE = 1
 export const OVERLAY_FONT_SCALE_STEP = 0.05
 export const HIGH_QUALITY_THRESHOLD = 500
-export const MAX_RECOMMENDED_MINING_LOCATIONS = 5
 
 export type ShortcutId = 'toggle-overlay' | 'next-target' | 'show-all' | 'toggle-compact'
 
@@ -54,7 +53,8 @@ export interface MiningLocationRecommendation {
   system: string
   type: string
   parentName: string | null
-  highQualityProbability: number
+  highQualityProbability: number | null
+  minQuality: number | null
   maxQuality: number
   maxComposition: number | null
   sourceUrl: string

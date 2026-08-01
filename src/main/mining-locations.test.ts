@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { mkdtemp, rm } from 'node:fs/promises'
+import { mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import test from 'node:test'
@@ -21,7 +21,7 @@ test('estimates the chance of crossing the high-quality threshold', () => {
   assert.equal(estimateHighQualityProbability(0, 1_000, null, null), 0.5)
 })
 
-test('ranks the top five distinct locations by high-quality probability', () => {
+test('ranks every distinct location and retains zero or unavailable probabilities', () => {
   const result = parseMiningLocationRecommendations(
     {
       data: {
@@ -41,7 +41,8 @@ test('ranks the top five distinct locations by high-quality probability', () => 
           location('Boosted', 0.1, 0.4, {
             areas: [{ name: 'Coastline', global_modifier: 4 }]
           }),
-          location('Delta', 0.2, 0.5)
+          location('Delta', 0.2, 0.5),
+          location('Unknown chance', null, null)
         ]
       }
     },
@@ -50,13 +51,20 @@ test('ranks the top five distinct locations by high-quality probability', () => 
 
   assert.deepEqual(
     result.map((entry) => entry.name),
-    ['Alpha', 'Mid grade', 'Boosted', 'Delta', 'Echo']
+    ['Alpha', 'Mid grade', 'Boosted', 'Delta', 'Echo', 'Foxtrot', 'Low grade', 'Unknown chance']
   )
-  assert.equal(result.length, 5)
+  assert.equal(result.length, 8)
   assert.equal(result[2].area, 'Coastline')
-  assert.ok(Math.abs(result[2].highQualityProbability - 0.1) < 0.0001)
+  const boostedProbability = result[2].highQualityProbability
+  if (boostedProbability === null) assert.fail('Boosted should have an estimated probability')
+  assert.ok(Math.abs(boostedProbability - 0.1) < 0.0001)
+  assert.equal(result[0].minQuality, 501)
   assert.equal(result[0].maxQuality, 1_000)
   assert.equal(result[0].maxComposition, 75)
+  assert.equal(result[6].highQualityProbability, 0)
+  assert.equal(result[6].minQuality, 0)
+  assert.equal(result[6].maxQuality, 499)
+  assert.equal(result[7].highQualityProbability, null)
   assert.equal(resolvePreferredMiningLocation(result, 'location-echo')?.name, 'Echo')
   assert.equal(resolvePreferredMiningLocation(result, 'missing-location')?.name, 'Alpha')
   assert.equal(resolvePreferredMiningLocation([], 'location-echo'), null)
@@ -107,6 +115,7 @@ test('caches successful recommendations for offline use', async () => {
     const live = await loadMiningLocations(cachePath, material)
     assert.equal(live.state, 'live')
     assert.equal(live.locations[0].name, 'Cached site')
+    assert.equal(live.locations[0].minQuality, 501)
 
     globalThis.fetch = async () => {
       throw new Error('offline')
@@ -121,10 +130,63 @@ test('caches successful recommendations for offline use', async () => {
   }
 })
 
+test('loads older cached recommendations without a minimum quality value', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'rockfall-locations-legacy-'))
+  const cachePath = join(directory, 'locations.json')
+  const originalFetch = globalThis.fetch
+  const material: MiningMaterial = {
+    id: 'target-ore',
+    commodityId: 'target-ore',
+    name: 'Target Ore',
+    displayName: 'Target Ore',
+    signature: 4_000,
+    methods: ['Ship'],
+    sourceUrl: 'https://example.com/target-ore'
+  }
+
+  await writeFile(
+    cachePath,
+    JSON.stringify({
+      entries: {
+        [material.id]: {
+          savedAt: '2026-08-01T10:00:00.000Z',
+          locations: [
+            {
+              id: 'legacy-location',
+              name: 'Legacy Site',
+              area: null,
+              system: 'Stanton System',
+              type: 'Moon',
+              parentName: 'Stanton',
+              highQualityProbability: 0.25,
+              maxQuality: 1_000,
+              maxComposition: 75,
+              sourceUrl: 'https://example.com/legacy-location'
+            }
+          ]
+        }
+      }
+    })
+  )
+
+  try {
+    globalThis.fetch = async () => {
+      throw new Error('offline')
+    }
+    const cached = await loadMiningLocations(cachePath, material)
+    assert.equal(cached.state, 'cached')
+    assert.equal(cached.locations[0].name, 'Legacy Site')
+    assert.equal(cached.locations[0].minQuality, null)
+  } finally {
+    globalThis.fetch = originalFetch
+    await rm(directory, { recursive: true, force: true })
+  }
+})
+
 function location(
   name: string,
-  groupProbability: number,
-  relativeProbability: number,
+  groupProbability: number | null,
+  relativeProbability: number | null,
   options: {
     qualityMin?: number
     qualityMax?: number

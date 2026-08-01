@@ -4,6 +4,9 @@ const probabilityFormatter = new Intl.NumberFormat('en-US', {
   maximumFractionDigits: 1,
   minimumFractionDigits: 1
 })
+const qualityFormatter = new Intl.NumberFormat('en-US', {
+  maximumFractionDigits: 1
+})
 
 export function formatMiningProbability(value: number): string {
   const percent = value * 100
@@ -13,4 +16,12 @@ export function formatMiningProbability(value: number): string {
 
 export function formatMiningSiteName(location: MiningLocationRecommendation): string {
   return location.area ? `${location.name} · ${location.area}` : location.name
+}
+
+export function formatMiningQualityRange(location: MiningLocationRecommendation): string {
+  const maximum = qualityFormatter.format(location.maxQuality / 10)
+  if (location.minQuality === null) return `Up to ${maximum}%`
+
+  const minimum = qualityFormatter.format(location.minQuality / 10)
+  return minimum === maximum ? `${maximum}%` : `${minimum}–${maximum}%`
 }

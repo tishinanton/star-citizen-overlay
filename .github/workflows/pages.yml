@@ -14,16 +14,32 @@ on:
 
 permissions:
   contents: read
-  pages: write
-  id-token: write
-
-concurrency:
-  group: github-pages
-  cancel-in-progress: true
 
 jobs:
+  refresh-release:
+    name: Refresh release metadata from master
+    if: github.event_name == 'release'
+    permissions:
+      actions: write
+      contents: read
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Dispatch master deployment
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run pages.yml --repo "$GITHUB_REPOSITORY" --ref master
+
   deploy:
     name: Deploy to GitHub Pages
+    if: github.event_name != 'release'
+    permissions:
+      contents: read
+      id-token: write
+      pages: write
+    concurrency:
+      group: github-pages
+      cancel-in-progress: true
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}

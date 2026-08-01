@@ -206,10 +206,13 @@ function hadaniteMaterial(): MiningMaterial {
   }
 }
 
-function expectedResolvedProbability(): number {
-  const qualityProbability = estimateQuantizedThresholdProbability(HADANITE_BANDS, HADANITE_QUALITY)
-  const groupChance = 0.25 * Math.min(1, 0.06 * qualityProbability * 1)
-  return 1 - (1 - groupChance)
+function expectedResolvedProbability(qualityThreshold = 500): number {
+  const qualityProbability = estimateQuantizedThresholdProbability(
+    HADANITE_BANDS,
+    HADANITE_QUALITY,
+    qualityThreshold
+  )
+  return 0.25 * 0.06 * qualityProbability
 }
 
 test('buildLocalMiningLocations derives the resolved Aberdeen row entirely from local numbers', () => {
@@ -228,8 +231,48 @@ test('buildLocalMiningLocations derives the resolved Aberdeen row entirely from 
   assert.equal(aberdeen.maxComposition, 100)
   assert.equal(aberdeen.minQuality, Math.min(...REACHABLE_VALUES))
   assert.equal(aberdeen.maxQuality, Math.max(...REACHABLE_VALUES))
-  assert.ok(aberdeen.highQualityProbability !== null)
-  assert.ok(Math.abs((aberdeen.highQualityProbability ?? 0) - expectedResolvedProbability()) < 1e-9)
+  assert.ok(Math.abs((aberdeen.rockSpawnProbability ?? 0) - 0.25 * 0.06) < 1e-9)
+  assert.ok(aberdeen.qualityThresholdProbability !== null)
+  assert.ok(
+    Math.abs(
+      (aberdeen.qualityThresholdProbability ?? 0) -
+        estimateQuantizedThresholdProbability(HADANITE_BANDS, HADANITE_QUALITY)
+    ) < 1e-9
+  )
+  assert.ok(aberdeen.combinedProbability !== null)
+  assert.ok(Math.abs((aberdeen.combinedProbability ?? 0) - expectedResolvedProbability()) < 1e-9)
+  assert.equal(aberdeen.quantizationProbabilities.length, HADANITE_BANDS.length)
+  assert.ok(
+    Math.abs(
+      aberdeen.quantizationProbabilities.reduce(
+        (sum, quantization) => sum + quantization.probability,
+        0
+      ) - 1
+    ) < 1e-9
+  )
+})
+
+test('buildLocalMiningLocations applies a user-set raw quality threshold', () => {
+  const locations = buildLocalMiningLocations(
+    buildCatalog(),
+    hadaniteMaterial(),
+    HADANITE_MATERIAL_ID,
+    new Map(),
+    750
+  )
+  const aberdeen = locations.find((entry) => entry.id === ABERDEEN_ID)
+  assert.ok(aberdeen)
+  assert.ok(Math.abs((aberdeen.rockSpawnProbability ?? 0) - 0.015) < 1e-9)
+  assert.ok(Math.abs((aberdeen.qualityThresholdProbability ?? 0) - 0.08702060242924659) < 1e-9)
+  assert.ok(Math.abs((aberdeen.combinedProbability ?? 0) - 0.0013053090364386988) < 1e-9)
+  assert.ok(
+    Math.abs(
+      aberdeen.quantizationProbabilities
+        .filter((entry) => entry.quality >= 750)
+        .reduce((sum, entry) => sum + entry.probability, 0) -
+        (aberdeen.qualityThresholdProbability ?? 0)
+    ) < 1e-9
+  )
 })
 
 test('buildLocalMiningLocations keeps an unresolved real mining provider as a first-class row', () => {
@@ -245,7 +288,20 @@ test('buildLocalMiningLocations keeps an unresolved real mining provider as a fi
   assert.equal(unresolved.type, 'Unresolved ship-mining provider')
   assert.equal(unresolved.parentName, null)
   assert.equal(unresolved.identitySource, 'game')
-  assert.ok(unresolved.highQualityProbability !== null)
+  assert.ok(unresolved.combinedProbability !== null)
+})
+
+test('buildLocalMiningLocations orders sites by combined chance', () => {
+  const locations = buildLocalMiningLocations(
+    buildCatalog(),
+    hadaniteMaterial(),
+    HADANITE_MATERIAL_ID
+  )
+  const probabilities = locations.map((entry) => entry.combinedProbability ?? -1)
+  assert.deepEqual(
+    probabilities,
+    [...probabilities].sort((left, right) => right - left)
+  )
 })
 
 test('buildLocalMiningLocations returns nothing when the catalog material id does not resolve', () => {
@@ -306,14 +362,25 @@ test('loadMiningLocations enriches an unresolved provider with one or more named
 
     // Wiki contributes only identity fields; the numeric fields must stay the local, authoritative
     // unresolved-provider score for every emitted named row.
-    const rawUnresolvedScore = buildLocalMiningLocations(catalog, material, HADANITE_MATERIAL_ID).find(
-      (entry) => entry.id === `provider:${UNRESOLVED_PROVIDER_ID}`
-    )
+    const rawUnresolvedScore = buildLocalMiningLocations(
+      catalog,
+      material,
+      HADANITE_MATERIAL_ID
+    ).find((entry) => entry.id === `provider:${UNRESOLVED_PROVIDER_ID}`)
     assert.ok(rawUnresolvedScore)
     for (const enriched of result.locations.filter(
       (entry) => entry.identitySource === 'game-wiki'
     )) {
-      assert.equal(enriched.highQualityProbability, rawUnresolvedScore.highQualityProbability)
+      assert.equal(enriched.rockSpawnProbability, rawUnresolvedScore.rockSpawnProbability)
+      assert.equal(
+        enriched.qualityThresholdProbability,
+        rawUnresolvedScore.qualityThresholdProbability
+      )
+      assert.equal(enriched.combinedProbability, rawUnresolvedScore.combinedProbability)
+      assert.deepEqual(
+        enriched.quantizationProbabilities,
+        rawUnresolvedScore.quantizationProbabilities
+      )
       assert.equal(enriched.minQuality, rawUnresolvedScore.minQuality)
       assert.equal(enriched.maxQuality, rawUnresolvedScore.maxQuality)
       assert.equal(enriched.minComposition, rawUnresolvedScore.minComposition)
@@ -324,10 +391,7 @@ test('loadMiningLocations enriches an unresolved provider with one or more named
     const aberdeenAfterEnrichment = result.locations.find((entry) => entry.id === ABERDEEN_ID)
     assert.ok(aberdeenAfterEnrichment)
     assert.equal(aberdeenAfterEnrichment.identitySource, 'game')
-    assert.equal(
-      aberdeenAfterEnrichment.highQualityProbability,
-      baselineAberdeen.highQualityProbability
-    )
+    assert.equal(aberdeenAfterEnrichment.combinedProbability, baselineAberdeen.combinedProbability)
     assert.equal(aberdeenAfterEnrichment.minComposition, baselineAberdeen.minComposition)
     assert.equal(aberdeenAfterEnrichment.maxComposition, baselineAberdeen.maxComposition)
 
@@ -393,10 +457,43 @@ test('loadMiningLocations falls back to the cached game-derived result when loca
       materials: [{ ...hadaniteCatalogMaterial(), quantizationBands: undefined as unknown as [] }]
     }
 
-    const second = await loadMiningLocations(cachePath, material, corruptCatalog, HADANITE_MATERIAL_ID)
+    const second = await loadMiningLocations(
+      cachePath,
+      material,
+      corruptCatalog,
+      HADANITE_MATERIAL_ID
+    )
     assert.equal(second.state, 'game-cached')
     assert.match(second.message, /Using cached mining site data\./)
     assert.deepEqual(second.locations, first.locations)
+  } finally {
+    globalThis.fetch = originalFetch
+    await rm(directory, { recursive: true, force: true })
+  }
+})
+
+test('loadMiningLocations does not reuse a cache created for another quality threshold', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'rockfall-local-locations-threshold-cache-'))
+  const cachePath = join(directory, 'locations.json')
+  const originalFetch = globalThis.fetch
+  try {
+    globalThis.fetch = async () => {
+      throw new Error('should not be called - no unresolved providers in this catalog')
+    }
+
+    const catalog = buildCatalog([resolvedProvider()])
+    const material = hadaniteMaterial()
+    const first = await loadMiningLocations(cachePath, material, catalog, HADANITE_MATERIAL_ID, 500)
+    assert.equal(first.qualityThreshold, 500)
+
+    const corruptCatalog: MiningCatalog = {
+      ...catalog,
+      materials: [{ ...hadaniteCatalogMaterial(), quantizationBands: undefined as unknown as [] }]
+    }
+    await assert.rejects(
+      () => loadMiningLocations(cachePath, material, corruptCatalog, HADANITE_MATERIAL_ID, 750),
+      /no cached result exists/
+    )
   } finally {
     globalThis.fetch = originalFetch
     await rm(directory, { recursive: true, force: true })
@@ -434,12 +531,12 @@ test('loadMiningLocations combines two unresolved providers that enrich to the s
       HADANITE_MATERIAL_ID
     ).find((entry) => entry.id === `provider:${SECOND_UNRESOLVED_PROVIDER_ID}`)
     assert.ok(soloFirst && soloSecond)
-    assert.ok(
-      soloFirst.highQualityProbability !== null && soloSecond.highQualityProbability !== null
-    )
+    assert.ok(soloFirst.combinedProbability !== null && soloSecond.combinedProbability !== null)
+    const expectedRockSpawn =
+      1 - (1 - (soloFirst.rockSpawnProbability ?? 0)) * (1 - (soloSecond.rockSpawnProbability ?? 0))
     const expectedCombined =
-      1 -
-      (1 - (soloFirst.highQualityProbability ?? 0)) * (1 - (soloSecond.highQualityProbability ?? 0))
+      1 - (1 - (soloFirst.combinedProbability ?? 0)) * (1 - (soloSecond.combinedProbability ?? 0))
+    const expectedConditional = expectedCombined / expectedRockSpawn
 
     globalThis.fetch = async () =>
       new Response(
@@ -453,9 +550,7 @@ test('loadMiningLocations combines two unresolved providers that enrich to the s
                 type: 'Outpost',
                 parent_name: 'Stanton II',
                 link: 'https://example.com/wiki-shared-loc',
-                resources: [
-                  { provider_names: ['HPP_Stanton2c_Belt', 'HPP_LagrangeA_Occupied'] }
-                ]
+                resources: [{ provider_names: ['HPP_Stanton2c_Belt', 'HPP_LagrangeA_Occupied'] }]
               }
             ]
           }
@@ -473,8 +568,22 @@ test('loadMiningLocations combines two unresolved providers that enrich to the s
     const [combined] = combinedRows
     assert.equal(combined.name, 'Shared Belt Outpost')
     assert.equal(combined.identitySource, 'game-wiki')
-    assert.ok(combined.highQualityProbability !== null)
-    assert.ok(Math.abs((combined.highQualityProbability ?? 0) - expectedCombined) < 1e-9)
+    assert.ok(combined.combinedProbability !== null)
+    assert.ok(Math.abs((combined.rockSpawnProbability ?? 0) - expectedRockSpawn) < 1e-9)
+    assert.ok(Math.abs((combined.qualityThresholdProbability ?? 0) - expectedConditional) < 1e-9)
+    assert.ok(Math.abs((combined.combinedProbability ?? 0) - expectedCombined) < 1e-9)
+    assert.ok(
+      Math.abs(
+        combined.quantizationProbabilities
+          .filter((entry) => entry.quality >= 500)
+          .reduce((sum, entry) => sum + entry.probability, 0) - expectedConditional
+      ) < 1e-9
+    )
+    assert.ok(
+      Math.abs(
+        combined.quantizationProbabilities.reduce((sum, entry) => sum + entry.probability, 0) - 1
+      ) < 1e-9
+    )
 
     // No leftover per-provider technical rows for either provider that fed the combined row.
     assert.equal(

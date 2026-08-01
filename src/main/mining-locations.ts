@@ -2,6 +2,8 @@ import { promises as fs } from 'node:fs'
 import { dirname } from 'node:path'
 
 import {
+  DEFAULT_MINING_QUALITY_THRESHOLD,
+  type MiningQuantizationProbability,
   type MiningLocationRecommendation,
   type MiningLocationResult,
   type MiningLocationSourceState,
@@ -10,10 +12,12 @@ import {
 import {
   type AreaCandidate,
   clampProbability,
+  combineIndependentQuantizationProbabilities,
   estimateHighQualityProbability,
   estimateQuantizedThresholdProbability,
-  scoreContributions,
-  type ScoredContribution
+  estimateQuantizedValueProbabilities,
+  scoreProbabilityBreakdown,
+  type ProbabilityScoredContribution
 } from './mining-estimator'
 import {
   type MiningCatalog,
@@ -33,12 +37,29 @@ interface MiningLocationCache {
 
 interface MiningLocationCacheEntry {
   savedAt: string
+  qualityThreshold: number
   locations: MiningLocationRecommendation[]
   /** Which pipeline produced these numbers, so a cache hit can be labelled 'game-cached' vs 'cached'. */
   source: 'game' | 'wiki'
 }
 
-interface DepositContribution extends ScoredContribution {
+function locationCacheEntryKey(materialId: string, qualityThreshold: number): string {
+  return JSON.stringify([materialId, qualityThreshold])
+}
+
+function getLocationCacheEntry(
+  cache: MiningLocationCache,
+  materialId: string,
+  qualityThreshold: number
+): MiningLocationCacheEntry | undefined {
+  const thresholdEntry = cache.entries[locationCacheEntryKey(materialId, qualityThreshold)]
+  if (thresholdEntry) return thresholdEntry
+
+  const legacyEntry = cache.entries[materialId]
+  return legacyEntry?.qualityThreshold === qualityThreshold ? legacyEntry : undefined
+}
+
+interface DepositContribution extends ProbabilityScoredContribution {
   minQuality: number
   maxQuality: number
   maxComposition: number | null
@@ -91,7 +112,8 @@ function parseAreaCandidates(value: unknown): AreaCandidate[] {
 
 function parseDepositContribution(
   value: unknown,
-  commodityUuid: string
+  commodityUuid: string,
+  qualityThreshold: number
 ): DepositContribution | null {
   if (!isRecord(value) || !Array.isArray(value.materials)) return null
 
@@ -122,7 +144,8 @@ function parseDepositContribution(
       qualityMin,
       qualityMax,
       finiteNumber(material.quality_mean),
-      finiteNumber(material.quality_stddev)
+      finiteNumber(material.quality_stddev),
+      qualityThreshold
     )
     noHighQualityProbability *= 1 - qualityProbability
     minQuality = Math.min(minQuality, qualityMin)
@@ -156,6 +179,7 @@ function parseDepositContribution(
     groupProbability,
     relativeProbability,
     highQualityProbability: 1 - noHighQualityProbability,
+    quantizationProbabilities: [],
     minQuality,
     maxQuality,
     minComposition,
@@ -164,7 +188,11 @@ function parseDepositContribution(
   }
 }
 
-function parseLocation(value: unknown, commodityUuid: string): MiningLocationRecommendation | null {
+function parseLocation(
+  value: unknown,
+  commodityUuid: string,
+  qualityThreshold: number
+): MiningLocationRecommendation | null {
   if (!isRecord(value) || !Array.isArray(value.resources)) return null
 
   const id = typeof value.uuid === 'string' ? value.uuid : ''
@@ -179,20 +207,21 @@ function parseLocation(value: unknown, commodityUuid: string): MiningLocationRec
   if (!id || !name || !system || !type) return null
 
   const contributions = value.resources
-    .map((resource) => parseDepositContribution(resource, commodityUuid))
+    .map((resource) => parseDepositContribution(resource, commodityUuid, qualityThreshold))
     .filter((entry): entry is DepositContribution => entry !== null)
   if (contributions.length === 0) return null
 
   let bestArea: AreaCandidate = { name: null, globalModifier: 1 }
-  let highQualityProbability = scoreContributions(contributions, bestArea)
+  let probability = scoreProbabilityBreakdown(contributions, bestArea)
   for (const area of parseAreaCandidates(value.areas).slice(1)) {
-    const areaProbability = scoreContributions(contributions, area)
+    const areaProbability = scoreProbabilityBreakdown(contributions, area)
     if (
-      areaProbability !== null &&
-      (highQualityProbability === null || areaProbability > highQualityProbability)
+      areaProbability.combinedProbability !== null &&
+      (probability.combinedProbability === null ||
+        areaProbability.combinedProbability > probability.combinedProbability)
     ) {
       bestArea = area
-      highQualityProbability = areaProbability
+      probability = areaProbability
     }
   }
 
@@ -203,7 +232,10 @@ function parseLocation(value: unknown, commodityUuid: string): MiningLocationRec
     system,
     type,
     parentName: typeof value.parent_name === 'string' ? value.parent_name : null,
-    highQualityProbability,
+    rockSpawnProbability: probability.rockSpawnProbability,
+    qualityThresholdProbability: probability.qualityThresholdProbability,
+    combinedProbability: probability.combinedProbability,
+    quantizationProbabilities: [],
     minQuality: Math.min(...contributions.map((contribution) => contribution.minQuality)),
     maxQuality: Math.max(...contributions.map((contribution) => contribution.maxQuality)),
     minComposition: contributions.reduce<number | null>(
@@ -234,8 +266,7 @@ function sortRecommendations(
   left: MiningLocationRecommendation,
   right: MiningLocationRecommendation
 ): number {
-  const probabilityDifference =
-    (right.highQualityProbability ?? -1) - (left.highQualityProbability ?? -1)
+  const probabilityDifference = (right.combinedProbability ?? -1) - (left.combinedProbability ?? -1)
   return (
     probabilityDifference ||
     right.maxQuality - left.maxQuality ||
@@ -246,7 +277,8 @@ function sortRecommendations(
 
 export function parseMiningLocationRecommendations(
   payload: unknown,
-  materialId: string
+  materialId: string,
+  qualityThreshold = DEFAULT_MINING_QUALITY_THRESHOLD
 ): MiningLocationRecommendation[] {
   if (!isRecord(payload) || !isRecord(payload.data) || !Array.isArray(payload.data.locations)) {
     throw new Error('Star Citizen Wiki API returned unexpected mining location data.')
@@ -259,7 +291,7 @@ export function parseMiningLocationRecommendations(
   }
 
   return payload.data.locations
-    .map((location) => parseLocation(location, commodityUuid))
+    .map((location) => parseLocation(location, commodityUuid, qualityThreshold))
     .filter((location): location is MiningLocationRecommendation => location !== null)
     .sort(sortRecommendations)
 }
@@ -281,7 +313,10 @@ export function resolvePreferredMiningLocation(
 
 interface ProviderScore {
   bestArea: AreaCandidate
-  highQualityProbability: number | null
+  rockSpawnProbability: number | null
+  qualityThresholdProbability: number | null
+  combinedProbability: number | null
+  quantizationProbabilities: MiningQuantizationProbability[]
   minQuality: number
   maxQuality: number
   minComposition: number | null
@@ -292,14 +327,15 @@ interface ProviderScore {
  * Scores a single `MiningCatalogProvider` against one target material: builds one
  * `ScoredContribution` per group/contribution that mines the material, then reuses the shared
  * `scoreContributions` combinator (same formula as the Wiki pipeline) to pick the best area and
- * the resulting 50%+ chance. Returns `null` when the provider has no contribution referencing
+ * the resulting user-threshold chance. Returns `null` when the provider has no contribution referencing
  * `catalogMaterialId` at all (most providers only mine a handful of the ~38 materials).
  */
 function scoreProvider(
   provider: MiningCatalogProvider,
   catalogMaterialId: string,
   catalogMaterial: MiningCatalogMaterial,
-  entitiesById: ReadonlyMap<string, MiningCatalogEntity>
+  entitiesById: ReadonlyMap<string, MiningCatalogEntity>,
+  qualityThreshold: number
 ): ProviderScore | null {
   const contributions: DepositContribution[] = []
 
@@ -329,6 +365,11 @@ function scoreProvider(
         relativeProbability: contribution.relativeProbability,
         highQualityProbability: estimateQuantizedThresholdProbability(
           catalogMaterial.quantizationBands,
+          contributionMaterial.effectiveQuality,
+          qualityThreshold
+        ),
+        quantizationProbabilities: estimateQuantizedValueProbabilities(
+          catalogMaterial.quantizationBands,
           contributionMaterial.effectiveQuality
         ),
         // Prefer the quantized reachable output range over the raw effective distribution: it is
@@ -347,22 +388,26 @@ function scoreProvider(
   if (contributions.length === 0) return null
 
   let bestArea: AreaCandidate = { name: null, globalModifier: 1 }
-  let highQualityProbability = scoreContributions(contributions, bestArea)
+  let probability = scoreProbabilityBreakdown(contributions, bestArea)
   for (const area of provider.areas) {
     const candidate: AreaCandidate = { name: area.debugName, globalModifier: area.globalModifier }
-    const areaProbability = scoreContributions(contributions, candidate)
+    const areaProbability = scoreProbabilityBreakdown(contributions, candidate)
     if (
-      areaProbability !== null &&
-      (highQualityProbability === null || areaProbability > highQualityProbability)
+      areaProbability.combinedProbability !== null &&
+      (probability.combinedProbability === null ||
+        areaProbability.combinedProbability > probability.combinedProbability)
     ) {
       bestArea = candidate
-      highQualityProbability = areaProbability
+      probability = areaProbability
     }
   }
 
   return {
     bestArea,
-    highQualityProbability,
+    rockSpawnProbability: probability.rockSpawnProbability,
+    qualityThresholdProbability: probability.qualityThresholdProbability,
+    combinedProbability: probability.combinedProbability,
+    quantizationProbabilities: probability.quantizationProbabilities,
     minQuality: Math.min(...contributions.map((entry) => entry.minQuality)),
     maxQuality: Math.max(...contributions.map((entry) => entry.maxQuality)),
     minComposition: contributions.reduce<number | null>(
@@ -389,27 +434,56 @@ function scoreProvider(
  * one level down for groups within a single provider.
  */
 function combineProviderScores(scores: readonly ProviderScore[]): {
-  highQualityProbability: number | null
+  rockSpawnProbability: number | null
+  qualityThresholdProbability: number | null
+  combinedProbability: number | null
+  quantizationProbabilities: MiningQuantizationProbability[]
   minQuality: number
   maxQuality: number
   minComposition: number | null
   maxComposition: number | null
   area: string | null
 } {
-  let noHighQualityProbability = 1
-  let anyKnown = false
+  let noRockProbability = 1
+  let noThresholdProbability = 1
+  let hasCompleteQuantization = true
+  const quantizationDistributions: Array<{
+    rockSpawnProbability: number
+    quantizationProbabilities: readonly MiningQuantizationProbability[]
+  }> = []
   for (const score of scores) {
-    if (score.highQualityProbability === null) continue
-    anyKnown = true
-    noHighQualityProbability *= 1 - clampProbability(score.highQualityProbability)
+    if (score.rockSpawnProbability === null) continue
+    noRockProbability *= 1 - clampProbability(score.rockSpawnProbability)
+    if (score.combinedProbability === null) continue
+    noThresholdProbability *= 1 - clampProbability(score.combinedProbability)
+    if (score.rockSpawnProbability <= Number.EPSILON) continue
+    if (score.quantizationProbabilities.length === 0) {
+      hasCompleteQuantization = false
+      continue
+    }
+    quantizationDistributions.push({
+      rockSpawnProbability: score.rockSpawnProbability,
+      quantizationProbabilities: score.quantizationProbabilities
+    })
   }
 
   const bestScore = scores.reduce((best, score) =>
-    (score.highQualityProbability ?? -1) > (best.highQualityProbability ?? -1) ? score : best
+    (score.combinedProbability ?? -1) > (best.combinedProbability ?? -1) ? score : best
   )
+  const rockSpawnProbability = 1 - noRockProbability
+  const combinedProbability = 1 - noThresholdProbability
+  const qualityThresholdProbability =
+    rockSpawnProbability > Number.EPSILON
+      ? clampProbability(combinedProbability / rockSpawnProbability)
+      : null
 
   return {
-    highQualityProbability: anyKnown ? 1 - noHighQualityProbability : null,
+    rockSpawnProbability,
+    qualityThresholdProbability,
+    combinedProbability,
+    quantizationProbabilities: hasCompleteQuantization
+      ? combineIndependentQuantizationProbabilities(quantizationDistributions)
+      : [],
     minQuality: Math.min(...scores.map((entry) => entry.minQuality)),
     maxQuality: Math.max(...scores.map((entry) => entry.maxQuality)),
     minComposition: scores.reduce<number | null>(
@@ -474,7 +548,8 @@ export function buildLocalMiningLocations(
   catalog: MiningCatalog,
   material: MiningMaterial,
   catalogMaterialId: string,
-  wikiIdentityByProviderKey: ReadonlyMap<string, readonly WikiLocationIdentity[]> = new Map()
+  wikiIdentityByProviderKey: ReadonlyMap<string, readonly WikiLocationIdentity[]> = new Map(),
+  qualityThreshold = DEFAULT_MINING_QUALITY_THRESHOLD
 ): MiningLocationRecommendation[] {
   const catalogMaterial = catalog.materials.find((entry) => entry.id === catalogMaterialId)
   if (!catalogMaterial) return []
@@ -501,7 +576,9 @@ export function buildLocalMiningLocations(
     if (!location) continue // defensive; the layer-1 parser guarantees every locationId resolves
 
     const scores = providers
-      .map((provider) => scoreProvider(provider, catalogMaterialId, catalogMaterial, entitiesById))
+      .map((provider) =>
+        scoreProvider(provider, catalogMaterialId, catalogMaterial, entitiesById, qualityThreshold)
+      )
       .filter((score): score is ProviderScore => score !== null)
     if (scores.length === 0) continue
 
@@ -513,7 +590,10 @@ export function buildLocalMiningLocations(
       system: location.system ?? UNRESOLVED_PROVIDER_SYSTEM,
       type: location.type,
       parentName: location.parentName,
-      highQualityProbability: combined.highQualityProbability,
+      rockSpawnProbability: combined.rockSpawnProbability,
+      qualityThresholdProbability: combined.qualityThresholdProbability,
+      combinedProbability: combined.combinedProbability,
+      quantizationProbabilities: combined.quantizationProbabilities,
       minQuality: combined.minQuality,
       maxQuality: combined.maxQuality,
       minComposition: combined.minComposition,
@@ -536,7 +616,13 @@ export function buildLocalMiningLocations(
   const withoutIdentity: Array<{ provider: MiningCatalogProvider; score: ProviderScore }> = []
 
   for (const provider of unresolvedProviders) {
-    const score = scoreProvider(provider, catalogMaterialId, catalogMaterial, entitiesById)
+    const score = scoreProvider(
+      provider,
+      catalogMaterialId,
+      catalogMaterial,
+      entitiesById,
+      qualityThreshold
+    )
     if (!score) continue
 
     const identities = wikiIdentityByProviderKey.get(provider.key)
@@ -561,7 +647,10 @@ export function buildLocalMiningLocations(
       system: identity.system,
       type: identity.type,
       parentName: identity.parentName,
-      highQualityProbability: combined.highQualityProbability,
+      rockSpawnProbability: combined.rockSpawnProbability,
+      qualityThresholdProbability: combined.qualityThresholdProbability,
+      combinedProbability: combined.combinedProbability,
+      quantizationProbabilities: combined.quantizationProbabilities,
       minQuality: combined.minQuality,
       maxQuality: combined.maxQuality,
       minComposition: combined.minComposition,
@@ -579,7 +668,10 @@ export function buildLocalMiningLocations(
       system: UNRESOLVED_PROVIDER_SYSTEM,
       type: UNRESOLVED_PROVIDER_TYPE,
       parentName: null,
-      highQualityProbability: score.highQualityProbability,
+      rockSpawnProbability: score.rockSpawnProbability,
+      qualityThresholdProbability: score.qualityThresholdProbability,
+      combinedProbability: score.combinedProbability,
+      quantizationProbabilities: score.quantizationProbabilities,
       minQuality: score.minQuality,
       maxQuality: score.maxQuality,
       minComposition: score.minComposition,
@@ -684,7 +776,8 @@ async function fetchWikiProviderIdentities(
 // --- Star Citizen Wiki fallback path (unchanged behavior) ---------------------------------
 
 async function fetchLiveMiningLocations(
-  material: MiningMaterial
+  material: MiningMaterial,
+  qualityThreshold: number
 ): Promise<MiningLocationRecommendation[]> {
   const response = await fetch(`${COMMODITY_URL}/${encodeURIComponent(material.commodityId)}`, {
     headers: {
@@ -698,14 +791,62 @@ async function fetchLiveMiningLocations(
     throw new Error(`Star Citizen Wiki API returned HTTP ${response.status}.`)
   }
 
-  return parseMiningLocationRecommendations(await response.json(), material.commodityId)
+  return parseMiningLocationRecommendations(
+    await response.json(),
+    material.commodityId,
+    qualityThreshold
+  )
+}
+
+function parseCachedQuantizationProbabilities(
+  value: unknown
+): MiningQuantizationProbability[] | null {
+  if (value === undefined) return []
+  if (!Array.isArray(value) || value.length > 100) return null
+
+  const qualities = new Set<number>()
+  const result: MiningQuantizationProbability[] = []
+  for (const entry of value) {
+    if (!isRecord(entry)) return null
+    const quality = finiteNumber(entry.quality)
+    const entryProbability = probability(entry.probability)
+    if (
+      quality === null ||
+      quality < 0 ||
+      quality > 1_000 ||
+      entryProbability === null ||
+      qualities.has(quality)
+    ) {
+      return null
+    }
+    qualities.add(quality)
+    result.push({ quality, probability: entryProbability })
+  }
+  return result.sort((left, right) => left.quality - right.quality)
 }
 
 function parseCachedRecommendation(value: unknown): MiningLocationRecommendation | null {
   if (!isRecord(value)) return null
 
-  const highQualityProbability =
+  const legacyCombined =
     value.highQualityProbability === null ? null : probability(value.highQualityProbability)
+  const combinedProbability =
+    value.combinedProbability === undefined
+      ? legacyCombined
+      : value.combinedProbability === null
+        ? null
+        : probability(value.combinedProbability)
+  const rockSpawnProbability =
+    value.rockSpawnProbability === undefined || value.rockSpawnProbability === null
+      ? null
+      : probability(value.rockSpawnProbability)
+  const qualityThresholdProbability =
+    value.qualityThresholdProbability === undefined || value.qualityThresholdProbability === null
+      ? null
+      : probability(value.qualityThresholdProbability)
+  const quantizationProbabilities = parseCachedQuantizationProbabilities(
+    value.quantizationProbabilities
+  )
   const hasMinQuality = value.minQuality !== undefined && value.minQuality !== null
   const minQuality = hasMinQuality ? finiteNumber(value.minQuality) : null
   const maxQuality = finiteNumber(value.maxQuality)
@@ -723,7 +864,16 @@ function parseCachedRecommendation(value: unknown): MiningLocationRecommendation
     typeof value.system !== 'string' ||
     typeof value.type !== 'string' ||
     (value.parentName !== null && typeof value.parentName !== 'string') ||
-    (value.highQualityProbability !== null && highQualityProbability === null) ||
+    (value.combinedProbability !== undefined &&
+      value.combinedProbability !== null &&
+      combinedProbability === null) ||
+    (value.rockSpawnProbability !== undefined &&
+      value.rockSpawnProbability !== null &&
+      rockSpawnProbability === null) ||
+    (value.qualityThresholdProbability !== undefined &&
+      value.qualityThresholdProbability !== null &&
+      qualityThresholdProbability === null) ||
+    quantizationProbabilities === null ||
     maxQuality === null ||
     maxQuality < 0 ||
     maxQuality > 1_000 ||
@@ -747,7 +897,10 @@ function parseCachedRecommendation(value: unknown): MiningLocationRecommendation
     system: value.system,
     type: value.type,
     parentName: value.parentName,
-    highQualityProbability,
+    rockSpawnProbability,
+    qualityThresholdProbability,
+    combinedProbability,
+    quantizationProbabilities,
     minQuality,
     maxQuality,
     minComposition,
@@ -783,6 +936,13 @@ async function readLocationCache(cachePath: string): Promise<MiningLocationCache
       }
       entries[materialId] = {
         savedAt: value.savedAt,
+        qualityThreshold:
+          typeof value.qualityThreshold === 'number' &&
+          Number.isSafeInteger(value.qualityThreshold) &&
+          value.qualityThreshold >= 0 &&
+          value.qualityThreshold <= 1_000
+            ? value.qualityThreshold
+            : DEFAULT_MINING_QUALITY_THRESHOLD,
         locations,
         // Legacy cache entries predate the local-catalog pipeline, so they were always Wiki-sourced.
         source: value.source === 'game' ? 'game' : 'wiki'
@@ -800,14 +960,27 @@ async function readLocationCache(cachePath: string): Promise<MiningLocationCache
 async function writeLocationCacheEntry(
   cachePath: string,
   materialId: string,
-  entry: MiningLocationCacheEntry
+  entry: MiningLocationCacheEntry,
+  shouldWrite: () => boolean
 ): Promise<void> {
   const write = async (): Promise<void> => {
+    if (!shouldWrite()) return
     const cache = await readLocationCache(cachePath)
-    cache.entries[materialId] = entry
+    if (!shouldWrite()) return
+    const legacyEntry = cache.entries[materialId]
+    if (legacyEntry) {
+      const legacyKey = locationCacheEntryKey(materialId, legacyEntry.qualityThreshold)
+      cache.entries[legacyKey] ??= legacyEntry
+      delete cache.entries[materialId]
+    }
+    cache.entries[locationCacheEntryKey(materialId, entry.qualityThreshold)] = entry
     await fs.mkdir(dirname(cachePath), { recursive: true })
     const temporaryPath = `${cachePath}.tmp`
     await fs.writeFile(temporaryPath, `${JSON.stringify(cache, null, 2)}\n`, 'utf8')
+    if (!shouldWrite()) {
+      await fs.rm(temporaryPath, { force: true })
+      return
+    }
     await fs.rename(temporaryPath, cachePath)
   }
 
@@ -834,22 +1007,39 @@ export async function loadMiningLocations(
   cachePath: string,
   material: MiningMaterial,
   catalog: MiningCatalog | null = null,
-  catalogMaterialId: string | null = null
+  catalogMaterialId: string | null = null,
+  qualityThreshold = DEFAULT_MINING_QUALITY_THRESHOLD,
+  shouldWriteCache: () => boolean = () => true
 ): Promise<MiningLocationResult> {
   if (catalogMaterialId && catalog) {
-    return loadLocalMiningLocations(cachePath, material, catalog, catalogMaterialId)
+    return loadLocalMiningLocations(
+      cachePath,
+      material,
+      catalog,
+      catalogMaterialId,
+      qualityThreshold,
+      shouldWriteCache
+    )
   }
-  return loadWikiMiningLocations(cachePath, material)
+  return loadWikiMiningLocations(cachePath, material, qualityThreshold, shouldWriteCache)
 }
 
 async function loadLocalMiningLocations(
   cachePath: string,
   material: MiningMaterial,
   catalog: MiningCatalog,
-  catalogMaterialId: string
+  catalogMaterialId: string,
+  qualityThreshold: number,
+  shouldWriteCache: () => boolean
 ): Promise<MiningLocationResult> {
   try {
-    const baseline = buildLocalMiningLocations(catalog, material, catalogMaterialId)
+    const baseline = buildLocalMiningLocations(
+      catalog,
+      material,
+      catalogMaterialId,
+      new Map(),
+      qualityThreshold
+    )
     const hasUnresolvedProviders = baseline.some(
       (entry) => entry.identitySource === 'game' && entry.id.startsWith('provider:')
     )
@@ -859,7 +1049,13 @@ async function loadLocalMiningLocations(
     if (hasUnresolvedProviders) {
       try {
         const identities = await fetchWikiProviderIdentities(material)
-        locations = buildLocalMiningLocations(catalog, material, catalogMaterialId, identities)
+        locations = buildLocalMiningLocations(
+          catalog,
+          material,
+          catalogMaterialId,
+          identities,
+          qualityThreshold
+        )
       } catch (enrichError) {
         const enrichMessage =
           enrichError instanceof Error ? enrichError.message : String(enrichError)
@@ -868,13 +1064,20 @@ async function loadLocalMiningLocations(
     }
 
     const updatedAt = new Date().toISOString()
-    await writeLocationCacheEntry(cachePath, material.id, {
-      savedAt: updatedAt,
-      locations,
-      source: 'game'
-    })
+    await writeLocationCacheEntry(
+      cachePath,
+      material.id,
+      {
+        savedAt: updatedAt,
+        qualityThreshold,
+        locations,
+        source: 'game'
+      },
+      shouldWriteCache
+    )
     return {
       materialId: material.id,
+      qualityThreshold,
       locations,
       state: 'game',
       message: enrichmentWarning
@@ -886,10 +1089,15 @@ async function loadLocalMiningLocations(
     const gameMessage = gameError instanceof Error ? gameError.message : String(gameError)
     const source: MiningLocationSourceState = 'game-cached'
     try {
-      const cached = (await readLocationCache(cachePath)).entries[material.id]
+      const cached = getLocationCacheEntry(
+        await readLocationCache(cachePath),
+        material.id,
+        qualityThreshold
+      )
       if (cached) {
         return {
           materialId: material.id,
+          qualityThreshold,
           locations: cached.locations,
           state: cached.source === 'game' ? source : 'cached',
           message: `Using cached mining site data. ${gameMessage}`,
@@ -909,18 +1117,27 @@ async function loadLocalMiningLocations(
 
 async function loadWikiMiningLocations(
   cachePath: string,
-  material: MiningMaterial
+  material: MiningMaterial,
+  qualityThreshold: number,
+  shouldWriteCache: () => boolean
 ): Promise<MiningLocationResult> {
   try {
-    const locations = await fetchLiveMiningLocations(material)
+    const locations = await fetchLiveMiningLocations(material, qualityThreshold)
     const updatedAt = new Date().toISOString()
-    await writeLocationCacheEntry(cachePath, material.id, {
-      savedAt: updatedAt,
-      locations,
-      source: 'wiki'
-    })
+    await writeLocationCacheEntry(
+      cachePath,
+      material.id,
+      {
+        savedAt: updatedAt,
+        qualityThreshold,
+        locations,
+        source: 'wiki'
+      },
+      shouldWriteCache
+    )
     return {
       materialId: material.id,
+      qualityThreshold,
       locations,
       state: 'live',
       message: 'Live mining quality estimates from Star Citizen Wiki',
@@ -929,10 +1146,15 @@ async function loadWikiMiningLocations(
   } catch (liveError) {
     const liveMessage = liveError instanceof Error ? liveError.message : String(liveError)
     try {
-      const cached = (await readLocationCache(cachePath)).entries[material.id]
+      const cached = getLocationCacheEntry(
+        await readLocationCache(cachePath),
+        material.id,
+        qualityThreshold
+      )
       if (cached) {
         return {
           materialId: material.id,
+          qualityThreshold,
           locations: cached.locations,
           state: 'cached',
           message: `Using cached mining quality estimates. ${liveMessage}`,

@@ -4,13 +4,16 @@ import { dirname } from 'node:path'
 import {
   APP_FONT_SIZE_STEP,
   DEFAULT_APP_FONT_SIZE,
+  DEFAULT_MINING_QUALITY_THRESHOLD,
   DEFAULT_OVERLAY_FONT_SCALE,
   DEFAULT_SHORTCUTS,
   MAX_APP_FONT_SIZE,
+  MAX_MINING_QUALITY_THRESHOLD,
   MAX_OVERLAY_FONT_SCALE,
   MAX_CLUSTER_SIZE,
   MAX_SELECTED_MATERIALS,
   MIN_APP_FONT_SIZE,
+  MIN_MINING_QUALITY_THRESHOLD,
   MIN_CLUSTER_SIZE,
   MIN_OVERLAY_FONT_SCALE,
   OVERLAY_FONT_SCALE_STEP,
@@ -30,12 +33,13 @@ import {
 } from '../shared/lan-control'
 import { DEFAULT_CLOUD_API_URL, normalizeCloudApiUrl } from './cloud-url'
 
-export const SETTINGS_VERSION = 10
+export const SETTINGS_VERSION = 11
 
 export const DEFAULT_SETTINGS: OverlaySettings = {
   selectedMaterialIds: ['agricium-ore', 'laranite-raw', 'riccite-ore'],
   signatureOverrides: {},
   favoriteMiningLocationIds: {},
+  miningQualityThreshold: DEFAULT_MINING_QUALITY_THRESHOLD,
   clusterMax: 5,
   visible: true,
   compact: false,
@@ -238,6 +242,14 @@ export function normalizeSettings(
     value.favoriteMiningLocationIds,
     fallback.favoriteMiningLocationIds
   )
+  const miningQualityThreshold =
+    typeof value.miningQualityThreshold === 'number' &&
+    Number.isFinite(value.miningQualityThreshold)
+      ? Math.min(
+          MAX_MINING_QUALITY_THRESHOLD,
+          Math.max(MIN_MINING_QUALITY_THRESHOLD, Math.round(value.miningQualityThreshold))
+        )
+      : fallback.miningQualityThreshold
   const shortcuts = normalizeShortcuts(value.shortcuts, fallback.shortcuts)
   const cloudApiUrl =
     value.cloudApiUrl === undefined ? fallback.cloudApiUrl : normalizeCloudApiUrl(value.cloudApiUrl)
@@ -254,6 +266,7 @@ export function normalizeSettings(
     selectedMaterialIds,
     signatureOverrides,
     favoriteMiningLocationIds,
+    miningQualityThreshold,
     clusterMax,
     visible: typeof value.visible === 'boolean' ? value.visible : fallback.visible,
     compact: typeof value.compact === 'boolean' ? value.compact : fallback.compact,

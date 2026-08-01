@@ -14,8 +14,11 @@ The first workflow lets a player select up to four mining targets and see:
 - each target's base electromagnetic scanner signature;
 - cluster signatures from one through eight rocks;
 - the mining method reported for the material;
-- every reported mining site, ranked by its estimated chance of a 50%+ quality find;
-- the numeric quality range and maximum reported material composition for each site;
+- every reported mining site, ranked by the combined chance of finding the material at a
+  persisted user-selected raw quality target;
+- separate rock-spawn, conditional quality, and combined probabilities, plus the probability
+  of every quantized quality output;
+- raw quality ranges on the game's 0–1000 scale and material-composition ranges;
 - each selected target's highest-ranked site directly in the game overlay;
 - a compact or full readout that stays out of game input.
 
@@ -100,16 +103,20 @@ control is absent for ordinary users. Wiki location data and local ownership or
 log state are never included.
 
 The **Sites** action loads the selected material's detailed deposit data and
-ranks every reported location by the estimated chance of a 50% or higher
-quality roll. Each row shows the reported minimum-to-maximum quality range,
-maximum material composition, and numeric probability when every required
-source factor is available. The estimate combines the reported spawn-group
-probability, relative deposit probability, quality distribution, and any
-boosted area modifier. Location results are cached separately and identify when
-cached data is being shown. Sites expand inline beneath their material so all ranked
-locations can be compared in one table. Star one location per material to show
-it in the overlay; clearing the star, or an unavailable saved location, falls
-back to the highest-ranked site.
+ranks every reported location by the combined chance of finding that material
+at the user's persisted raw quality target (`0`–`1000`). Each row separates the
+rock spawn chance, the conditional chance of meeting the quality target after
+the rock spawns, and their combined probability. Quality uses raw game values,
+while material composition remains a percentage range. Expand a row's
+quantization details to see every possible mapped quality value and its
+conditional probability. When independent groups can spawn the material
+together, this is the distribution of the best result. The estimate combines spawn-group probability,
+relative deposit probability, quality distribution, quantization, and any
+boosted area modifier. Location results are cached per quality target and
+identify when cached data is being shown. Sites expand inline beneath their
+material so all ranked locations can be compared in one table. Star one
+location per material to show it in the overlay; clearing the star, or an
+unavailable saved location, falls back to the highest-ranked site.
 
 The UEX API is useful for prices, routes, locations, and refinery planning, but
 it does not expose scanner signatures.
@@ -126,13 +133,14 @@ Complete endpoint inventories:
 The control window has dedicated **Mining**, **Blueprints**, **Factions**, and
 **Settings** tabs. Mining supports material search and mining-method filters,
 overlay position, opacity, font size, cluster range, compact mode, visibility,
-game-data selection, and data refresh. Each material row also exposes a
+the persisted raw site-quality target, game-data selection, and data refresh.
+Each material row also exposes a
 contextual signature correction editor; cluster values recalculate from the
 corrected base immediately. Font size ranges from 80% to 160%; the native
 overlay resizes with the readout so larger text remains fully visible. Changes
 are persisted in Electron's per-user application data directory. Selected ores
-stay pinned above filtered results, **Sites** opens the ranked mining-location
-flyout, and **Clear overlay** removes every target at once.
+stay pinned above filtered results, **Sites** expands the ranked mining-location
+table, and **Clear overlay** removes every target at once.
 
 Blueprint controls keep every item category visible in a wrapping filter row,
 alongside independent Collection and Access filters. **Owned** shows default,

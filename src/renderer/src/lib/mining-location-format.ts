@@ -4,14 +4,34 @@ const probabilityFormatter = new Intl.NumberFormat('en-US', {
   maximumFractionDigits: 1,
   minimumFractionDigits: 1
 })
+const preciseProbabilityFormatter = new Intl.NumberFormat('en-US', {
+  maximumFractionDigits: 2,
+  minimumFractionDigits: 2
+})
 const qualityFormatter = new Intl.NumberFormat('en-US', {
   maximumFractionDigits: 1
 })
 
 export function formatMiningProbability(value: number): string {
   const percent = value * 100
-  if (percent > 0 && percent < 0.1) return '<0.1%'
+  if (percent > 0 && percent < 0.01) return '<0.01%'
+  if (percent < 10) return `${preciseProbabilityFormatter.format(percent)}%`
   return `${probabilityFormatter.format(percent)}%`
+}
+
+export function formatMiningProbabilityBreakdown(
+  location: MiningLocationRecommendation,
+  qualityThreshold: number
+): string {
+  if (location.combinedProbability === null) return `≥${qualityThreshold}: unavailable`
+  if (
+    location.rockSpawnProbability === null ||
+    location.qualityThresholdProbability === null
+  ) {
+    return `≥${qualityThreshold} combined ${formatMiningProbability(location.combinedProbability)} · breakdown unavailable`
+  }
+
+  return `Find ${formatMiningProbability(location.rockSpawnProbability)} · ≥${qualityThreshold} ${formatMiningProbability(location.qualityThresholdProbability)} · Both ${formatMiningProbability(location.combinedProbability)}`
 }
 
 export function formatMiningSiteName(location: MiningLocationRecommendation): string {
@@ -19,11 +39,11 @@ export function formatMiningSiteName(location: MiningLocationRecommendation): st
 }
 
 export function formatMiningQualityRange(location: MiningLocationRecommendation): string {
-  const maximum = qualityFormatter.format(location.maxQuality / 10)
-  if (location.minQuality === null) return `Up to ${maximum}%`
+  const maximum = qualityFormatter.format(location.maxQuality)
+  if (location.minQuality === null) return `Up to ${maximum}`
 
-  const minimum = qualityFormatter.format(location.minQuality / 10)
-  return minimum === maximum ? `${maximum}%` : `${minimum}–${maximum}%`
+  const minimum = qualityFormatter.format(location.minQuality)
+  return minimum === maximum ? maximum : `${minimum}–${maximum}`
 }
 
 /**

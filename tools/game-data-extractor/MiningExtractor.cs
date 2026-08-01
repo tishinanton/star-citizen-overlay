@@ -106,6 +106,22 @@ internal static partial class MiningExtractor
                 $"included without a location: {string.Join(", ", unresolvedProviderLocations.Order(StringComparer.OrdinalIgnoreCase))}.");
         }
 
+        // Material CraftingQualityLocationOverride entries can reference StarMapObject locations
+        // independently of any provider's naming-convention link. locations[] must be a superset of
+        // every location GUID referenced anywhere in the payload (providers and material overrides
+        // alike), so register any override-only locations here with an empty provider list.
+        foreach (var material in materialRecords)
+        {
+            foreach (var overrideEntry in material.QualityLocationOverrides)
+            {
+                if (!Guid.TryParse(overrideEntry.LocationId, out var overrideLocationGuid)) continue;
+                if (!locationProviderIds.ContainsKey(overrideLocationGuid))
+                {
+                    locationProviderIds[overrideLocationGuid] = [];
+                }
+            }
+        }
+
         var locations = ReadLocations(dataForge, localization, locationProviderIds, warnings);
         EnsureNoDuplicates(locations.Select(location => location.Id), "mining location");
 
@@ -524,9 +540,15 @@ internal static partial class MiningExtractor
                     if (distribution is null) continue;
 
                     var locationRoot = ResolveReference(locationId, dataForge);
-                    var locationName = locationRoot is null
-                        ? null
-                        : localization.Resolve(locationRoot.GetAttribute("name")) ?? LocalName(locationRoot);
+                    if (locationRoot is null)
+                    {
+                        warnings.Add(
+                            $"Material '{key}' quality location override references unresolved StarMapObject " +
+                            $"{locationId}; this override entry is omitted rather than left dangling.");
+                        continue;
+                    }
+
+                    var locationName = localization.Resolve(locationRoot.GetAttribute("name")) ?? LocalName(locationRoot);
                     overrides.Add(new GameMiningQualityLocationOverride(
                         locationId.ToString(),
                         locationName,
@@ -886,8 +908,9 @@ internal static partial class MiningExtractor
             var root = ResolveReference(locationId, dataForge);
             if (root is null)
             {
-                warnings.Add($"StarMapObject location {locationId} could not be resolved.");
-                continue;
+                throw new InvalidDataException(
+                    $"StarMapObject location {locationId} is referenced by a provider or material quality " +
+                    "location override but could not be resolved from Game2.dcb.");
             }
 
             var name = localization.Resolve(root.GetAttribute("name")) ?? LocalName(root);

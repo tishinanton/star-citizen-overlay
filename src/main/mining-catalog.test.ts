@@ -13,6 +13,7 @@ const ABERDEEN_ID = 'f8f07f5b-1c0e-47c9-aa50-46963065bf18'
 const HURSTON_ID = '551af60b-7727-4936-acc7-763d25d7a1de'
 const CLUSTER_ID = 'd3bc17e2-7a06-450a-82a0-1c5774329054'
 const HARVESTABLE_PRESET_ID = 'f42be172-0391-4482-b3ff-6f97c2182272'
+const OVERRIDE_ONLY_LOCATION_ID = 'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee'
 
 const MATERIAL_COUNT = 10
 const ENTITY_COUNT = 20
@@ -163,6 +164,18 @@ function aberdeenLocation(): Record<string, unknown> {
     system: 'Stanton',
     type: 'Moon',
     providerIds: [PROVIDER_ID]
+  }
+}
+
+function overrideOnlyLocation(): Record<string, unknown> {
+  return {
+    id: OVERRIDE_ONLY_LOCATION_ID,
+    name: 'QV Breaker Station',
+    parentId: null,
+    parentName: null,
+    system: 'Pyro',
+    type: 'Wreck',
+    providerIds: []
   }
 }
 
@@ -325,4 +338,48 @@ test('rejects unresolved cross-catalog references', () => {
     locationId: fillerGuid(9, 999)
   }
   assert.throws(() => parseMiningExtractorPayload(unknownLocation), /unknown location identifier/)
+
+  const unknownOverrideLocation = buildPayload()
+  ;(unknownOverrideLocation.materials as Record<string, unknown>[])[0] = {
+    ...hadaniteMaterial(),
+    qualityLocationOverrides: [
+      {
+        locationId: fillerGuid(9, 998),
+        locationName: 'Somewhere unresolved',
+        distribution: { min: 100, max: 900, mean: 500, stdDev: 100 }
+      }
+    ]
+  }
+  assert.throws(
+    () => parseMiningExtractorPayload(unknownOverrideLocation),
+    /unknown location override identifier/
+  )
+})
+
+test('accepts a location that is referenced only by a material quality location override', () => {
+  // Materials can carry CraftingQualityLocationOverride entries for StarMap locations that no
+  // provider preset is naming-convention-linked to (e.g. wreck/event locations). locations[] must
+  // still be a superset of every referenced location, with an empty providerIds for these.
+  const payload = buildPayload()
+  payload.locations = [aberdeenLocation(), overrideOnlyLocation()]
+  ;(payload.materials as Record<string, unknown>[])[0] = {
+    ...hadaniteMaterial(),
+    qualityLocationOverrides: [
+      {
+        locationId: OVERRIDE_ONLY_LOCATION_ID,
+        locationName: 'QV Breaker Station',
+        distribution: { min: 100, max: 900, mean: 500, stdDev: 100 }
+      }
+    ]
+  }
+
+  const catalog = parseMiningExtractorPayload(payload)
+  const overrideLocation = catalog.locations.find((location) => location.id === OVERRIDE_ONLY_LOCATION_ID)
+  assert.ok(overrideLocation)
+  assert.deepEqual(overrideLocation.providerIds, [])
+
+  const hadanite = catalog.materials.find((material) => material.id === HADANITE_MATERIAL_ID)
+  assert.ok(hadanite)
+  assert.equal(hadanite.qualityLocationOverrides.length, 1)
+  assert.equal(hadanite.qualityLocationOverrides[0].locationId, OVERRIDE_ONLY_LOCATION_ID)
 })

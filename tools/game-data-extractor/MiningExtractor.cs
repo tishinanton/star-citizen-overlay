@@ -9,6 +9,14 @@ internal static partial class MiningExtractor
     private const string ProviderPresetPrefix = "libs/foundry/records/harvestable/providerpresets/";
     private const string StarMapPrefix = "libs/foundry/records/starmap/";
     private const string ProviderNamePrefix = "HPP_";
+
+    // Some provider codes embed a leading system-name segment (e.g. "Nyx_GlaciemRing")
+    // that the corresponding StarMapObject's own local name omits (e.g. "GlaciemRing").
+    // When a direct match fails, ResolveStarMapObjectByCode retries after stripping one
+    // leading "<segment>_" at a time. This minimum guards against accidentally matching
+    // short/generic remainders (e.g. the single-letter Lagrange point codes A..G).
+    private const int MinimumSegmentStripRemainderLength = 4;
+    private const int MaximumSegmentStripFallbackCount = 10;
     private const int MinimumEntityCount = 20;
     private const int MinimumMaterialCount = 10;
     private const int MinimumProviderCount = 30;
@@ -104,6 +112,20 @@ internal static partial class MiningExtractor
                 $"{unresolvedProviderLocations.Count} provider preset(s); these are not tied to a single " +
                 "celestial body in Game2.dcb (e.g. asteroid belts, Lagrange points, event spawns) and are " +
                 $"included without a location: {string.Join(", ", unresolvedProviderLocations.Order(StringComparer.OrdinalIgnoreCase))}.");
+        }
+
+        // Self-validation: the leading-segment-strip naming fallback (see ResolveStarMapObjectByCode)
+        // is a string heuristic and could silently over-match if the game data's naming conventions
+        // shift. Bound how many providers may resolve through it so an unexpected expansion fails loud
+        // instead of quietly mis-attributing a provider to the wrong celestial body.
+        var segmentStripFallbackCount = warnings.Count(warning => warning.Contains("leading-segment-strip fallback"));
+        if (segmentStripFallbackCount > MaximumSegmentStripFallbackCount)
+        {
+            throw new InvalidDataException(
+                $"{segmentStripFallbackCount} provider(s) resolved their location via the leading-segment-strip " +
+                $"naming fallback, expected at most {MaximumSegmentStripFallbackCount} known case(s) (e.g. " +
+                "HPP_Nyx_GlaciemRing, HPP_Nyx_KeegerBelt); this likely indicates the fallback is over-matching " +
+                "and needs tightening.");
         }
 
         // Material CraftingQualityLocationOverride entries can reference StarMapObject locations
@@ -664,6 +686,45 @@ internal static partial class MiningExtractor
         return index;
     }
 
+    /// <summary>
+    /// Resolves a provider's location code against the StarMapObject name index. Tries an exact
+    /// match first; if that fails, retries by stripping one leading "&lt;segment&gt;_" at a time
+    /// (e.g. "Nyx_GlaciemRing" -> "GlaciemRing") to accommodate provider codes that embed a
+    /// system-name segment the StarMapObject's own local name omits. Remainders shorter than
+    /// <see cref="MinimumSegmentStripRemainderLength"/> are never attempted, to avoid falsely
+    /// matching short/generic tokens (e.g. the single-letter Lagrange point codes A..G).
+    /// </summary>
+    private static bool ResolveStarMapObjectByCode(
+        string code,
+        IReadOnlyDictionary<string, Guid> starMapObjectsByName,
+        out Guid locationId,
+        out bool usedSegmentStripFallback)
+    {
+        if (starMapObjectsByName.TryGetValue(code, out locationId))
+        {
+            usedSegmentStripFallback = false;
+            return true;
+        }
+
+        var remainder = code;
+        var underscoreIndex = remainder.IndexOf('_');
+        while (underscoreIndex >= 0)
+        {
+            remainder = remainder[(underscoreIndex + 1)..];
+            if (remainder.Length >= MinimumSegmentStripRemainderLength
+                && starMapObjectsByName.TryGetValue(remainder, out locationId))
+            {
+                usedSegmentStripFallback = true;
+                return true;
+            }
+            underscoreIndex = remainder.IndexOf('_');
+        }
+
+        locationId = Guid.Empty;
+        usedSegmentStripFallback = false;
+        return false;
+    }
+
     private static Guid? ResolveHarvestableEntity(
         Guid harvestablePresetId,
         DataForge dataForge,
@@ -783,10 +844,17 @@ internal static partial class MiningExtractor
             : key;
         string? locationId = null;
         string? locationName = null;
-        if (starMapObjectsByName.TryGetValue(code, out var matchedLocation))
+        if (ResolveStarMapObjectByCode(code, starMapObjectsByName, out var matchedLocation, out var usedSegmentStrip))
         {
             locationId = matchedLocation.ToString();
             locationName = LocalName(ResolveReference(matchedLocation, dataForge) ?? root);
+            if (usedSegmentStrip)
+            {
+                warnings.Add(
+                    $"Provider '{key}' location resolved via leading-segment-strip fallback " +
+                    $"(direct code '{code}' had no StarMapObject match; matched '{locationName}' " +
+                    "after stripping a leading system-name segment).");
+            }
         }
         else
         {

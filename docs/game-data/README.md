@@ -264,8 +264,8 @@ Data.p4k
 ```
 
 Validated against the installed LIVE build (`4.9.188.23497-LIVE`): 38
-materials, 76 mineable entities, 26 resolvable locations, 49 provider presets,
-and 8 cluster presets, extracted in roughly 8-11 seconds producing a ~790 KB
+materials, 76 mineable entities, 90 resolvable locations, 49 provider presets,
+and 8 cluster presets, extracted in roughly 5 seconds producing a ~400 KB
 payload. The verified Hadanite/Aberdeen chain from the task brief reproduces
 exactly: material default quality distribution `min 201, max 1000, mean 201,
 stdDev 298`; quantization bands mapping to `274, 526, 665, 762, 867, 916, 959,
@@ -280,10 +280,31 @@ Two notable joins that are not direct DataForge references:
 - **Provider -> location.** No record references a `HarvestableProviderPreset`
   by GUID. The link is a naming convention: stripping the `HPP_` prefix from
   a provider's local record name and matching it against `StarMapObject`
-  local names resolves 26 of 49 providers. The remaining 23 (asteroid belts,
-  Lagrange points, event/derelict spawns) are not tied to a single celestial
-  body in Game2.dcb; they are still included with `locationId: null` and one
-  bundled warning, never fabricated or dropped.
+  local names. If that direct match fails, the extractor retries by
+  stripping one leading `<segment>_` at a time (e.g. provider code
+  `Nyx_GlaciemRing` -> `GlaciemRing`), for providers whose code embeds a
+  system-name segment the `StarMapObject`'s own local name omits; this
+  fallback is bounded to a small, self-validated count of known cases
+  (currently `HPP_Nyx_GlaciemRing` and `HPP_Nyx_KeegerBelt`) and emits a
+  warning identifying that it was used. Together these resolve 28 of 49
+  providers. The remaining 21 have no `StarMapObject` record under any
+  naming variant and are not tied to a single celestial body in Game2.dcb;
+  they are still included with `locationId: null` and one bundled warning,
+  never fabricated or dropped. They fall into three known, permanent
+  local-data-source limitation categories (verified against a live Star
+  Citizen Wiki API cross-check - see the mining-catalog audit in the PR
+  history for details):
+  - **Generic deep-space/asteroid-belt presets** reused across systems with
+    no 1:1 location record (e.g. low/medium-yield asteroid cluster tiers).
+  - **Multi-system Lagrange-point presets** that are not tied to a single
+    system/location (e.g. the lettered Lagrange point providers).
+  - **Named system-wide belts/fields** that the game treats as a preset
+    spanning an entire region rather than one `StarMapObject` (e.g. the
+    well-known Stanton asteroid belt and the Pyro deep-space/temperature-zone
+    asteroid presets).
+  A dependent app layer wanting full parity for these must not fabricate a
+  `StarMapObject` link; any curated display name for them belongs in the app
+  layer, sourced independently, not asserted as extracted from Game2.dcb.
 - **Relative probability normalization.** `relativeProbability` is each
   element's raw weight divided by the **sum of sibling weights in the same
   group** (not a flat `/100`) - groups do not always sum to 100.

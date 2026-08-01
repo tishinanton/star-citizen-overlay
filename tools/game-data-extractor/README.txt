@@ -58,11 +58,19 @@ Provider -> location linking: Game2.dcb has no direct reference from a
 naming convention confirmed against the installed archive: stripping the
 `HPP_` prefix from a provider's local record name and matching it
 (case-insensitively) against `StarMapObject` local names resolves the large
-majority of providers (including every planet/moon-tied provider). Providers
-that do not resolve this way are asteroid belts, Lagrange points, and event/
-derelict spawns that are not tied to a single celestial body in Game2.dcb;
-these are still included, with `locationId` left null and a single bundled
-warning listing them, rather than fabricated or dropped.
+majority of providers (including every planet/moon-tied provider). If that
+direct match fails, the extractor retries by stripping one leading
+`<segment>_` at a time (e.g. provider code `Nyx_GlaciemRing` ->
+`GlaciemRing`) for providers whose code embeds a system-name segment the
+`StarMapObject`'s own local name omits; remainders shorter than 4 characters
+are never attempted, to avoid matching short/generic tokens (e.g. the
+single-letter Lagrange point codes). This fallback is bounded to a small,
+self-validated count of known cases and always emits a warning naming the
+provider it resolved. Providers that still do not resolve are generic
+deep-space/asteroid-belt presets, multi-system Lagrange-point presets, and
+named system-wide belts/fields that are not tied to a single celestial body
+in Game2.dcb; these are still included, with `locationId` left null and a
+single bundled warning listing them, rather than fabricated or dropped.
 
 Weak-pointer resolution: some struct fields (single-value `varWeakPointer`,
 used for provider area element pointers) are only exposed by the vendored

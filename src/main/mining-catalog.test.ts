@@ -15,6 +15,12 @@ const CLUSTER_ID = 'd3bc17e2-7a06-450a-82a0-1c5774329054'
 const HARVESTABLE_PRESET_ID = 'f42be172-0391-4482-b3ff-6f97c2182272'
 const OVERRIDE_ONLY_LOCATION_ID = 'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee'
 
+// Verified against the installed LIVE Data.p4k: the extractor's leading-segment-strip
+// fallback resolves provider 'HPP_Nyx_GlaciemRing' (code 'Nyx_GlaciemRing') to the
+// StarMapObject named 'GlaciemRing', which has no system-prefixed local name of its own.
+const SEGMENT_STRIP_PROVIDER_ID = 'e9aa8f98-4c87-468f-ae03-10a96d9497e5'
+const SEGMENT_STRIP_LOCATION_ID = '15be8bc1-cb5b-4a94-ba1c-742baf7c1f0b'
+
 const MATERIAL_COUNT = 10
 const ENTITY_COUNT = 20
 const PROVIDER_COUNT = 30
@@ -176,6 +182,29 @@ function overrideOnlyLocation(): Record<string, unknown> {
     system: 'Pyro',
     type: 'Wreck',
     providerIds: []
+  }
+}
+
+function segmentStripLocation(): Record<string, unknown> {
+  return {
+    id: SEGMENT_STRIP_LOCATION_ID,
+    name: 'GlaciemRing',
+    parentId: null,
+    parentName: null,
+    system: 'GlaciemRing',
+    type: 'Default',
+    providerIds: [SEGMENT_STRIP_PROVIDER_ID]
+  }
+}
+
+function segmentStripProvider(): Record<string, unknown> {
+  return {
+    id: SEGMENT_STRIP_PROVIDER_ID,
+    key: 'HPP_Nyx_GlaciemRing',
+    locationId: SEGMENT_STRIP_LOCATION_ID,
+    locationName: 'GlaciemRing',
+    groups: [],
+    areas: []
   }
 }
 
@@ -382,4 +411,26 @@ test('accepts a location that is referenced only by a material quality location 
   assert.ok(hadanite)
   assert.equal(hadanite.qualityLocationOverrides.length, 1)
   assert.equal(hadanite.qualityLocationOverrides[0].locationId, OVERRIDE_ONLY_LOCATION_ID)
+})
+
+test('accepts a provider location resolved via the leading-segment-strip naming fallback', () => {
+  // Some provider codes embed a leading system-name segment (e.g. "Nyx_GlaciemRing") that the
+  // StarMapObject's own local name omits ("GlaciemRing"). The extractor retries the match after
+  // stripping that segment; this fixture uses the real GlaciemRing/HPP_Nyx_GlaciemRing GUIDs
+  // verified against the installed LIVE Data.p4k to guard the parser accepts that shape.
+  const payload = buildPayload()
+  payload.locations = [aberdeenLocation(), segmentStripLocation()]
+  ;(payload.providers as Record<string, unknown>[])[1] = segmentStripProvider()
+
+  const catalog = parseMiningExtractorPayload(payload)
+  const location = catalog.locations.find((candidate) => candidate.id === SEGMENT_STRIP_LOCATION_ID)
+  assert.ok(location)
+  assert.equal(location.name, 'GlaciemRing')
+  assert.deepEqual(location.providerIds, [SEGMENT_STRIP_PROVIDER_ID])
+
+  const provider = catalog.providers.find((candidate) => candidate.id === SEGMENT_STRIP_PROVIDER_ID)
+  assert.ok(provider)
+  assert.equal(provider.key, 'HPP_Nyx_GlaciemRing')
+  assert.equal(provider.locationId, SEGMENT_STRIP_LOCATION_ID)
+  assert.equal(provider.locationName, 'GlaciemRing')
 })

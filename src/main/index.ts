@@ -498,12 +498,20 @@ async function applySettingsPatch(patch: OverlaySettingsPatch): Promise<AppSnaps
   const shortcutsChanged = patch.shortcuts !== undefined
   const favoriteMiningLocationsChanged = patch.favoriteMiningLocationIds !== undefined
   const next = mergeSettings(settings, patch)
+  const miningQualityThresholdChanged =
+    next.miningQualityThreshold !== settings.miningQualityThreshold
   const cloudApiChanged = next.cloudApiUrl !== settings.cloudApiUrl
   if (getOverlayLayoutKey(next) !== getOverlayLayoutKey(settings)) {
     measuredOverlayMetrics = null
   }
   await saveSettings(settingsPath, next)
   settings = next
+  if (miningQualityThresholdChanged) {
+    miningLocationGeneration += 1
+    miningLocationResults.clear()
+    pendingLocationRequests.clear()
+    bestMiningLocations = {}
+  }
   if (favoriteMiningLocationsChanged) refreshPreferredMiningLocationStates()
   warning = null
   if (cloudApiChanged && cloudSyncController) {
@@ -1195,8 +1203,9 @@ async function getMiningLocations(materialId: unknown): Promise<MiningLocationRe
   const material = materials.find((candidate) => candidate.id === materialId)
   if (!material) throw new Error('That mining material is no longer available.')
 
+  const qualityThreshold = settings.miningQualityThreshold
   const existing = miningLocationResults.get(materialId)
-  if (existing) return existing
+  if (existing?.qualityThreshold === qualityThreshold) return existing
 
   const pending = pendingLocationRequests.get(materialId)
   if (pending) return pending
@@ -1213,7 +1222,7 @@ async function getMiningLocations(materialId: unknown): Promise<MiningLocationRe
   }
   broadcastSnapshot()
 
-  const request = loadAndStoreMiningLocations(material, generation)
+  const request = loadAndStoreMiningLocations(material, generation, qualityThreshold)
   pendingLocationRequests.set(materialId, request)
   try {
     return await request
@@ -1226,16 +1235,24 @@ async function getMiningLocations(materialId: unknown): Promise<MiningLocationRe
 
 async function loadAndStoreMiningLocations(
   material: MiningMaterial,
-  generation: number
+  generation: number,
+  qualityThreshold: number
 ): Promise<MiningLocationResult> {
   try {
     const result = await loadMiningLocations(
       locationCachePath,
       material,
       miningCatalog,
-      miningCatalogMaterialIdByMaterialId.get(material.id) ?? null
+      miningCatalogMaterialIdByMaterialId.get(material.id) ?? null,
+      qualityThreshold,
+      () =>
+        generation === miningLocationGeneration &&
+        qualityThreshold === settings.miningQualityThreshold
     )
-    if (generation === miningLocationGeneration) {
+    if (
+      generation === miningLocationGeneration &&
+      qualityThreshold === settings.miningQualityThreshold
+    ) {
       miningLocationResults.set(material.id, result)
       bestMiningLocations = {
         ...bestMiningLocations,
@@ -1277,6 +1294,7 @@ function getPreferredMiningLocationState(result: MiningLocationResult): BestMini
   return {
     status: 'ready',
     location,
+    qualityThreshold: result.qualityThreshold,
     source: result.state,
     message:
       favoriteLocationId === location.id

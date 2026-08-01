@@ -5,6 +5,8 @@ import {
   clampProbability,
   estimateHighQualityProbability,
   estimateQuantizedThresholdProbability,
+  estimateQuantizedValueProbabilities,
+  scoreProbabilityBreakdown,
   scoreContributions,
   type QualityDistributionLike,
   type QuantizationBandLike
@@ -96,39 +98,123 @@ test('integrates truncated-normal mass across bands when mean/stdDev are known',
   assert.ok(Math.abs(probability - 0.5) < 0.01)
 })
 
-test('combines independent spawn groups and area modifiers into one 50%+ chance', () => {
-  const probability = scoreContributions(
+test('returns a normalized probability for every quantized quality value', () => {
+  const distribution: QualityDistributionLike = { min: 0, max: 1_000, mean: null, stdDev: null }
+  const probabilities = estimateQuantizedValueProbabilities(
     [
-      {
-        groupName: 'Ship_Mineables',
-        groupProbability: 0.5,
-        relativeProbability: 0.4,
-        highQualityProbability: 0.6,
-        areaModifiers: new Map()
-      },
-      {
-        groupName: 'Ship_Mineables',
-        groupProbability: 0.5,
-        relativeProbability: 0.6,
-        highQualityProbability: 0.2,
-        areaModifiers: new Map()
-      },
-      {
-        groupName: 'FPS_Mineables',
-        groupProbability: 0.25,
-        relativeProbability: 1,
-        highQualityProbability: 0.8,
-        areaModifiers: new Map([['Cave A', 1.5]])
-      }
+      { start: 0, end: 400, mappedValue: 274 },
+      { start: 400, end: 600, mappedValue: 526 },
+      { start: 600, end: 1_000, mappedValue: 800 }
     ],
+    distribution
+  )
+
+  assert.deepEqual(probabilities, [
+    { quality: 274, probability: 0.4 },
+    { quality: 526, probability: 0.2 },
+    { quality: 800, probability: 0.4 }
+  ])
+})
+
+test('combines spawn groups and area modifiers into a probability breakdown', () => {
+  const contributions = [
+    {
+      groupName: 'Ship_Mineables',
+      groupProbability: 0.5,
+      relativeProbability: 0.4,
+      highQualityProbability: 0.6,
+      areaModifiers: new Map()
+    },
+    {
+      groupName: 'Ship_Mineables',
+      groupProbability: 0.5,
+      relativeProbability: 0.6,
+      highQualityProbability: 0.2,
+      areaModifiers: new Map()
+    },
+    {
+      groupName: 'FPS_Mineables',
+      groupProbability: 0.25,
+      relativeProbability: 1,
+      highQualityProbability: 0.8,
+      areaModifiers: new Map([['Cave A', 1.5]])
+    }
+  ]
+  const probability = scoreContributions(contributions, { name: 'Cave A', globalModifier: 1 })
+  const breakdown = scoreProbabilityBreakdown(
+    contributions.map((contribution) => ({
+      ...contribution,
+      quantizationProbabilities: []
+    })),
     { name: 'Cave A', globalModifier: 1 }
   )
 
   assert.ok(probability !== null)
-  // Ship group: 0.5 * (0.4*0.6 + 0.6*0.2) = 0.5 * 0.36 = 0.18
-  // FPS group: 0.25 * clamp(1 * 0.8 * 1.5) = 0.25 * 1 = 0.25 (clamped to 1)
-  // Combined: 1 - (1-0.18)*(1-0.25) = 1 - 0.82*0.75 = 1 - 0.615 = 0.385
+  // Ship target chance: 0.5 * (0.4 + 0.6) = 0.5
+  // FPS target chance: 0.25 * clamp(1 * 1.5) = 0.25
+  // Find chance: 1 - (1-0.5)*(1-0.25) = 0.625
+  // Ship qualifying chance: 0.5 * (0.4*0.6 + 0.6*0.2) = 0.18
+  // FPS qualifying chance: 0.25 * clamp(1*1.5*0.8) = 0.25
+  // Combined: 1 - (1-0.18)*(1-0.25) = 0.385
+  // Conditional quality: 0.385 / 0.625 = 0.616
+  assert.ok(Math.abs((breakdown.rockSpawnProbability ?? 0) - 0.625) < 1e-9)
+  assert.ok(Math.abs((breakdown.qualityThresholdProbability ?? 0) - 0.616) < 1e-9)
   assert.ok(Math.abs((probability ?? 0) - 0.385) < 1e-9)
+  assert.equal(breakdown.combinedProbability, probability)
+})
+
+test('unions each independent group qualifying event before deriving the conditional chance', () => {
+  const breakdown = scoreProbabilityBreakdown(
+    ['Ship_Mineables', 'FPS_Mineables'].map((groupName) => ({
+      groupName,
+      groupProbability: 0.5,
+      relativeProbability: 1,
+      highQualityProbability: 0.5,
+      areaModifiers: new Map(),
+      quantizationProbabilities: [
+        { quality: 250, probability: 0.5 },
+        { quality: 750, probability: 0.5 }
+      ]
+    })),
+    { name: null, globalModifier: 1 }
+  )
+
+  assert.ok(Math.abs((breakdown.rockSpawnProbability ?? 0) - 0.75) < 1e-9)
+  assert.ok(Math.abs((breakdown.combinedProbability ?? 0) - 0.4375) < 1e-9)
+  assert.ok(Math.abs((breakdown.qualityThresholdProbability ?? 0) - 0.4375 / 0.75) < 1e-9)
+  assert.ok(
+    Math.abs(
+      breakdown.quantizationProbabilities
+        .filter((entry) => entry.quality >= 500)
+        .reduce((sum, entry) => sum + entry.probability, 0) -
+        (breakdown.qualityThresholdProbability ?? 0)
+    ) < 1e-9
+  )
+  assert.ok(
+    Math.abs(
+      breakdown.quantizationProbabilities.reduce((sum, entry) => sum + entry.probability, 0) - 1
+    ) < 1e-9
+  )
+})
+
+test('returns null probabilities when every contribution lacks spawn inputs', () => {
+  const breakdown = scoreProbabilityBreakdown(
+    [
+      {
+        groupName: 'Unknown',
+        groupProbability: null,
+        relativeProbability: null,
+        highQualityProbability: 0.5,
+        areaModifiers: new Map(),
+        quantizationProbabilities: []
+      }
+    ],
+    { name: null, globalModifier: 1 }
+  )
+
+  assert.equal(breakdown.rockSpawnProbability, null)
+  assert.equal(breakdown.qualityThresholdProbability, null)
+  assert.equal(breakdown.combinedProbability, null)
 })
 
 test('returns null when every contribution is missing group or relative probability', () => {

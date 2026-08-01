@@ -80,4 +80,8 @@ test('changes the layout key only for settings that affect rendered dimensions',
       favoriteMiningLocationIds: { 'agricium-ore': 'location-daymar' }
     })
   )
+  assert.notEqual(
+    getOverlayLayoutKey(settings),
+    getOverlayLayoutKey({ ...settings, miningQualityThreshold: 750 })
+  )
 })

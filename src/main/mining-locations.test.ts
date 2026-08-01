@@ -55,16 +55,16 @@ test('ranks every distinct location and retains zero or unavailable probabilitie
   )
   assert.equal(result.length, 8)
   assert.equal(result[2].area, 'Coastline')
-  const boostedProbability = result[2].highQualityProbability
+  const boostedProbability = result[2].combinedProbability
   if (boostedProbability === null) assert.fail('Boosted should have an estimated probability')
   assert.ok(Math.abs(boostedProbability - 0.1) < 0.0001)
   assert.equal(result[0].minQuality, 501)
   assert.equal(result[0].maxQuality, 1_000)
   assert.equal(result[0].maxComposition, 75)
-  assert.equal(result[6].highQualityProbability, 0)
+  assert.equal(result[6].combinedProbability, 0)
   assert.equal(result[6].minQuality, 0)
   assert.equal(result[6].maxQuality, 499)
-  assert.equal(result[7].highQualityProbability, null)
+  assert.equal(result[7].combinedProbability, null)
   assert.equal(resolvePreferredMiningLocation(result, 'location-echo')?.name, 'Echo')
   assert.equal(resolvePreferredMiningLocation(result, 'missing-location')?.name, 'Alpha')
   assert.equal(resolvePreferredMiningLocation([], 'location-echo'), null)
@@ -130,6 +130,136 @@ test('caches successful recommendations for offline use', async () => {
   }
 })
 
+test('keeps active-threshold cache data when an older request finishes last', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'rockfall-locations-race-'))
+  const cachePath = join(directory, 'locations.json')
+  const originalFetch = globalThis.fetch
+  const material: MiningMaterial = {
+    id: 'target-ore',
+    commodityId: 'target-ore',
+    name: 'Target Ore',
+    displayName: 'Target Ore',
+    signature: 4_000,
+    methods: ['Ship'],
+    sourceUrl: 'https://example.com/target-ore'
+  }
+  const payload = {
+    data: {
+      uuid: COMMODITY_UUID,
+      slug: material.id,
+      locations: [location('Cached site', 0.4, 0.5)]
+    }
+  }
+  const response = (): Response =>
+    new Response(JSON.stringify(payload), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' }
+    })
+  let releaseFirstFetch: (value: Response) => void = (value) => {
+    void value
+    throw new Error('The first fetch was not started.')
+  }
+  let fetchCount = 0
+
+  try {
+    globalThis.fetch = async () => {
+      fetchCount += 1
+      if (fetchCount === 1) {
+        return new Promise<Response>((resolve) => {
+          releaseFirstFetch = resolve
+        })
+      }
+      return response()
+    }
+
+    const olderRequest = loadMiningLocations(cachePath, material, null, null, 500)
+    const activeResult = await loadMiningLocations(cachePath, material, null, null, 750)
+    releaseFirstFetch(response())
+    await olderRequest
+    assert.equal(activeResult.qualityThreshold, 750)
+
+    globalThis.fetch = async () => {
+      throw new Error('offline')
+    }
+    const cached = await loadMiningLocations(cachePath, material, null, null, 750)
+    assert.equal(cached.state, 'cached')
+    assert.equal(cached.qualityThreshold, 750)
+    assert.deepEqual(cached.locations, activeResult.locations)
+  } finally {
+    globalThis.fetch = originalFetch
+    await rm(directory, { recursive: true, force: true })
+  }
+})
+
+test('does not let an invalidated same-threshold request replace current cache data', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'rockfall-locations-generation-race-'))
+  const cachePath = join(directory, 'locations.json')
+  const originalFetch = globalThis.fetch
+  const material: MiningMaterial = {
+    id: 'target-ore',
+    commodityId: 'target-ore',
+    name: 'Target Ore',
+    displayName: 'Target Ore',
+    signature: 4_000,
+    methods: ['Ship'],
+    sourceUrl: 'https://example.com/target-ore'
+  }
+  const payload = (name: string): Record<string, unknown> => ({
+    data: {
+      uuid: COMMODITY_UUID,
+      slug: material.id,
+      locations: [location(name, 0.4, 0.5)]
+    }
+  })
+  const response = (name: string): Response =>
+    new Response(JSON.stringify(payload(name)), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' }
+    })
+  let releaseFirstFetch: (value: Response) => void = (value) => {
+    void value
+    throw new Error('The first fetch was not started.')
+  }
+  let fetchCount = 0
+  let olderRequestIsCurrent = true
+
+  try {
+    globalThis.fetch = async () => {
+      fetchCount += 1
+      if (fetchCount === 1) {
+        return new Promise<Response>((resolve) => {
+          releaseFirstFetch = resolve
+        })
+      }
+      return response('Current site')
+    }
+
+    const olderRequest = loadMiningLocations(
+      cachePath,
+      material,
+      null,
+      null,
+      500,
+      () => olderRequestIsCurrent
+    )
+    olderRequestIsCurrent = false
+    const currentResult = await loadMiningLocations(cachePath, material, null, null, 500)
+    releaseFirstFetch(response('Stale site'))
+    await olderRequest
+    assert.equal(currentResult.locations[0].name, 'Current site')
+
+    globalThis.fetch = async () => {
+      throw new Error('offline')
+    }
+    const cached = await loadMiningLocations(cachePath, material, null, null, 500)
+    assert.equal(cached.state, 'cached')
+    assert.equal(cached.locations[0].name, 'Current site')
+  } finally {
+    globalThis.fetch = originalFetch
+    await rm(directory, { recursive: true, force: true })
+  }
+})
+
 test('loads older cached recommendations without a minimum quality value', async () => {
   const directory = await mkdtemp(join(tmpdir(), 'rockfall-locations-legacy-'))
   const cachePath = join(directory, 'locations.json')
@@ -177,6 +307,30 @@ test('loads older cached recommendations without a minimum quality value', async
     assert.equal(cached.state, 'cached')
     assert.equal(cached.locations[0].name, 'Legacy Site')
     assert.equal(cached.locations[0].minQuality, null)
+    assert.equal(cached.locations[0].rockSpawnProbability, null)
+    assert.equal(cached.locations[0].qualityThresholdProbability, null)
+    assert.equal(cached.locations[0].combinedProbability, 0.25)
+
+    globalThis.fetch = async () =>
+      new Response(
+        JSON.stringify({
+          data: {
+            uuid: COMMODITY_UUID,
+            slug: material.id,
+            locations: [location('Current site', 0.4, 0.5)]
+          }
+        }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } }
+      )
+    const current = await loadMiningLocations(cachePath, material, null, null, 750)
+    assert.equal(current.qualityThreshold, 750)
+
+    globalThis.fetch = async () => {
+      throw new Error('offline')
+    }
+    const migratedLegacy = await loadMiningLocations(cachePath, material, null, null, 500)
+    assert.equal(migratedLegacy.state, 'cached')
+    assert.equal(migratedLegacy.locations[0].name, 'Legacy Site')
   } finally {
     globalThis.fetch = originalFetch
     await rm(directory, { recursive: true, force: true })

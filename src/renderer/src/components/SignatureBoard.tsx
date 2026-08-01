@@ -8,7 +8,10 @@ import type {
   SignatureOverrides
 } from '../../../shared/contracts'
 import { buildClusterSignatures, resolveMaterialSignature } from '../../../shared/signatures'
-import { formatMiningProbability, formatMiningSiteName } from '../lib/mining-location-format'
+import {
+  formatMiningProbabilityBreakdown,
+  formatMiningSiteName
+} from '../lib/mining-location-format'
 
 const numberFormatter = new Intl.NumberFormat('en-US')
 
@@ -181,10 +184,7 @@ function BestSite({
 
   if (state?.status === 'ready') {
     site = formatMiningSiteName(state.location)
-    probability =
-      state.location.highQualityProbability === null
-        ? '50%+: unavailable'
-        : `50%+: ${formatMiningProbability(state.location.highQualityProbability)}`
+    probability = formatMiningProbabilityBreakdown(state.location, state.qualityThreshold)
     if (state.source === 'live' || state.source === 'cached') probability += ' · wiki'
     if (state.source === 'game-cached' || state.source === 'cached') probability += ' · cached'
   } else if (state?.status === 'empty') {

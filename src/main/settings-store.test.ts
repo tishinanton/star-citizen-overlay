@@ -30,6 +30,7 @@ test('normalizes persisted settings and clamps opacity', () => {
       selectedMaterialIds: ['agricium-ore', 'riccite-ore'],
       signatureOverrides: {},
       favoriteMiningLocationIds: {},
+      miningQualityThreshold: 500,
       clusterMax: 7,
       visible: false,
       compact: true,
@@ -56,6 +57,23 @@ test('normalizes application font size to the supported range', () => {
   assert.equal(normalizeSettings({ ...DEFAULT_SETTINGS, appFontSize: 10 }).appFontSize, 14)
   assert.equal(normalizeSettings({ ...DEFAULT_SETTINGS, appFontSize: 16.6 }).appFontSize, 17)
   assert.equal(normalizeSettings({ ...DEFAULT_SETTINGS, appFontSize: 24 }).appFontSize, 20)
+})
+
+test('normalizes the persisted raw mining quality threshold', () => {
+  assert.equal(
+    normalizeSettings({ ...DEFAULT_SETTINGS, miningQualityThreshold: -20 }).miningQualityThreshold,
+    0
+  )
+  assert.equal(
+    normalizeSettings({ ...DEFAULT_SETTINGS, miningQualityThreshold: 749.6 })
+      .miningQualityThreshold,
+    750
+  )
+  assert.equal(
+    normalizeSettings({ ...DEFAULT_SETTINGS, miningQualityThreshold: 1_500 })
+      .miningQualityThreshold,
+    1_000
+  )
 })
 
 test('normalizes the cloud endpoint and rejects insecure remote URLs', () => {

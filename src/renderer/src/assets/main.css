@@ -488,6 +488,15 @@
   gap: 12px;
 }
 
+.mining-location-panel__header {
+  grid-template-columns: 30px minmax(0, 1fr);
+}
+
+.mining-quality-target {
+  grid-column: 1 / -1;
+  width: 100%;
+}
+
 .material-table__header {
   min-height: 33px;
   padding: 8px 8px 8px 13px;
@@ -816,13 +825,77 @@
 
 .mining-location-panel__header {
   display: grid;
-  grid-template-columns: 30px minmax(0, 1fr);
+  grid-template-columns: 30px minmax(0, 1fr) minmax(260px, auto);
   align-items: center;
   min-height: 56px;
   padding: 10px 12px;
   gap: 9px;
   border-bottom: 1px solid var(--edge);
   background: var(--surface);
+}
+
+.mining-quality-target {
+  display: grid;
+  grid-template-columns: minmax(150px, 1fr) auto;
+  align-items: end;
+  min-width: 260px;
+  gap: 8px;
+}
+
+.mining-quality-target label {
+  display: grid;
+  gap: 5px;
+  color: var(--muted);
+  font-size: 1rem;
+}
+
+.mining-quality-target input[type='range'] {
+  width: 100%;
+  accent-color: var(--accent);
+}
+
+.mining-quality-target > div {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.mining-quality-target input[type='number'] {
+  width: 68px;
+  height: 30px;
+  padding: 0 7px;
+  border: 1px solid var(--edge);
+  border-radius: var(--radius-sm);
+  background: var(--surface-low);
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.mining-quality-target button,
+.mining-location-table__quantization-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 30px;
+  padding: 0 9px;
+  gap: 5px;
+  border: 1px solid var(--edge);
+  border-radius: var(--radius-sm);
+  background: var(--surface-low);
+  color: var(--ink-soft);
+  font-size: 1rem;
+}
+
+.mining-quality-target button:hover:not(:disabled),
+.mining-location-table__quantization-toggle:hover {
+  border-color: var(--edge-strong);
+  background: var(--surface-high);
+  color: var(--ink);
+}
+
+.mining-quality-target button:disabled {
+  opacity: 0.45;
 }
 
 .mining-location-panel__icon {
@@ -859,7 +932,7 @@
 
 .mining-location-table {
   width: 100%;
-  min-width: 580px;
+  min-width: 920px;
   border-collapse: collapse;
   table-layout: fixed;
 }
@@ -885,12 +958,22 @@
 }
 
 .mining-location-table thead th:nth-child(3) {
-  width: 108px;
+  width: 94px;
   text-align: right;
 }
 
 .mining-location-table thead th:nth-child(4) {
-  width: 128px;
+  width: 112px;
+  text-align: right;
+}
+
+.mining-location-table thead th:nth-child(5) {
+  width: 104px;
+  text-align: right;
+}
+
+.mining-location-table thead th:nth-child(6) {
+  width: 150px;
   text-align: right;
 }
 
@@ -1004,6 +1087,55 @@
   font-weight: 400;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.mining-location-table__quantization-toggle {
+  min-height: 24px;
+  margin: 5px 0 0 auto;
+  padding-inline: 6px;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.mining-location-table__quantization-toggle[aria-expanded='true'] svg {
+  transform: rotate(180deg);
+}
+
+.mining-location-table__quantization-row > td {
+  height: auto !important;
+  padding: 0 !important;
+  background: var(--surface-low);
+}
+
+.mining-quantization-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(76px, 1fr));
+  border-top: 1px solid var(--edge);
+}
+
+.mining-quantization-grid > span {
+  display: flex;
+  min-height: 46px;
+  padding: 7px 9px;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.mining-quantization-grid > span + span {
+  border-left: 1px solid color-mix(in oklch, var(--edge) 65%, transparent);
+}
+
+.mining-quantization-grid strong {
+  color: var(--ink);
+  font-size: 1rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.mining-quantization-grid small {
+  margin-top: 2px;
+  color: var(--accent-bright);
+  font-size: 1rem;
+  font-variant-numeric: tabular-nums;
 }
 
 .mining-location-table__yield small {
@@ -1139,9 +1271,9 @@
 
 .mining-location-skeleton > span {
   display: grid;
-  grid-template-columns: 28px minmax(180px, 1fr) 92px 112px 64px;
+  grid-template-columns: 28px minmax(180px, 1fr) 78px 96px 88px 134px 64px;
   align-items: center;
-  min-width: 580px;
+  min-width: 920px;
   height: 66px;
   padding: 9px 8px;
   gap: 10px;

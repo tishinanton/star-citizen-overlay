@@ -284,35 +284,39 @@ respective fallback chains, extended with backward-compatible fields
 (`identitySource`, `minComposition`) that default sensibly for older cached
 entries.
 
-The 50%+ quality-roll chance is computed by a shared scoring pipeline
+Site probabilities are computed by a shared scoring pipeline
 (`src\main\mining-estimator.ts`) used by both the local and Wiki-fallback
-paths. On the local path, the chance is **quantization-aware**: rather than
-assuming a raw truncated-normal/uniform threshold over the full quality
-range, it integrates that distribution over the actual quantization bands
-whose `mappedValue >= 500`, intersected with each contribution's effective
-quality min/max (including any location-specific override). This can move
-the estimate in either direction versus the naive raw-threshold calculation,
-and for Hadanite at Aberdeen it raises it: the conditional (single-
-contribution) raw-threshold estimate over that distribution is 31.06%, while
-the quantization-aware conditional estimate is 50.04%. This is *not* because
-mass moved below the threshold - it is because a raw quality roll in
-`[400, 599)`, which sits below the naive 500 cutoff, is quantized through
-band `[400, 599] -> mappedValue 526`, an output that clears the threshold.
-Quantization can convert an apparently sub-threshold raw roll into an
-above-threshold mapped result, so the quantization-aware number is not
-directly comparable to a plain "fraction of raw mass above 500" reading.
-After combining with this provider's group probability `0.25` and Hadanite's
-relative probability `0.06` within that group, the final row-level chance
-goes from 0.466% (raw-threshold) to 0.751% (quantization-aware) - do not
-compare the 31.06%/50.04% conditional figures directly against the
-0.466%/0.751% combined figures; they answer different questions (single
-contribution vs. the fully combined site chance). This estimate assumes the
-material's quantization bands are disjoint (non-overlapping) and exhaustive
-enough to renormalize against; `effectiveQuality` already folds in any
-location-specific override and `qualityScale`, and `curveExponent` is
-intentionally not reapplied by this estimation step. When a material has no
-quantization bands (always true on the Wiki-fallback path), the estimator
-falls back to the raw-threshold calculation unchanged.
+paths. The user selects one persisted raw quality target from `0` to `1000`.
+Each location reports three separate values:
+
+```text
+rock spawn chance
+conditional quality chance if that rock spawns
+combined chance = rock spawn chance × conditional quality chance
+```
+
+On the local path, the conditional chance is **quantization-aware**: it
+integrates the effective truncated-normal/uniform distribution over the
+actual quantization bands whose `mappedValue` reaches the selected target.
+It also exposes the normalized conditional probability of every quantized
+output value. When independent groups or providers can produce the material
+in the same spawn opportunity, the distribution describes the best quantized
+result, so its tail remains identical to the displayed threshold chance.
+Quality is displayed on the raw `0`–`1000` game scale;
+composition remains a separate percentage range.
+
+For Hadanite at Aberdeen, the rock spawn chance is `0.25 × 0.06 = 1.5%`.
+At target `500`, the conditional quantized chance is `50.04%` and the
+combined chance is `0.751%`. At target `750`, the conditional chance is
+`8.70%` and the combined chance is `0.131%`. The quality outputs are
+`274`, `526`, `665`, `762`, `867`, `916`, `959`, and `1000`.
+
+The estimator assumes a material's quantization bands are disjoint and
+renormalizes against their covered mass. `effectiveQuality` already includes
+location overrides and `qualityScale`; `curveExponent` is intentionally not
+reapplied. When a material has no quantization bands, the Wiki fallback uses
+the raw-threshold calculation and cannot show a per-quantized-value
+distribution.
 
 ```text
 Data.p4k
@@ -367,9 +371,9 @@ Two notable joins that are not direct DataForge references:
     spanning an entire region rather than one `StarMapObject` (e.g. the
     well-known Stanton asteroid belt and the Pyro deep-space/temperature-zone
     asteroid presets).
-  A dependent app layer wanting full parity for these must not fabricate a
-  `StarMapObject` link; any curated display name for them belongs in the app
-  layer, sourced independently, not asserted as extracted from Game2.dcb.
+    A dependent app layer wanting full parity for these must not fabricate a
+    `StarMapObject` link; any curated display name for them belongs in the app
+    layer, sourced independently, not asserted as extracted from Game2.dcb.
 - **Relative probability normalization.** `relativeProbability` is each
   element's raw weight divided by the **sum of sibling weights in the same
   group** (not a flat `/100`) - groups do not always sum to 100.

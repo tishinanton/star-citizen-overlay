@@ -183,6 +183,22 @@ export default function ControlApp(): React.JSX.Element {
     }
   }
 
+  const changeMiningQualityThreshold = async (
+    material: MiningMaterial,
+    miningQualityThreshold: number
+  ): Promise<void> => {
+    locationGeneration.current += 1
+    setLocationStates({
+      [material.id]: { loading: true, result: null, error: null }
+    })
+    await updateSettings({ miningQualityThreshold })
+    locationGeneration.current += 1
+    setLocationStates({
+      [material.id]: { loading: true, result: null, error: null }
+    })
+    await loadLocations(material)
+  }
+
   const toggleLocations = (material: MiningMaterial): void => {
     if (expandedLocationId === material.id) {
       setExpandedLocationId(null)
@@ -192,7 +208,13 @@ export default function ControlApp(): React.JSX.Element {
     setEditingSignatureId(null)
     setExpandedLocationId(material.id)
     const state = locationStates[material.id]
-    if (!state || state.error) void loadLocations(material)
+    if (
+      !state ||
+      state.error ||
+      state.result?.qualityThreshold !== settings.miningQualityThreshold
+    ) {
+      void loadLocations(material)
+    }
   }
 
   const openSignatureEditor = (materialId: string): void => {
@@ -616,8 +638,12 @@ export default function ControlApp(): React.JSX.Element {
                         result={locationStates[material.id]?.result ?? null}
                         error={locationStates[material.id]?.error ?? null}
                         favoriteLocationId={settings.favoriteMiningLocationIds[material.id] ?? null}
+                        qualityThreshold={settings.miningQualityThreshold}
                         onFavoriteChange={(locationId) =>
                           setFavoriteMiningLocation(material.id, locationId)
+                        }
+                        onQualityThresholdChange={(qualityThreshold) =>
+                          void changeMiningQualityThreshold(material, qualityThreshold)
                         }
                         onRetry={() => void loadLocations(material)}
                       />

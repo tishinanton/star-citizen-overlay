@@ -16,7 +16,10 @@ export const MIN_OVERLAY_FONT_SCALE = 0.8
 export const MAX_OVERLAY_FONT_SCALE = 1.6
 export const DEFAULT_OVERLAY_FONT_SCALE = 1
 export const OVERLAY_FONT_SCALE_STEP = 0.05
-export const HIGH_QUALITY_THRESHOLD = 500
+export const MIN_MINING_QUALITY_THRESHOLD = 0
+export const MAX_MINING_QUALITY_THRESHOLD = 1_000
+export const DEFAULT_MINING_QUALITY_THRESHOLD = 500
+export const HIGH_QUALITY_THRESHOLD = DEFAULT_MINING_QUALITY_THRESHOLD
 
 export type ShortcutId = 'toggle-overlay' | 'next-target' | 'show-all' | 'toggle-compact'
 
@@ -58,6 +61,11 @@ export interface MiningMaterial {
  */
 export type MiningLocationIdentitySource = 'game' | 'game-wiki' | 'wiki'
 
+export interface MiningQuantizationProbability {
+  quality: number
+  probability: number
+}
+
 export interface MiningLocationRecommendation {
   id: string
   name: string
@@ -65,7 +73,10 @@ export interface MiningLocationRecommendation {
   system: string
   type: string
   parentName: string | null
-  highQualityProbability: number | null
+  rockSpawnProbability: number | null
+  qualityThresholdProbability: number | null
+  combinedProbability: number | null
+  quantizationProbabilities: MiningQuantizationProbability[]
   minQuality: number | null
   maxQuality: number
   minComposition: number | null
@@ -87,6 +98,7 @@ export type MiningLocationSourceState = 'game' | 'game-cached' | 'live' | 'cache
 
 export interface MiningLocationResult {
   materialId: string
+  qualityThreshold: number
   locations: MiningLocationRecommendation[]
   state: MiningLocationSourceState
   message: string
@@ -250,6 +262,7 @@ export type BestMiningLocationState =
   | {
       status: 'ready'
       location: MiningLocationRecommendation
+      qualityThreshold: number
       source: MiningLocationSourceState
       message: string
     }
@@ -286,6 +299,7 @@ export interface OverlaySettings {
   selectedMaterialIds: string[]
   signatureOverrides: SignatureOverrides
   favoriteMiningLocationIds: FavoriteMiningLocationIds
+  miningQualityThreshold: number
   clusterMax: number
   visible: boolean
   compact: boolean

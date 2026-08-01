@@ -181,10 +181,13 @@ function BestSite({
 
   if (state?.status === 'ready') {
     site = formatMiningSiteName(state.location)
-    probability = formatMiningProbability(state.location.highQualityProbability)
+    probability =
+      state.location.highQualityProbability === null
+        ? '50%+: unavailable'
+        : `50%+: ${formatMiningProbability(state.location.highQualityProbability)}`
     if (state.source === 'cached') probability += ' · cached'
   } else if (state?.status === 'empty') {
-    site = 'No 50%+ site reported'
+    site = 'No mining site reported'
   } else if (state?.status === 'error') {
     site = 'Site data unavailable'
   }

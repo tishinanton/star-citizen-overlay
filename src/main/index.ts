@@ -1255,7 +1255,7 @@ function getPreferredMiningLocationState(result: MiningLocationResult): BestMini
       status: 'empty',
       location: null,
       source: result.state,
-      message: 'No 50%+ quality mining site is reported for this material.'
+      message: 'No mining site is reported for this material.'
     }
   }
 

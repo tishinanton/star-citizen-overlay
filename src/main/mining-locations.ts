@@ -3,7 +3,6 @@ import { dirname } from 'node:path'
 
 import {
   HIGH_QUALITY_THRESHOLD,
-  MAX_RECOMMENDED_MINING_LOCATIONS,
   type MiningLocationRecommendation,
   type MiningLocationResult,
   type MiningMaterial
@@ -23,9 +22,10 @@ interface MiningLocationCacheEntry {
 
 interface DepositContribution {
   groupName: string
-  groupProbability: number
-  relativeProbability: number
+  groupProbability: number | null
+  relativeProbability: number | null
   highQualityProbability: number
+  minQuality: number
   maxQuality: number
   maxComposition: number | null
   areaModifiers: Map<string, number>
@@ -155,15 +155,16 @@ function parseDepositContribution(
   if (targetMaterials.length === 0) return null
 
   let noHighQualityProbability = 1
-  let groupProbability = 0
-  let relativeProbability = 0
+  let groupProbability: number | null = null
+  let relativeProbability: number | null = null
+  let minQuality = Number.POSITIVE_INFINITY
   let maxQuality = 0
   let maxComposition: number | null = null
 
   for (const material of targetMaterials) {
     const qualityMin = finiteNumber(material.quality_min)
     const qualityMax = finiteNumber(material.quality_max)
-    if (qualityMin === null || qualityMax === null) continue
+    if (qualityMin === null || qualityMax === null || qualityMax < qualityMin) continue
 
     const qualityProbability = estimateHighQualityProbability(
       qualityMin,
@@ -172,15 +173,16 @@ function parseDepositContribution(
       finiteNumber(material.quality_stddev)
     )
     noHighQualityProbability *= 1 - qualityProbability
+    minQuality = Math.min(minQuality, qualityMin)
     maxQuality = Math.max(maxQuality, qualityMax)
 
     const materialGroupProbability = probability(material.group_probability)
     if (materialGroupProbability !== null) {
-      groupProbability = Math.max(groupProbability, materialGroupProbability)
+      groupProbability = Math.max(groupProbability ?? 0, materialGroupProbability)
     }
     const materialRelativeProbability = probability(material.relative_probability)
     if (materialRelativeProbability !== null) {
-      relativeProbability = Math.max(relativeProbability, materialRelativeProbability)
+      relativeProbability = Math.max(relativeProbability ?? 0, materialRelativeProbability)
     }
     const materialMaxComposition = finiteNumber(material.max_percentage)
     if (materialMaxComposition !== null) {
@@ -188,23 +190,30 @@ function parseDepositContribution(
     }
   }
 
-  if (groupProbability === 0 || relativeProbability === 0 || maxQuality === 0) return null
+  if (!Number.isFinite(minQuality)) return null
 
   return {
     groupName: typeof value.group_name === 'string' ? value.group_name : 'mineable',
     groupProbability,
     relativeProbability,
     highQualityProbability: 1 - noHighQualityProbability,
+    minQuality,
     maxQuality,
     maxComposition,
     areaModifiers: parseAreaModifiers(value.area_exceptions)
   }
 }
 
-function scoreContributions(contributions: DepositContribution[], area: AreaCandidate): number {
+function scoreContributions(
+  contributions: DepositContribution[],
+  area: AreaCandidate
+): number | null {
   const groups = new Map<string, { groupProbability: number; relativeChance: number }>()
 
   for (const contribution of contributions) {
+    if (contribution.groupProbability === null || contribution.relativeProbability === null) {
+      continue
+    }
     const areaModifier =
       area.name === null ? 1 : (contribution.areaModifiers.get(area.name) ?? area.globalModifier)
     const current = groups.get(contribution.groupName) ?? {
@@ -216,6 +225,8 @@ function scoreContributions(contributions: DepositContribution[], area: AreaCand
       contribution.relativeProbability * contribution.highQualityProbability * areaModifier
     groups.set(contribution.groupName, current)
   }
+
+  if (groups.size === 0) return null
 
   let noHighQualityProbability = 1
   for (const group of groups.values()) {
@@ -248,12 +259,14 @@ function parseLocation(value: unknown, commodityUuid: string): MiningLocationRec
   let highQualityProbability = scoreContributions(contributions, bestArea)
   for (const area of parseAreaCandidates(value.areas).slice(1)) {
     const areaProbability = scoreContributions(contributions, area)
-    if (areaProbability > highQualityProbability) {
+    if (
+      areaProbability !== null &&
+      (highQualityProbability === null || areaProbability > highQualityProbability)
+    ) {
       bestArea = area
       highQualityProbability = areaProbability
     }
   }
-  if (highQualityProbability <= 0) return null
 
   return {
     id,
@@ -263,6 +276,7 @@ function parseLocation(value: unknown, commodityUuid: string): MiningLocationRec
     type,
     parentName: typeof value.parent_name === 'string' ? value.parent_name : null,
     highQualityProbability,
+    minQuality: Math.min(...contributions.map((contribution) => contribution.minQuality)),
     maxQuality: Math.max(...contributions.map((contribution) => contribution.maxQuality)),
     maxComposition: contributions.reduce<number | null>(
       (maximum, contribution) =>
@@ -295,14 +309,16 @@ export function parseMiningLocationRecommendations(
   return payload.data.locations
     .map((location) => parseLocation(location, commodityUuid))
     .filter((location): location is MiningLocationRecommendation => location !== null)
-    .sort(
-      (left, right) =>
-        right.highQualityProbability - left.highQualityProbability ||
+    .sort((left, right) => {
+      const probabilityDifference =
+        (right.highQualityProbability ?? -1) - (left.highQualityProbability ?? -1)
+      return (
+        probabilityDifference ||
         right.maxQuality - left.maxQuality ||
         (right.maxComposition ?? 0) - (left.maxComposition ?? 0) ||
         left.name.localeCompare(right.name)
-    )
-    .slice(0, MAX_RECOMMENDED_MINING_LOCATIONS)
+      )
+    })
 }
 
 export function resolvePreferredMiningLocation(
@@ -339,7 +355,10 @@ async function fetchLiveMiningLocations(
 function parseCachedRecommendation(value: unknown): MiningLocationRecommendation | null {
   if (!isRecord(value)) return null
 
-  const highQualityProbability = probability(value.highQualityProbability)
+  const highQualityProbability =
+    value.highQualityProbability === null ? null : probability(value.highQualityProbability)
+  const hasMinQuality = value.minQuality !== undefined && value.minQuality !== null
+  const minQuality = hasMinQuality ? finiteNumber(value.minQuality) : null
   const maxQuality = finiteNumber(value.maxQuality)
   const maxComposition = value.maxComposition === null ? null : finiteNumber(value.maxComposition)
   if (
@@ -349,7 +368,7 @@ function parseCachedRecommendation(value: unknown): MiningLocationRecommendation
     typeof value.system !== 'string' ||
     typeof value.type !== 'string' ||
     (value.parentName !== null && typeof value.parentName !== 'string') ||
-    highQualityProbability === null ||
+    (value.highQualityProbability !== null && highQualityProbability === null) ||
     maxQuality === null ||
     maxQuality < 0 ||
     maxQuality > 1_000 ||
@@ -359,6 +378,7 @@ function parseCachedRecommendation(value: unknown): MiningLocationRecommendation
   ) {
     return null
   }
+  if (minQuality !== null && (minQuality < 0 || minQuality > maxQuality)) return null
 
   return {
     id: value.id,
@@ -368,6 +388,7 @@ function parseCachedRecommendation(value: unknown): MiningLocationRecommendation
     type: value.type,
     parentName: value.parentName,
     highQualityProbability,
+    minQuality,
     maxQuality,
     maxComposition,
     sourceUrl: value.sourceUrl

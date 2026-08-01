@@ -859,7 +859,7 @@
 
 .mining-location-table {
   width: 100%;
-  min-width: 520px;
+  min-width: 580px;
   border-collapse: collapse;
   table-layout: fixed;
 }
@@ -885,12 +885,12 @@
 }
 
 .mining-location-table thead th:nth-child(3) {
-  width: 92px;
+  width: 108px;
   text-align: right;
 }
 
 .mining-location-table thead th:nth-child(4) {
-  width: 112px;
+  width: 128px;
   text-align: right;
 }
 
@@ -999,6 +999,12 @@
   white-space: nowrap;
 }
 
+.mining-location-table__yield small {
+  line-height: 1.2;
+  text-overflow: clip;
+  white-space: normal;
+}
+
 .mining-location-table__meter {
   display: block;
   width: 64px;
@@ -1033,6 +1039,11 @@
 .mining-location-table__probability strong {
   color: var(--accent-bright);
   font-weight: 650;
+}
+
+.mining-location-table__probability.is-unavailable strong {
+  color: var(--muted);
+  font-weight: 400;
 }
 
 .mining-location-table__yield strong {
@@ -1121,9 +1132,9 @@
 
 .mining-location-skeleton > span {
   display: grid;
-  grid-template-columns: 28px minmax(180px, 1fr) 76px 96px 64px;
+  grid-template-columns: 28px minmax(180px, 1fr) 92px 112px 64px;
   align-items: center;
-  min-width: 520px;
+  min-width: 580px;
   height: 66px;
   padding: 9px 8px;
   gap: 10px;
@@ -1156,14 +1167,16 @@
 .mining-location-panel__footer {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   justify-content: space-between;
   min-height: 31px;
-  padding: 0 12px;
+  padding: 7px 12px;
   gap: 12px;
   border-top: 1px solid var(--edge);
   background: var(--surface);
   color: var(--muted);
   font-size: 1rem;
+  line-height: 1.35;
 }
 
 .mining-location-source {

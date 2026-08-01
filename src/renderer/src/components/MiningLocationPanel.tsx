@@ -5,7 +5,7 @@ import type {
   MiningLocationResult,
   MiningMaterial
 } from '../../../shared/contracts'
-import { formatMiningProbability } from '../lib/mining-location-format'
+import { formatMiningProbability, formatMiningQualityRange } from '../lib/mining-location-format'
 
 const compositionFormatter = new Intl.NumberFormat('en-US', {
   maximumFractionDigits: 1
@@ -31,7 +31,10 @@ export default function MiningLocationPanel({
   onRetry
 }: MiningLocationPanelProps): React.JSX.Element {
   const locations = result?.locations ?? []
-  const topProbability = locations[0]?.highQualityProbability ?? 1
+  const topProbability =
+    locations.find(
+      (location) => location.highQualityProbability !== null && location.highQualityProbability > 0
+    )?.highQualityProbability ?? 0
   const panelId = `mining-location-panel-${material.id}`
   const titleId = `${panelId}-title`
 
@@ -47,8 +50,11 @@ export default function MiningLocationPanel({
           <MapPin size={17} />
         </span>
         <div>
-          <h2 id={titleId}>{material.name} mining sites</h2>
-          <p>Ranked for a 50%+ quality find. Star one site to use it in the overlay.</p>
+          <h2 id={titleId}>All {material.name} mining sites</h2>
+          <p>
+            Ranked by estimated chance of a 50%+ quality find. Star one site to use it in the
+            overlay.
+          </p>
         </div>
       </header>
 
@@ -70,8 +76,8 @@ export default function MiningLocationPanel({
         {!loading && !error && result && locations.length === 0 && (
           <div className="mining-location-panel__state">
             <MapPin size={20} />
-            <strong>No high-quality sites reported</strong>
-            <span>The current game data has no qualifying 50%+ quality locations.</span>
+            <strong>No mining sites reported</strong>
+            <span>The current data source has no location records for this material.</span>
           </div>
         )}
 
@@ -84,8 +90,8 @@ export default function MiningLocationPanel({
                     #
                   </th>
                   <th scope="col">Site</th>
-                  <th scope="col">High-grade</th>
-                  <th scope="col">Peak yield</th>
+                  <th scope="col">50%+ chance</th>
+                  <th scope="col">Quality range</th>
                   <th scope="col">Overlay</th>
                 </tr>
               </thead>
@@ -114,25 +120,46 @@ export default function MiningLocationPanel({
                         </span>
                         <small>{formatLocationContext(location)}</small>
                       </th>
-                      <td className="mining-location-table__probability">
-                        <strong>{formatMiningProbability(location.highQualityProbability)}</strong>
-                        <small>chance</small>
-                        <span className="mining-location-table__meter" aria-hidden="true">
-                          <span
-                            style={{
-                              width: `${Math.max(
-                                3,
-                                (location.highQualityProbability / topProbability) * 100
-                              )}%`
-                            }}
-                          />
-                        </span>
+                      <td
+                        className={[
+                          'mining-location-table__probability',
+                          location.highQualityProbability === null ? 'is-unavailable' : ''
+                        ]
+                          .filter(Boolean)
+                          .join(' ')}
+                        title={`Estimated chance of finding ${material.name} at 50% or higher quality. Combines spawn group, relative deposit, and quality distribution data.`}
+                      >
+                        <strong>
+                          {location.highQualityProbability === null
+                            ? 'Unavailable'
+                            : formatMiningProbability(location.highQualityProbability)}
+                        </strong>
+                        <small>
+                          {location.highQualityProbability === null
+                            ? 'source incomplete'
+                            : 'estimated'}
+                        </small>
+                        {location.highQualityProbability !== null && (
+                          <span className="mining-location-table__meter" aria-hidden="true">
+                            <span
+                              style={{
+                                width:
+                                  topProbability > 0
+                                    ? `${Math.max(
+                                        location.highQualityProbability > 0 ? 3 : 0,
+                                        (location.highQualityProbability / topProbability) * 100
+                                      )}%`
+                                    : '0%'
+                              }}
+                            />
+                          </span>
+                        )}
                       </td>
                       <td className="mining-location-table__yield">
-                        <strong>{Math.round(location.maxQuality / 10)}% quality</strong>
+                        <strong>{formatMiningQualityRange(location)}</strong>
                         <small>
                           {location.maxComposition !== null
-                            ? `${compositionFormatter.format(location.maxComposition)}% material`
+                            ? `Up to ${compositionFormatter.format(location.maxComposition)}% material`
                             : 'Material mix unknown'}
                         </small>
                       </td>
@@ -168,7 +195,10 @@ export default function MiningLocationPanel({
             <span />
             {result.state === 'live' ? 'Live estimate' : 'Cached estimate'}
           </span>
-          <span>A starred site replaces rank #1 in the overlay</span>
+          <span>
+            {locations.length} reported {locations.length === 1 ? 'site' : 'sites'} · chance = spawn
+            × deposit × quality roll
+          </span>
         </footer>
       )}
     </section>

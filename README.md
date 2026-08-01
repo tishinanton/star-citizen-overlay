@@ -14,7 +14,8 @@ The first workflow lets a player select up to four mining targets and see:
 - each target's base electromagnetic scanner signature;
 - cluster signatures from one through eight rocks;
 - the mining method reported for the material;
-- the five best reported mining sites for a high-quality find;
+- every reported mining site, ranked by its estimated chance of a 50%+ quality find;
+- the numeric quality range and maximum reported material composition for each site;
 - each selected target's highest-ranked site directly in the game overlay;
 - a compact or full readout that stays out of game input.
 
@@ -91,11 +92,13 @@ control is absent for ordinary users. Wiki location data and local ownership or
 log state are never included.
 
 The **Sites** action loads the selected material's detailed deposit data and
-ranks up to five distinct locations by the estimated chance of a 50% or higher
-quality roll. The estimate combines the reported spawn-group probability,
-relative deposit probability, quality distribution, and any boosted area
-modifier. Location results are cached separately and identify when cached data
-is being shown. Sites expand inline beneath their material so all ranked
+ranks every reported location by the estimated chance of a 50% or higher
+quality roll. Each row shows the reported minimum-to-maximum quality range,
+maximum material composition, and numeric probability when every required
+source factor is available. The estimate combines the reported spawn-group
+probability, relative deposit probability, quality distribution, and any
+boosted area modifier. Location results are cached separately and identify when
+cached data is being shown. Sites expand inline beneath their material so all ranked
 locations can be compared in one table. Star one location per material to show
 it in the overlay; clearing the star, or an unavailable saved location, falls
 back to the highest-ranked site.

@@ -2,7 +2,6 @@ import { useState, type KeyboardEvent as ReactKeyboardEvent } from 'react'
 import {
   BookOpen,
   Crosshair,
-  Database,
   Download,
   Eye,
   EyeOff,
@@ -114,19 +113,6 @@ export default function ControlApp(): React.JSX.Element {
   return (
     <div className={`app-shell ${settings.appFontSize >= 18 ? 'app-shell--large-type' : ''}`}>
       <header className="app-header">
-        <div className="app-header__utility">
-          <div className="brand-lockup">
-            <span className="brand-mark" aria-hidden="true">
-              <Pickaxe size={20} strokeWidth={1.8} />
-            </span>
-            <div>
-              <strong>Rockfall</strong>
-              <span>Field console</span>
-            </div>
-          </div>
-          <DataStatus state={dataStatus.state} message={dataStatus.message} />
-        </div>
-
         <div className="app-header__command">
           <div className="app-header__context">
             <h1>{activeWorkspace.label}</h1>
@@ -215,14 +201,7 @@ export default function ControlApp(): React.JSX.Element {
       )}
 
       <footer className="app-footer">
-        <span className="app-footer__provenance">
-          {activeTab === 'settings' ? <SettingsIcon size={13} /> : <Database size={13} />}
-          {activeTab === 'mining'
-            ? 'Installed game files'
-            : activeTab === 'blueprints' || activeTab === 'factions'
-              ? 'Local game data'
-              : 'Saved automatically'}
-        </span>
+        <DataStatus state={dataStatus.state} message={dataStatus.message} />
 
         <nav className="app-tabs" role="tablist" aria-label="Rockfall workspaces">
           <button
@@ -283,13 +262,7 @@ export default function ControlApp(): React.JSX.Element {
           <a href="https://api.star-citizen.wiki/" target="_blank" rel="noreferrer">
             Wiki metadata
           </a>
-        ) : (
-          <span className="app-footer__source">
-            {activeTab === 'blueprints' || activeTab === 'factions'
-              ? 'Archive online'
-              : 'Configuration live'}
-          </span>
-        )}
+        ) : null}
       </footer>
     </div>
   )

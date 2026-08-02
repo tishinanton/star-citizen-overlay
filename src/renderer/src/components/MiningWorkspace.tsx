@@ -299,11 +299,6 @@ export default function MiningWorkspace({
       </section>
 
       <section className="mining-detail-deck" aria-label="Mining survey detail">
-        <header className="mining-detail-deck__bar">
-          <span>Survey</span>
-          <strong>{activeMaterial?.name ?? 'No ore selected'}</strong>
-          <span>{selectedCount} overlay targets</span>
-        </header>
         <div className="mining-detail-deck__body">
           <MiningLocationPanel
             material={activeMaterial}

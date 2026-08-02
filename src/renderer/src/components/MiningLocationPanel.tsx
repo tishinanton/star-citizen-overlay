@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { Layers3, MapPin, RefreshCw, Star, TriangleAlert } from 'lucide-react'
 
 import type {
@@ -101,7 +101,6 @@ export default function MiningLocationPanel({
           <QualityTarget
             key={`${material.id}-${qualityThreshold}`}
             panelId={panelId}
-            loading={loading}
             qualityThreshold={qualityThreshold}
             onChange={onQualityThresholdChange}
           />
@@ -323,9 +322,7 @@ export default function MiningLocationPanel({
                         type="button"
                         className={isSelected ? 'is-active' : ''}
                         aria-pressed={isSelected}
-                        title={`${rockType.name}, ${rockType.compositions.length} composition ${
-                          rockType.compositions.length === 1 ? 'entry' : 'entries'
-                        }`}
+                        title={`${rockType.name}, ${formatRockPresetMetadata(rockType)}`}
                         onClick={() =>
                           setSelection({
                             materialId: material.id,
@@ -335,44 +332,31 @@ export default function MiningLocationPanel({
                         }
                       >
                         <strong>{rockType.name}</strong>
-                        <small>
-                          {rockType.compositions.length}{' '}
-                          {rockType.compositions.length === 1 ? 'entry' : 'entries'}
-                        </small>
+                        <small>{formatRockPresetMetadata(rockType)}</small>
                       </button>
                     )
                   })}
                 </div>
               </div>
 
-              <div className="composition-location-context">
-                <MapPin size={15} aria-hidden="true" />
-                <div>
-                  <strong>{preferredLocation.name}</strong>
-                  <span>
-                    {preferredLocation.area ? `${preferredLocation.area} · ` : ''}
-                    {formatLocationContext(preferredLocation)}
-                  </span>
-                </div>
-              </div>
-
               {preferredLocation.quantizationProbabilities.length > 0 && (
-                <details className="mining-quality-outcomes">
-                  <summary>
-                    <span>Quality outcome distribution</span>
+                <section
+                  className="mining-quality-outcomes"
+                  aria-labelledby={`${compositionId}-quality-distribution-title`}
+                >
+                  <header className="mining-quality-outcomes__heading">
+                    <strong id={`${compositionId}-quality-distribution-title`}>
+                      Quality outcome distribution
+                    </strong>
                     <small>
                       {preferredLocation.quantizationProbabilities.length} reported values
                     </small>
-                  </summary>
-                  <div>
-                    {preferredLocation.quantizationProbabilities.map((outcome) => (
-                      <span key={outcome.quality}>
-                        <small>{integerFormatter.format(outcome.quality)}</small>
-                        <strong>{formatMiningProbability(outcome.probability)}</strong>
-                      </span>
-                    ))}
-                  </div>
-                </details>
+                  </header>
+                  <QualityDistribution
+                    outcomes={preferredLocation.quantizationProbabilities}
+                    ariaLabel="Location quality probabilities"
+                  />
+                </section>
               )}
 
               <RockTypeRecord rockType={selectedRockType} />
@@ -386,32 +370,39 @@ export default function MiningLocationPanel({
 
 function QualityTarget({
   panelId,
-  loading,
   qualityThreshold,
   onChange
 }: {
   panelId: string
-  loading: boolean
   qualityThreshold: number
   onChange: (qualityThreshold: number) => void
 }): React.JSX.Element {
   const [draftThreshold, setDraftThreshold] = useState(qualityThreshold)
+  const lastAppliedThreshold = useRef(qualityThreshold)
+
+  const applyDraftThreshold = (): void => {
+    if (draftThreshold === lastAppliedThreshold.current) return
+    lastAppliedThreshold.current = draftThreshold
+    onChange(draftThreshold)
+  }
 
   return (
     <div className="mining-quality-target">
       <label htmlFor={`${panelId}-quality-target`}>
         <span>
           Quality target
-          <small>Raw game scale, 0-1000</small>
+          <small>Raw game scale, 0-1000 · applies on release</small>
         </span>
         <input
           id={`${panelId}-quality-target`}
           type="range"
           min="0"
           max="1000"
-          step="1"
+          step="50"
           value={draftThreshold}
           onChange={(event) => setDraftThreshold(Number(event.target.value))}
+          onKeyUp={applyDraftThreshold}
+          onPointerUp={applyDraftThreshold}
         />
       </label>
       <div>
@@ -419,23 +410,21 @@ function QualityTarget({
           type="number"
           min="0"
           max="1000"
-          step="1"
+          step="50"
           aria-label="Raw mining quality target"
           value={draftThreshold}
+          onBlur={applyDraftThreshold}
           onChange={(event) => {
             const value = Number(event.target.value)
             if (Number.isFinite(value)) {
               setDraftThreshold(Math.min(1_000, Math.max(0, Math.round(value))))
             }
           }}
+          onKeyDown={(event) => {
+            if (event.key === 'Enter') event.currentTarget.blur()
+          }}
+          onPointerUp={applyDraftThreshold}
         />
-        <button
-          type="button"
-          disabled={loading || draftThreshold === qualityThreshold}
-          onClick={() => onChange(draftThreshold)}
-        >
-          Apply
-        </button>
       </div>
     </div>
   )
@@ -444,49 +433,6 @@ function QualityTarget({
 function RockTypeRecord({ rockType }: { rockType: MiningRockType }): React.JSX.Element {
   return (
     <article className="mining-rock-detail">
-      <header className="mining-rock-detail__header">
-        <div>
-          <h3>{rockType.name}</h3>
-          <code>{rockType.key}</code>
-        </div>
-        {rockType.signature !== null && (
-          <span>
-            Signature <strong>{integerFormatter.format(rockType.signature)}</strong>
-          </span>
-        )}
-      </header>
-
-      <dl className="mining-rock-facts">
-        <RockFact
-          label="Composition"
-          value={`${rockType.compositions.length} ${
-            rockType.compositions.length === 1 ? 'entry' : 'entries'
-          }${
-            rockType.minimumCompositionCount !== null
-              ? `, minimum ${rockType.minimumCompositionCount}`
-              : ''
-          }`}
-        />
-        {rockType.groupProbability !== null && (
-          <RockFact label="Group roll" value={formatMiningProbability(rockType.groupProbability)} />
-        )}
-        {rockType.relativeProbability !== null && (
-          <RockFact
-            label="Within group"
-            value={formatMiningProbability(rockType.relativeProbability)}
-          />
-        )}
-        {rockType.cluster && (
-          <RockFact
-            label="Cluster"
-            value={`${formatClusterSize(
-              rockType.cluster.minSize,
-              rockType.cluster.maxSize
-            )}, ${formatMiningProbability(rockType.cluster.probability)} chance`}
-          />
-        )}
-      </dl>
-
       <div className="mining-composition-list">
         <div className="mining-composition-list__heading">
           <strong>Composition entries</strong>
@@ -500,15 +446,6 @@ function RockTypeRecord({ rockType }: { rockType: MiningRockType }): React.JSX.E
         ))}
       </div>
     </article>
-  )
-}
-
-function RockFact({ label, value }: { label: string; value: string }): React.JSX.Element {
-  return (
-    <div>
-      <dt>{label}</dt>
-      <dd>{value}</dd>
-    </div>
   )
 }
 
@@ -551,14 +488,11 @@ function CompositionQualityOutcomes({
   const quantizationProbabilities = composition.quantizationProbabilities ?? []
   if (quantizationProbabilities.length > 0) {
     return (
-      <span className="mining-quality-values">
-        {quantizationProbabilities.map((outcome) => (
-          <span key={outcome.quality}>
-            <strong>{integerFormatter.format(outcome.quality)}</strong>
-            <small>{formatMiningProbability(outcome.probability)}</small>
-          </span>
-        ))}
-      </span>
+      <QualityDistribution
+        outcomes={quantizationProbabilities}
+        ariaLabel={`${composition.name} quality probabilities`}
+        compact
+      />
     )
   }
 
@@ -578,6 +512,39 @@ function CompositionQualityOutcomes({
       <strong>{formatOptionalRange(composition.minQuality, composition.maxQuality)}</strong>
       <small>Quantization unavailable</small>
     </span>
+  )
+}
+
+function QualityDistribution({
+  outcomes,
+  ariaLabel,
+  compact = false
+}: {
+  outcomes: ReadonlyArray<{ quality: number; probability: number }>
+  ariaLabel: string
+  compact?: boolean
+}): React.JSX.Element {
+  return (
+    <div
+      className={`quality-distribution__scroll ${
+        compact ? 'quality-distribution__scroll--entry' : ''
+      }`}
+    >
+      <ol className="quality-distribution__plot" aria-label={ariaLabel}>
+        {outcomes.map((outcome) => (
+          <li
+            key={outcome.quality}
+            title={`Quality ${integerFormatter.format(
+              outcome.quality
+            )}: ${formatMiningProbability(outcome.probability)}`}
+          >
+            <strong>{integerFormatter.format(outcome.quality)}</strong>
+            <span aria-hidden="true" />
+            <small>{formatMiningProbability(outcome.probability)}</small>
+          </li>
+        ))}
+      </ol>
+    </div>
   )
 }
 
@@ -648,6 +615,18 @@ function formatClusterSize(minimum: number | null, maximum: number | null): stri
   return `${integerFormatter.format(minimum ?? 0)}–${integerFormatter.format(
     maximum ?? minimum ?? 0
   )} rocks`
+}
+
+function formatRockPresetMetadata(rockType: MiningRockType): string {
+  const entries = `${rockType.compositions.length} ${
+    rockType.compositions.length === 1 ? 'entry' : 'entries'
+  }`
+  if (!rockType.cluster) return entries
+
+  return `${entries} · cluster ${formatClusterSize(
+    rockType.cluster.minSize,
+    rockType.cluster.maxSize
+  )}, ${formatMiningProbability(rockType.cluster.probability)} chance`
 }
 
 function formatLocationContext(location: MiningLocationRecommendation): string {

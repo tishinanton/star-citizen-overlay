@@ -4301,91 +4301,97 @@ a.mission-row:hover {
   color: var(--accent-bright);
 }
 
-.composition-location-context {
-  display: flex;
-  align-items: flex-start;
-  padding: 14px 16px;
-  gap: 9px;
-  border-bottom: 1px solid var(--edge);
-  background: var(--surface);
-}
-
-.composition-location-context > svg {
-  flex: 0 0 auto;
-  margin-top: 1px;
-  color: var(--accent-bright);
-}
-
-.composition-location-context strong,
-.composition-location-context span {
-  display: block;
-}
-
-.composition-location-context strong {
-  color: var(--ink);
-  font-weight: 600;
-}
-
-.composition-location-context span {
-  margin-top: 4px;
-  color: var(--muted);
-  font-size: 1rem;
-}
-
 .mining-quality-outcomes {
   border-bottom: 1px solid var(--edge);
   background: var(--surface-low);
 }
 
-.mining-quality-outcomes summary {
+.mining-quality-outcomes__heading {
   display: flex;
   align-items: center;
   justify-content: space-between;
   min-height: 43px;
   padding: 9px 16px;
   gap: 12px;
+  border-bottom: 1px solid var(--edge);
   color: var(--ink-soft);
-  cursor: pointer;
-  list-style: none;
 }
 
-.mining-quality-outcomes summary::-webkit-details-marker {
-  display: none;
+.mining-quality-outcomes__heading strong {
+  color: var(--ink);
+  font-weight: 600;
 }
 
-.mining-quality-outcomes summary small {
+.mining-quality-outcomes__heading small {
   color: var(--muted);
   font-size: 1rem;
 }
 
-.mining-quality-outcomes[open] summary {
-  border-bottom: 1px solid var(--edge);
+.quality-distribution__scroll {
+  padding: 12px 12px 14px;
+  overflow-x: auto;
 }
 
-.mining-quality-outcomes > div {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(82px, 1fr));
+.quality-distribution__scroll--entry {
+  padding: 4px 0 2px;
 }
 
-.mining-quality-outcomes > div > span {
+.quality-distribution__plot {
+  position: relative;
   display: flex;
+  width: max-content;
+  min-width: 100%;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.quality-distribution__plot::before {
+  position: absolute;
+  z-index: 0;
+  top: 31px;
+  right: 36px;
+  left: 36px;
+  height: 1px;
+  background: color-mix(in oklch, var(--accent-bright) 58%, var(--edge));
+  box-shadow: 0 0 8px color-mix(in oklch, var(--accent) 24%, transparent);
+  content: '';
+}
+
+.quality-distribution__plot li {
+  position: relative;
+  z-index: 1;
+  display: grid;
   align-items: center;
-  justify-content: space-between;
-  min-width: 0;
-  padding: 8px 10px;
-  gap: 8px;
-  border-right: 1px solid var(--edge);
-  border-bottom: 1px solid var(--edge);
+  justify-items: center;
+  min-width: 72px;
+  flex: 1 0 72px;
+  grid-template-rows: 20px 18px 20px;
+  gap: 3px;
   font-variant-numeric: tabular-nums;
 }
 
-.mining-quality-outcomes > div > span small {
-  color: var(--muted);
+.quality-distribution__plot li > span {
+  display: block;
+  width: 11px;
+  height: 11px;
+  border: 2px solid var(--accent-bright);
+  border-radius: 50%;
+  background: var(--surface-low);
+  box-shadow:
+    0 0 0 3px color-mix(in oklch, var(--accent) 16%, transparent),
+    0 0 8px color-mix(in oklch, var(--accent) 34%, transparent);
 }
 
-.mining-quality-outcomes > div > span strong {
+.quality-distribution__plot li > strong {
   color: var(--ink);
-  font-weight: 600;
+  font-size: 1rem;
+  font-weight: 650;
+}
+
+.quality-distribution__plot li > small {
+  color: var(--ink-soft);
+  font-size: 1rem;
 }
 
 .mining-rock-tabs {
@@ -4613,41 +4619,9 @@ a.mission-row:hover {
   font-size: 1rem;
 }
 
-.mining-quality-values {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(64px, 1fr));
-  gap: 6px;
-}
-
-.mining-quality-values > span {
-  display: block;
-  min-width: 0;
-  padding: 7px 8px;
-  border: 1px solid var(--edge);
-  border-radius: var(--radius-xs);
-  background: var(--surface-low);
-  text-align: center;
-}
-
-.mining-quality-values strong,
-.mining-quality-values small,
 .mining-quality-fallback strong,
 .mining-quality-fallback small {
   display: block;
-}
-
-.mining-quality-values strong {
-  overflow: hidden;
-  color: var(--accent-bright);
-  font-weight: 650;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.mining-quality-values small {
-  margin-top: 3px;
-  color: var(--ink-soft);
-  font-size: 1rem;
 }
 
 .mining-quality-fallback strong {
@@ -6644,11 +6618,6 @@ a.mission-row:hover {
   background: var(--accent-soft);
 }
 
-.composition-location-context {
-  padding: 12px 14px;
-  background: oklch(0.15 0.02 214);
-}
-
 .mining-rock-detail__header,
 .mining-composition-entry > header,
 .mining-composition-entry > dl > div {
@@ -6657,10 +6626,6 @@ a.mission-row:hover {
 
 .mining-rock-facts > div {
   padding: 9px 14px;
-}
-
-.mining-quality-values > span {
-  border-radius: 1px;
 }
 
 .signature-board {
@@ -6844,14 +6809,13 @@ body {
   display: grid;
   min-height: 66px;
   flex: 0 0 auto;
-  grid-template-columns: minmax(320px, 0.74fr) minmax(0, 1.9fr);
+  grid-template-columns: minmax(0, 1fr);
   padding: 0;
   gap: 14px;
   border: 0;
   background: transparent;
 }
 
-.app-header__utility,
 .app-header__command,
 .app-footer {
   border: 1px solid color-mix(in oklch, var(--edge-strong) 76%, transparent);
@@ -6864,16 +6828,6 @@ body {
     0 8px 24px rgb(0 0 0 / 34%);
 }
 
-.app-header__utility {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  min-width: 0;
-  padding: 9px 16px;
-  gap: 14px;
-  border-radius: 20px 20px 9px 9px;
-}
-
 .app-header__command {
   display: flex;
   align-items: center;
@@ -6884,41 +6838,9 @@ body {
   border-radius: 20px 20px 9px 9px;
 }
 
-.brand-lockup {
-  gap: 10px;
-}
-
-.brand-mark {
-  width: 38px;
-  height: 38px;
-  border-color: color-mix(in oklch, var(--accent) 68%, var(--edge));
-  border-radius: 50%;
-  background: rgb(7 31 42 / 74%);
-  color: var(--accent-bright);
-  box-shadow:
-    inset 0 0 12px rgb(56 172 255 / 20%),
-    0 0 10px rgb(56 172 255 / 14%);
-}
-
-.brand-lockup strong {
-  color: var(--ink);
-  font-family: 'Bahnschrift SemiCondensed', Bahnschrift, 'Arial Narrow', sans-serif;
-  font-size: 1.08rem;
-  font-weight: 650;
-  letter-spacing: 0.075em;
-  text-transform: uppercase;
-}
-
-.brand-lockup span:not(.brand-mark) {
-  margin-top: 2px;
-  color: var(--muted);
-  font-size: 1rem;
-  letter-spacing: 0.045em;
-  text-transform: uppercase;
-}
-
-.app-header__utility .data-status {
+.app-footer > .data-status {
   flex: 0 0 auto;
+  justify-self: start;
   padding: 7px 10px;
   border: 1px solid color-mix(in oklch, var(--edge) 75%, transparent);
   border-radius: 999px;
@@ -6998,7 +6920,7 @@ body {
   display: grid;
   min-width: 0;
   min-height: 0;
-  grid-template-rows: 51px minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr);
   padding: 7px;
   overflow: hidden;
   border: 1px solid color-mix(in oklch, var(--edge-strong) 78%, transparent);
@@ -7023,51 +6945,11 @@ body {
   opacity: 0.74;
 }
 
-.mining-detail-deck__bar {
-  display: grid;
-  align-items: center;
-  grid-template-columns: minmax(110px, 0.55fr) minmax(0, 1.45fr) auto;
-  min-width: 0;
-  padding: 5px 10px;
-  gap: 8px;
-  border-bottom: 1px solid color-mix(in oklch, var(--edge-strong) 58%, transparent);
-  color: var(--ink-soft);
-  font-family: 'Bahnschrift SemiCondensed', Bahnschrift, 'Arial Narrow', sans-serif;
-  letter-spacing: 0.055em;
-  text-transform: uppercase;
-}
-
-.mining-detail-deck__bar > span:first-child {
-  display: grid;
-  align-self: stretch;
-  place-items: center;
-  border: 1px solid var(--hud-active);
-  border-radius: 999px;
-  background: color-mix(in oklch, var(--hud-active) 22%, var(--surface));
-  color: var(--accent-bright);
-  box-shadow: inset 0 0 14px color-mix(in oklch, var(--hud-active) 10%, transparent);
-}
-
-.mining-detail-deck__bar strong {
-  overflow: hidden;
-  color: var(--ink);
-  font-size: 1rem;
-  font-weight: 600;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.mining-detail-deck__bar > span:last-child {
-  color: var(--muted);
-  white-space: nowrap;
-}
-
 .mining-detail-deck__body {
   display: grid;
   min-width: 0;
   min-height: 0;
   grid-template-columns: minmax(330px, 0.88fr) minmax(420px, 1.12fr);
-  padding-top: 8px;
   gap: 10px;
   overflow: hidden;
 }
@@ -7353,9 +7235,14 @@ body {
 }
 
 .mining-rock-tabs button {
-  min-height: 44px;
+  min-height: 58px;
   border-radius: 8px;
   background: rgb(5 20 27 / 72%);
+}
+
+.mining-rock-tabs button small {
+  line-height: 1.3;
+  white-space: normal;
 }
 
 .mining-rock-tabs button.is-active {
@@ -7364,7 +7251,6 @@ body {
   box-shadow: inset 0 0 16px color-mix(in oklch, var(--hud-active) 10%, transparent);
 }
 
-.composition-location-context,
 .mining-quality-outcomes,
 .mining-rock-detail {
   overflow: hidden;
@@ -7374,32 +7260,33 @@ body {
   background: rgb(12 31 40 / 54%);
 }
 
-.composition-location-context {
-  background: linear-gradient(105deg, rgb(37 64 76 / 68%), rgb(12 34 44 / 66%));
-}
-
 .mining-quality-outcomes {
   background: rgb(9 27 35 / 52%);
 }
 
 .mining-rock-detail__header,
+.mining-composition-list {
+  display: grid;
+  padding: 0 8px 8px;
+  gap: 8px;
+}
+
 .mining-composition-list__heading {
+  margin-inline: -8px;
   background: rgb(28 52 63 / 70%);
 }
 
 .mining-rock-facts,
 .mining-composition-entry {
+  overflow: hidden;
+  border: 1px solid color-mix(in oklch, var(--edge) 54%, transparent);
+  border-radius: 8px;
   background: rgb(7 22 29 / 58%);
 }
 
 .mining-composition-entry.is-target {
+  border-color: color-mix(in oklch, var(--hud-active) 62%, var(--edge));
   background: color-mix(in oklch, var(--surface-selected) 48%, rgb(7 22 29 / 82%));
-}
-
-.mining-quality-values > span {
-  border-color: color-mix(in oklch, var(--edge-strong) 46%, var(--edge));
-  border-radius: 7px;
-  background: rgb(4 19 26 / 72%);
 }
 
 .app-footer {
@@ -7409,7 +7296,7 @@ body {
   min-height: 68px;
   flex: 0 0 auto;
   align-self: center;
-  grid-template-columns: minmax(150px, 0.58fr) minmax(430px, 1.7fr) minmax(120px, 0.5fr);
+  grid-template-columns: minmax(150px, 0.5fr) minmax(430px, 1.7fr) minmax(150px, 0.5fr);
   padding: 7px 14px;
   gap: 12px;
   border-radius: 34px 34px 22px 22px;
@@ -7436,17 +7323,14 @@ body {
   content: '';
 }
 
-.app-footer__provenance,
-.app-footer > a,
-.app-footer__source {
+.app-footer > a {
   color: var(--ink-soft);
   font-size: 1rem;
   letter-spacing: 0.035em;
   text-transform: uppercase;
 }
 
-.app-footer > a,
-.app-footer__source {
+.app-footer > a {
   justify-self: end;
 }
 
@@ -7578,20 +7462,17 @@ body {
   }
 
   .app-header {
-    grid-template-columns: minmax(260px, 0.66fr) minmax(0, 1.8fr);
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .app-header__context p,
   .app-header__actions .update-control,
-  .app-header__utility .data-status,
-  .app-footer__provenance,
-  .app-footer > a,
-  .app-footer__source {
+  .app-footer > a {
     display: none;
   }
 
   .app-footer {
-    grid-template-columns: minmax(0, 1fr);
+    grid-template-columns: auto minmax(0, 1fr);
   }
 
   .mining-workspace {

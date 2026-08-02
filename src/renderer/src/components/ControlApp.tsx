@@ -24,6 +24,24 @@ import SettingsPage from './SettingsPage'
 type AppTab = 'mining' | 'blueprints' | 'factions' | 'settings'
 
 const APP_TABS: AppTab[] = ['mining', 'blueprints', 'factions', 'settings']
+const TAB_DETAILS: Record<AppTab, { label: string; description: string }> = {
+  mining: {
+    label: 'Mining operations',
+    description: 'Compare ore signatures, locations, and rock composition.'
+  },
+  blueprints: {
+    label: 'Blueprint archive',
+    description: 'Trace crafting requirements, access, and ownership.'
+  },
+  factions: {
+    label: 'Faction directory',
+    description: 'Inspect standings, thresholds, perks, and reputation gates.'
+  },
+  settings: {
+    label: 'System settings',
+    description: 'Configure the overlay, data sources, shortcuts, cloud, and LAN control.'
+  }
+}
 
 export default function ControlApp(): React.JSX.Element {
   const {
@@ -68,6 +86,7 @@ export default function ControlApp(): React.JSX.Element {
   }
 
   const { settings, dataStatus, appUpdate } = snapshot
+  const activeWorkspace = TAB_DETAILS[activeTab]
 
   const activateTab = (tab: AppTab): void => {
     if (tab !== activeTab) setActiveTab(tab)
@@ -80,9 +99,9 @@ export default function ControlApp(): React.JSX.Element {
         ? APP_TABS[0]
         : event.key === 'End'
           ? APP_TABS[APP_TABS.length - 1]
-          : event.key === 'ArrowLeft'
+          : event.key === 'ArrowLeft' || event.key === 'ArrowUp'
             ? APP_TABS[(currentIndex - 1 + APP_TABS.length) % APP_TABS.length]
-            : event.key === 'ArrowRight'
+            : event.key === 'ArrowRight' || event.key === 'ArrowDown'
               ? APP_TABS[(currentIndex + 1) % APP_TABS.length]
               : null
     if (!nextTab) return
@@ -95,103 +114,55 @@ export default function ControlApp(): React.JSX.Element {
   return (
     <div className={`app-shell ${settings.appFontSize >= 18 ? 'app-shell--large-type' : ''}`}>
       <header className="app-header">
-        <div className="brand-lockup">
-          <span className="brand-mark" aria-hidden="true">
-            <Pickaxe size={20} strokeWidth={1.8} />
-          </span>
-          <div>
-            <strong>Rockfall</strong>
-            <span>Field operations console</span>
+        <div className="app-header__utility">
+          <div className="brand-lockup">
+            <span className="brand-mark" aria-hidden="true">
+              <Pickaxe size={20} strokeWidth={1.8} />
+            </span>
+            <div>
+              <strong>Rockfall</strong>
+              <span>Field console</span>
+            </div>
           </div>
+          <DataStatus state={dataStatus.state} message={dataStatus.message} />
         </div>
 
-        <div className="app-header__actions">
-          <DataStatus state={dataStatus.state} message={dataStatus.message} />
-          <GameDataSyncControl
-            syncing={gameDataSyncing}
-            sourceLoading={dataStatus.state === 'loading'}
-            onSync={() => void syncGameData()}
-          />
-          <AppUpdateControl
-            state={appUpdate}
-            onCheck={() => void checkForUpdates()}
-            onRestart={() => void restartToUpdate()}
-          />
-          <button
-            className={`overlay-toggle ${settings.visible ? 'overlay-toggle--active' : ''}`}
-            type="button"
-            onClick={() => void updateSettings({ visible: !settings.visible })}
-          >
-            {settings.visible ? <Eye size={16} /> : <EyeOff size={16} />}
-            Overlay {settings.visible ? 'on' : 'off'}
-            <kbd>{formatAccelerator(settings.shortcuts['toggle-overlay'])}</kbd>
-          </button>
+        <div className="app-header__command">
+          <div className="app-header__context">
+            <h1>{activeWorkspace.label}</h1>
+            <p>{activeWorkspace.description}</p>
+          </div>
+
+          <div className="app-header__actions">
+            <GameDataSyncControl
+              syncing={gameDataSyncing}
+              sourceLoading={dataStatus.state === 'loading'}
+              onSync={() => void syncGameData()}
+            />
+            <AppUpdateControl
+              state={appUpdate}
+              onCheck={() => void checkForUpdates()}
+              onRestart={() => void restartToUpdate()}
+            />
+            <button
+              className={`overlay-toggle ${settings.visible ? 'overlay-toggle--active' : ''}`}
+              type="button"
+              onClick={() => void updateSettings({ visible: !settings.visible })}
+            >
+              {settings.visible ? <Eye size={16} /> : <EyeOff size={16} />}
+              Overlay {settings.visible ? 'on' : 'off'}
+              <kbd>{formatAccelerator(settings.shortcuts['toggle-overlay'])}</kbd>
+            </button>
+          </div>
         </div>
       </header>
 
-      <div className="app-chrome">
-        <nav className="app-tabs" role="tablist" aria-label="Rockfall workspaces">
-          <button
-            id="tab-mining"
-            type="button"
-            role="tab"
-            aria-selected={activeTab === 'mining'}
-            aria-controls="panel-mining"
-            tabIndex={activeTab === 'mining' ? 0 : -1}
-            onClick={() => activateTab('mining')}
-            onKeyDown={(event) => handleTabKeyDown('mining', event)}
-          >
-            <Pickaxe size={15} />
-            Mining
-          </button>
-          <button
-            id="tab-blueprints"
-            type="button"
-            role="tab"
-            aria-selected={activeTab === 'blueprints'}
-            aria-controls="panel-blueprints"
-            tabIndex={activeTab === 'blueprints' ? 0 : -1}
-            onClick={() => activateTab('blueprints')}
-            onKeyDown={(event) => handleTabKeyDown('blueprints', event)}
-          >
-            <BookOpen size={15} />
-            Blueprints
-          </button>
-          <button
-            id="tab-factions"
-            type="button"
-            role="tab"
-            aria-selected={activeTab === 'factions'}
-            aria-controls="panel-factions"
-            tabIndex={activeTab === 'factions' ? 0 : -1}
-            onClick={() => activateTab('factions')}
-            onKeyDown={(event) => handleTabKeyDown('factions', event)}
-          >
-            <Shield size={15} />
-            Factions
-          </button>
-          <button
-            id="tab-settings"
-            type="button"
-            role="tab"
-            aria-selected={activeTab === 'settings'}
-            aria-controls="panel-settings"
-            tabIndex={activeTab === 'settings' ? 0 : -1}
-            onClick={() => activateTab('settings')}
-            onKeyDown={(event) => handleTabKeyDown('settings', event)}
-          >
-            <SettingsIcon size={15} />
-            Settings
-          </button>
-        </nav>
-
-        {(error || snapshot.warning) && (
-          <div className="system-warning" role="alert">
-            <Zap size={15} />
-            {error ?? snapshot.warning}
-          </div>
-        )}
-      </div>
+      {(error || snapshot.warning) && (
+        <div className="system-warning" role="alert">
+          <Zap size={15} />
+          {error ?? snapshot.warning}
+        </div>
+      )}
 
       <main
         className="mining-workspace"
@@ -244,16 +215,70 @@ export default function ControlApp(): React.JSX.Element {
       )}
 
       <footer className="app-footer">
-        <span>
+        <span className="app-footer__provenance">
           {activeTab === 'settings' ? <SettingsIcon size={13} /> : <Database size={13} />}
           {activeTab === 'mining'
-            ? 'Installed game files provide signatures; Star Citizen Wiki provides mining metadata.'
-            : activeTab === 'blueprints'
-              ? 'Blueprint recipes, item names, icons, and unlock missions come from installed game files.'
-              : activeTab === 'factions'
-                ? 'Faction profiles, reputation tracks, rank thresholds, drift, and gates come from installed game files.'
-                : 'Overlay and interface changes are saved automatically.'}
+            ? 'Installed game files'
+            : activeTab === 'blueprints' || activeTab === 'factions'
+              ? 'Local game data'
+              : 'Saved automatically'}
         </span>
+
+        <nav className="app-tabs" role="tablist" aria-label="Rockfall workspaces">
+          <button
+            id="tab-mining"
+            type="button"
+            role="tab"
+            aria-selected={activeTab === 'mining'}
+            aria-controls="panel-mining"
+            tabIndex={activeTab === 'mining' ? 0 : -1}
+            onClick={() => activateTab('mining')}
+            onKeyDown={(event) => handleTabKeyDown('mining', event)}
+          >
+            <Pickaxe size={17} />
+            <span>Mining</span>
+          </button>
+          <button
+            id="tab-blueprints"
+            type="button"
+            role="tab"
+            aria-selected={activeTab === 'blueprints'}
+            aria-controls="panel-blueprints"
+            tabIndex={activeTab === 'blueprints' ? 0 : -1}
+            onClick={() => activateTab('blueprints')}
+            onKeyDown={(event) => handleTabKeyDown('blueprints', event)}
+          >
+            <BookOpen size={17} />
+            <span>Blueprints</span>
+          </button>
+          <button
+            id="tab-factions"
+            type="button"
+            role="tab"
+            aria-selected={activeTab === 'factions'}
+            aria-controls="panel-factions"
+            tabIndex={activeTab === 'factions' ? 0 : -1}
+            onClick={() => activateTab('factions')}
+            onKeyDown={(event) => handleTabKeyDown('factions', event)}
+          >
+            <Shield size={17} />
+            <span>Factions</span>
+          </button>
+          <button
+            id="tab-settings"
+            type="button"
+            role="tab"
+            aria-selected={activeTab === 'settings'}
+            aria-controls="panel-settings"
+            tabIndex={activeTab === 'settings' ? 0 : -1}
+            onClick={() => activateTab('settings')}
+            onKeyDown={(event) => handleTabKeyDown('settings', event)}
+          >
+            <SettingsIcon size={17} />
+            <span>Settings</span>
+          </button>
+        </nav>
+
         {activeTab === 'mining' ? (
           <a href="https://api.star-citizen.wiki/" target="_blank" rel="noreferrer">
             Wiki metadata
@@ -261,8 +286,8 @@ export default function ControlApp(): React.JSX.Element {
         ) : (
           <span className="app-footer__source">
             {activeTab === 'blueprints' || activeTab === 'factions'
-              ? 'Local game data'
-              : 'Saved automatically'}
+              ? 'Archive online'
+              : 'Configuration live'}
           </span>
         )}
       </footer>

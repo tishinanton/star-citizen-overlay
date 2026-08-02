@@ -2,31 +2,31 @@
 name: Rockfall
 description: A rugged field instrument for Star Citizen mining signatures.
 colors:
-  background: 'oklch(0.105 0.012 220)'
-  surface-low: 'oklch(0.14 0.016 220)'
-  surface: 'oklch(0.18 0.02 220)'
-  surface-high: 'oklch(0.23 0.028 215)'
-  surface-selected: 'oklch(0.25 0.065 210)'
-  edge: 'oklch(0.34 0.036 215)'
-  edge-strong: 'oklch(0.48 0.07 210)'
-  edge-overlay: 'oklch(0.68 0.105 202 / 0.78)'
-  ink: 'oklch(0.95 0.018 205)'
-  ink-soft: 'oklch(0.82 0.04 205)'
-  muted: 'oklch(0.68 0.045 215)'
-  accent: 'oklch(0.76 0.13 205)'
-  accent-bright: 'oklch(0.87 0.11 195)'
-  accent-soft: 'oklch(0.29 0.075 215)'
-  success: 'oklch(0.78 0.13 195)'
+  background: 'oklch(0.08 0.016 222)'
+  surface-low: 'oklch(0.145 0.025 218)'
+  surface: 'oklch(0.2 0.035 215)'
+  surface-high: 'oklch(0.28 0.047 210)'
+  surface-selected: 'oklch(0.28 0.07 190)'
+  edge: 'oklch(0.38 0.065 215)'
+  edge-strong: 'oklch(0.64 0.12 215)'
+  edge-overlay: 'oklch(0.78 0.12 210 / 0.9)'
+  ink: 'oklch(0.96 0.025 205)'
+  ink-soft: 'oklch(0.86 0.05 210)'
+  muted: 'oklch(0.67 0.07 215)'
+  accent: 'oklch(0.73 0.16 235)'
+  accent-bright: 'oklch(0.91 0.08 210)'
+  accent-soft: 'oklch(0.28 0.08 220)'
+  success: 'oklch(0.79 0.16 175)'
   warning: 'oklch(0.79 0.15 68)'
   danger: 'oklch(0.68 0.17 25)'
   danger-surface: 'oklch(0.2 0.055 25)'
   danger-ink: 'oklch(0.89 0.04 25)'
-  focus: 'oklch(0.86 0.12 195)'
-  kbd-bg: 'oklch(0.09 0.01 220)'
-  preview-bg: 'oklch(0.075 0.012 220)'
-  overlay-bg: 'oklch(0.105 0.018 220)'
-  overlay-header: 'oklch(0.16 0.03 215)'
-  overlay-cell: 'oklch(0.14 0.025 215)'
+  focus: 'oklch(0.86 0.12 210)'
+  kbd-bg: 'oklch(0.085 0.012 220)'
+  preview-bg: 'oklch(0.075 0.014 220)'
+  overlay-bg: 'oklch(0.1 0.025 220)'
+  overlay-header: 'oklch(0.19 0.05 215)'
+  overlay-cell: 'oklch(0.17 0.04 216)'
 typography:
   display:
     fontFamily: 'Bahnschrift, "Segoe UI Variable", "Segoe UI", sans-serif'
@@ -87,14 +87,14 @@ components:
 
 ## 1. Overview
 
-**Creative North Star: "A repair-bay instrument panel under dim cockpit
+**Creative North Star: "A mobiGlas survey console floating under dim cockpit
 light"**
 
-Rockfall combines the compressed, task-specific clarity of Star Citizen ship
-MFDs with the operational confidence of NASA mission control and the tactile
-directness of an Elgato Stream Deck. It feels like equipment issued for a job:
-dense where comparison matters, quiet everywhere else, and immediately legible
-in peripheral vision.
+Rockfall adopts the floating shell, cyan edge light, condensed telemetry, and
+rounded segmented controls of Star Citizen's mobiGlas while remaining a
+purpose-built mining instrument. It feels native beside the game rather than
+like a conventional desktop dashboard: dense where comparison matters, quiet
+everywhere else, and immediately legible in peripheral vision.
 
 The control app uses responsive feedback and short state transitions without
 page choreography. The overlay is more disciplined: motion only confirms
@@ -103,7 +103,8 @@ rejects the generic business-dashboard styling of Salesforce dashboards.
 
 **Key Characteristics:**
 
-- Compact, instrument-like information hierarchy
+- Split utility bar, twin working frames, and a centered capsule navigation dock
+- Layered translucent blue-black modules with curved, illuminated boundaries
 - Strong alignment and tabular numeric rhythm
 - Blue-black instrument surfaces with scanner-cyan signal color
 - Familiar controls with immediate keyboard and pointer feedback
@@ -194,10 +195,10 @@ up to 20px while preserving relative emphasis.
 
 ## 4. Elevation
 
-The system is flat. Depth comes from tonal surfaces, translucent layer
-differences, crisp one-pixel boundaries, and temporary focus treatment. The
-game overlay uses no outer shadow so it obscures as little of the game as
-possible.
+The desktop system uses layered translucent shells, inset highlights, and
+restrained offset shadows to reproduce the depth of a projected mobiGlas
+interface. The game overlay keeps the same illuminated boundaries with a
+tighter shadow so it remains readable without becoming a floating card.
 
 ### Shadow Vocabulary
 
@@ -208,8 +209,8 @@ possible.
 
 ### Named Rules
 
-**The Bolted-Down Rule.** Resting app controls do not float. If an ordinary
-panel appears to hover, the elevation is wrong.
+**The Projected-Shell Rule.** Major frames may float; content inside them stays
+anchored to aligned rails and bounded modules.
 
 ## 5. Components
 
@@ -254,10 +255,11 @@ where those states apply.
 
 ### Navigation
 
-- **Style:** A compact tab rail beneath the persistent header switches between
-  Mining, Blueprints, Factions, and Settings. The active task uses a two-pixel
-  Scanner Cyan indicator; inactive tasks remain neutral. Overlay visibility
-  stays available in the header; its preview and configuration live in Settings.
+- **Style:** A centered capsule dock along the bottom switches between Mining,
+  Blueprints, Factions, and Settings. Each workspace uses an icon and familiar
+  label; the selected task receives a bright outline and green-cyan underline.
+  Overlay visibility stays available in the split utility bar; its preview and
+  configuration live in Settings.
 
 ### Mining Workspace
 
@@ -345,6 +347,6 @@ where those states apply.
   legibility.
 - **Don't** drift back to magenta, purple, or mineral-rose accents; the product
   uses scanner cyan and alert amber.
-- **Don't** use colored side-stripe borders, gradient text, glassmorphism, or
-  nested cards.
+- **Don't** use colored side-stripe borders, gradient text, or generic frosted
+  dashboard cards; translucency must belong to the projected HUD shell.
 - **Don't** animate layout properties or add entrance choreography.

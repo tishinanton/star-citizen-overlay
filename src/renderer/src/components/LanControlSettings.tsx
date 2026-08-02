@@ -91,7 +91,11 @@ export default function LanControlSettings({
   }
 
   return (
-    <section className="settings-section" aria-labelledby="lan-control-title">
+    <section
+      className="settings-section"
+      id="settings-phone-control"
+      aria-labelledby="lan-control-title"
+    >
       <div className="settings-section__heading">
         <Wifi size={18} aria-hidden="true" />
         <div>

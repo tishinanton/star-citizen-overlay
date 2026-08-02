@@ -97,6 +97,7 @@ export default function OverlaySettings({
   return (
     <section
       className="settings-section settings-section--overlay"
+      id="settings-overlay"
       aria-labelledby="overlay-settings-title"
     >
       <div className="settings-section__heading">

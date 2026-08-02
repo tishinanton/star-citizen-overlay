@@ -174,7 +174,7 @@ export default function MiningWorkspace({
             </span>
             <div>
               <h1 id="mining-ore-title">Ore</h1>
-              <p>Select a material to compare its sites.</p>
+              <p>Compare mining sites.</p>
             </div>
           </div>
           <div className="ore-selection-summary">
@@ -298,27 +298,38 @@ export default function MiningWorkspace({
         </div>
       </section>
 
-      <MiningLocationPanel
-        material={activeMaterial}
-        loading={activeLocationState?.loading ?? false}
-        result={activeLocationState?.result ?? null}
-        error={activeLocationState?.error ?? null}
-        favoriteLocationId={
-          activeMaterial ? (settings.favoriteMiningLocationIds[activeMaterial.id] ?? null) : null
-        }
-        qualityThreshold={settings.miningQualityThreshold}
-        onFavoriteChange={(locationId) => {
-          if (activeMaterial) setFavoriteMiningLocation(activeMaterial.id, locationId)
-        }}
-        onQualityThresholdChange={(qualityThreshold) => {
-          if (activeMaterial) {
-            void changeMiningQualityThreshold(activeMaterial, qualityThreshold)
-          }
-        }}
-        onRetry={() => {
-          if (activeMaterial) void loadLocations(activeMaterial.id)
-        }}
-      />
+      <section className="mining-detail-deck" aria-label="Mining survey detail">
+        <header className="mining-detail-deck__bar">
+          <span>Survey</span>
+          <strong>{activeMaterial?.name ?? 'No ore selected'}</strong>
+          <span>{selectedCount} overlay targets</span>
+        </header>
+        <div className="mining-detail-deck__body">
+          <MiningLocationPanel
+            material={activeMaterial}
+            loading={activeLocationState?.loading ?? false}
+            result={activeLocationState?.result ?? null}
+            error={activeLocationState?.error ?? null}
+            favoriteLocationId={
+              activeMaterial
+                ? (settings.favoriteMiningLocationIds[activeMaterial.id] ?? null)
+                : null
+            }
+            qualityThreshold={settings.miningQualityThreshold}
+            onFavoriteChange={(locationId) => {
+              if (activeMaterial) setFavoriteMiningLocation(activeMaterial.id, locationId)
+            }}
+            onQualityThresholdChange={(qualityThreshold) => {
+              if (activeMaterial) {
+                void changeMiningQualityThreshold(activeMaterial, qualityThreshold)
+              }
+            }}
+            onRetry={() => {
+              if (activeMaterial) void loadLocations(activeMaterial.id)
+            }}
+          />
+        </div>
+      </section>
     </>
   )
 }

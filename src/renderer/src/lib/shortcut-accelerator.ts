@@ -22,6 +22,14 @@ export function getAccelerator(input: ShortcutKeyInput): string | null {
   return [...modifiers, key].join('+')
 }
 
+export function formatAccelerator(accelerator: string): string {
+  return accelerator
+    .replace('CommandOrControl', 'Ctrl')
+    .replaceAll('+', ' · ')
+    .replace('Right', '→')
+    .replace('Left', '←')
+}
+
 function getAcceleratorKey(code: string): string | null {
   if (/^Key[A-Z]$/.test(code)) return code.slice(3)
   if (/^Digit[0-9]$/.test(code)) return code.slice(5)

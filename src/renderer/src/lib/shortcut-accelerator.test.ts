@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 
-import { getAccelerator } from './shortcut-accelerator'
+import { formatAccelerator, getAccelerator } from './shortcut-accelerator'
 
 test('creates an Electron accelerator from a modified letter', () => {
   assert.equal(
@@ -50,4 +50,8 @@ test('rejects unmodified regular keys and modifier-only input', () => {
     }),
     null
   )
+})
+
+test('formats Electron accelerators for compact display', () => {
+  assert.equal(formatAccelerator('CommandOrControl+Shift+Right'), 'Ctrl · Shift · →')
 })

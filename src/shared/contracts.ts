@@ -81,6 +81,7 @@ export interface MiningRockCompositionPart {
   meanQuality: number | null
   qualityStdDev: number | null
   quantizedValues: number[]
+  quantizationProbabilities: MiningQuantizationProbability[]
 }
 
 export interface MiningRockCluster {

@@ -1,73 +1,29 @@
-import { useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from 'react'
+import { useState, type KeyboardEvent as ReactKeyboardEvent } from 'react'
 import {
   BookOpen,
-  ChevronDown,
   Crosshair,
   Database,
   Download,
   Eye,
   EyeOff,
-  FolderOpen,
-  Keyboard,
-  MapPin,
-  PencilLine,
   Pickaxe,
   RefreshCw,
-  RotateCcw,
-  Search,
   Settings as SettingsIcon,
   Shield,
-  SlidersHorizontal,
-  Target,
-  X,
   Zap
 } from 'lucide-react'
 
-import {
-  DEFAULT_SHORTCUTS,
-  MAX_OVERLAY_FONT_SCALE,
-  MAX_CLUSTER_SIZE,
-  MAX_SELECTED_MATERIALS,
-  MIN_OVERLAY_FONT_SCALE,
-  OVERLAY_FONT_SCALE_STEP,
-  type AppUpdateState,
-  type DataSourceState,
-  type MiningLocationResult,
-  type MiningMaterial,
-  type MiningMethod,
-  type OverlayPlacement,
-  type ShortcutId
-} from '../../../shared/contracts'
-import { resolveMaterialSignature } from '../../../shared/signatures'
+import { type AppUpdateState, type DataSourceState } from '../../../shared/contracts'
 import { useRockfall } from '../hooks/useRockfall'
-import { getAccelerator } from '../lib/shortcut-accelerator'
-import { pinSelectedMaterials } from '../lib/material-order'
+import { formatAccelerator } from '../lib/shortcut-accelerator'
 import BlueprintBrowser from './BlueprintBrowser'
 import FactionBrowser from './FactionBrowser'
-import MiningLocationPanel from './MiningLocationPanel'
+import MiningWorkspace from './MiningWorkspace'
 import SettingsPage from './SettingsPage'
-import SignatureBoard from './SignatureBoard'
-import SignatureOverrideEditor from './SignatureOverrideEditor'
 
-type MaterialFilter = 'All' | Exclude<MiningMethod, 'Unclassified'>
 type AppTab = 'mining' | 'blueprints' | 'factions' | 'settings'
 
-interface LocationLoadState {
-  loading: boolean
-  result: MiningLocationResult | null
-  error: string | null
-}
-
-const FILTERS: MaterialFilter[] = ['All', 'Ship', 'Ground Vehicle', 'FPS']
 const APP_TABS: AppTab[] = ['mining', 'blueprints', 'factions', 'settings']
-const PLACEMENTS: Array<{ value: OverlayPlacement; label: string }> = [
-  { value: 'top-right', label: 'Top right' },
-  { value: 'top-left', label: 'Top left' },
-  { value: 'bottom-right', label: 'Bottom right' },
-  { value: 'bottom-left', label: 'Bottom left' }
-]
-
-const numberFormatter = new Intl.NumberFormat('en-US')
 
 export default function ControlApp(): React.JSX.Element {
   const {
@@ -96,36 +52,6 @@ export default function ControlApp(): React.JSX.Element {
     resetLanIdentity
   } = useRockfall()
   const [activeTab, setActiveTab] = useState<AppTab>('mining')
-  const [query, setQuery] = useState('')
-  const [filter, setFilter] = useState<MaterialFilter>('All')
-  const [recordingShortcut, setRecordingShortcut] = useState<ShortcutId | null>(null)
-  const [locationStates, setLocationStates] = useState<Record<string, LocationLoadState>>({})
-  const [expandedLocationId, setExpandedLocationId] = useState<string | null>(null)
-  const [editingSignatureId, setEditingSignatureId] = useState<string | null>(null)
-  const locationGeneration = useRef(0)
-
-  const visibleMaterials = useMemo(() => {
-    if (!snapshot) return []
-    const normalizedQuery = query.trim().toLocaleLowerCase()
-
-    return pinSelectedMaterials(
-      snapshot.materials,
-      snapshot.settings.selectedMaterialIds,
-      (material) => {
-        const resolvedSignature = resolveMaterialSignature(
-          material,
-          snapshot.settings.signatureOverrides
-        ).signature
-        const matchesQuery =
-          !normalizedQuery ||
-          material.name.toLocaleLowerCase().includes(normalizedQuery) ||
-          resolvedSignature.toString().includes(normalizedQuery) ||
-          material.signature.toString().includes(normalizedQuery)
-        const matchesFilter = filter === 'All' || material.methods.includes(filter)
-        return matchesQuery && matchesFilter
-      }
-    )
-  }, [filter, query, snapshot])
 
   if (!snapshot) {
     return (
@@ -139,167 +65,10 @@ export default function ControlApp(): React.JSX.Element {
     )
   }
 
-  const { settings, dataStatus, shortcuts, appUpdate } = snapshot
-  const selectedCount = settings.selectedMaterialIds.length
-
-  const toggleMaterial = (material: MiningMaterial): void => {
-    const isSelected = settings.selectedMaterialIds.includes(material.id)
-    void executeOverlayCommand({
-      operation: isSelected ? 'overlay.item.remove' : 'overlay.item.add',
-      itemId: material.id
-    })
-  }
-
-  const clearOverlay = (): void => {
-    void updateSettings({
-      selectedMaterialIds: [],
-      spotlightMaterialId: null
-    })
-  }
-
-  const loadLocations = async (material: MiningMaterial): Promise<void> => {
-    const generation = locationGeneration.current
-    setLocationStates((current) => ({
-      ...current,
-      [material.id]: { loading: true, result: null, error: null }
-    }))
-    try {
-      const result = await getMiningLocations(material.id)
-      if (generation !== locationGeneration.current) return
-      setLocationStates((current) => ({
-        ...current,
-        [material.id]: { loading: false, result, error: null }
-      }))
-    } catch (reason) {
-      if (generation !== locationGeneration.current) return
-      setLocationStates((current) => ({
-        ...current,
-        [material.id]: {
-          loading: false,
-          result: null,
-          error: reason instanceof Error ? reason.message : String(reason)
-        }
-      }))
-    }
-  }
-
-  const changeMiningQualityThreshold = async (
-    material: MiningMaterial,
-    miningQualityThreshold: number
-  ): Promise<void> => {
-    locationGeneration.current += 1
-    setLocationStates({
-      [material.id]: { loading: true, result: null, error: null }
-    })
-    await updateSettings({ miningQualityThreshold })
-    locationGeneration.current += 1
-    setLocationStates({
-      [material.id]: { loading: true, result: null, error: null }
-    })
-    await loadLocations(material)
-  }
-
-  const toggleLocations = (material: MiningMaterial): void => {
-    if (expandedLocationId === material.id) {
-      setExpandedLocationId(null)
-      return
-    }
-
-    setEditingSignatureId(null)
-    setExpandedLocationId(material.id)
-    const state = locationStates[material.id]
-    if (
-      !state ||
-      state.error ||
-      state.result?.qualityThreshold !== settings.miningQualityThreshold
-    ) {
-      void loadLocations(material)
-    }
-  }
-
-  const openSignatureEditor = (materialId: string): void => {
-    setExpandedLocationId(null)
-    setEditingSignatureId((current) => (current === materialId ? null : materialId))
-  }
-
-  const saveSignatureOverride = (material: MiningMaterial, signature: number): void => {
-    const signatureOverrides = { ...settings.signatureOverrides }
-    if (signature === material.signature) {
-      delete signatureOverrides[material.id]
-    } else {
-      signatureOverrides[material.id] = signature
-    }
-
-    setEditingSignatureId(null)
-    void updateSettings({ signatureOverrides })
-  }
-
-  const resetSignatureOverride = (materialId: string): void => {
-    const signatureOverrides = { ...settings.signatureOverrides }
-    delete signatureOverrides[materialId]
-    setEditingSignatureId(null)
-    void updateSettings({ signatureOverrides })
-  }
-
-  const setFavoriteMiningLocation = (materialId: string, locationId: string | null): void => {
-    const favoriteMiningLocationIds = { ...settings.favoriteMiningLocationIds }
-    if (locationId) {
-      favoriteMiningLocationIds[materialId] = locationId
-    } else {
-      delete favoriteMiningLocationIds[materialId]
-    }
-    void updateSettings({ favoriteMiningLocationIds })
-  }
-
-  const beginShortcutCapture = (id: ShortcutId): void => {
-    setRecordingShortcut(id)
-    void setShortcutCapture(true)
-  }
-
-  const endShortcutCapture = (): void => {
-    setRecordingShortcut(null)
-    void setShortcutCapture(false)
-  }
-
-  const recordShortcut = (id: ShortcutId, event: ReactKeyboardEvent<HTMLButtonElement>): void => {
-    if (recordingShortcut !== id) return
-    event.preventDefault()
-    event.stopPropagation()
-
-    if (event.key === 'Escape') {
-      endShortcutCapture()
-      return
-    }
-
-    const accelerator = getAccelerator(event)
-    if (!accelerator) return
-
-    setRecordingShortcut(null)
-    void (async () => {
-      await updateSettings({
-        shortcuts: {
-          ...settings.shortcuts,
-          [id]: accelerator
-        }
-      })
-      await setShortcutCapture(false)
-    })()
-  }
-
-  const resetShortcuts = (): void => {
-    setRecordingShortcut(null)
-    void (async () => {
-      await setShortcutCapture(false)
-      await updateSettings({ shortcuts: { ...DEFAULT_SHORTCUTS } })
-    })()
-  }
+  const { settings, dataStatus, appUpdate } = snapshot
 
   const activateTab = (tab: AppTab): void => {
-    if (tab === activeTab) return
-    setExpandedLocationId(null)
-    setEditingSignatureId(null)
-    if (recordingShortcut) endShortcutCapture()
-    setActiveTab(tab)
+    if (tab !== activeTab) setActiveTab(tab)
   }
 
   const handleTabKeyDown = (tab: AppTab, event: ReactKeyboardEvent<HTMLButtonElement>): void => {
@@ -418,434 +187,26 @@ export default function ControlApp(): React.JSX.Element {
       </div>
 
       <main
-        className="workspace"
+        className="mining-workspace"
         id="panel-mining"
         role="tabpanel"
         aria-labelledby="tab-mining"
         hidden={activeTab !== 'mining'}
       >
-        <section className="target-console" aria-labelledby="targets-title">
-          <div className="section-heading">
-            <div>
-              <span className="section-icon">
-                <Target size={17} />
-              </span>
-              <div>
-                <h1 id="targets-title">Mining targets</h1>
-                <p>Choose the signatures that belong in your scan reference.</p>
-              </div>
-            </div>
-            <div className="selection-actions">
-              <span className="selection-counter">
-                <strong>{selectedCount}</strong> / {MAX_SELECTED_MATERIALS} armed
-              </span>
-              <button
-                className="reset-button"
-                type="button"
-                disabled={selectedCount === 0}
-                onClick={clearOverlay}
-              >
-                <X size={12} />
-                Clear overlay
-              </button>
-            </div>
-          </div>
-
-          <div className="target-tools">
-            <label className="search-field">
-              <Search size={16} aria-hidden="true" />
-              <span className="sr-only">Search materials</span>
-              <input
-                type="search"
-                value={query}
-                onChange={(event) => setQuery(event.target.value)}
-                placeholder="Search material or signature"
-              />
-            </label>
-            <button
-              className="icon-text-button"
-              type="button"
-              onClick={() => {
-                locationGeneration.current += 1
-                setLocationStates({})
-                setExpandedLocationId(null)
-                setEditingSignatureId(null)
-                void refreshMaterials()
-              }}
-              disabled={dataStatus.state === 'loading'}
-            >
-              <RefreshCw
-                size={15}
-                className={dataStatus.state === 'loading' ? 'is-spinning' : ''}
-              />
-              Sync
-            </button>
-            <button
-              className="icon-text-button"
-              type="button"
-              title="Choose a Star Citizen Data.p4k archive"
-              onClick={() => {
-                locationGeneration.current += 1
-                setLocationStates({})
-                setExpandedLocationId(null)
-                setEditingSignatureId(null)
-                void chooseGameData()
-              }}
-              disabled={dataStatus.state === 'loading'}
-            >
-              <FolderOpen size={15} />
-              Game files
-            </button>
-          </div>
-
-          <div className="filter-strip" aria-label="Filter by mining method">
-            {FILTERS.map((method) => (
-              <button
-                key={method}
-                type="button"
-                className={filter === method ? 'is-active' : ''}
-                aria-pressed={filter === method}
-                onClick={() => setFilter(method)}
-              >
-                {method}
-              </button>
-            ))}
-          </div>
-
-          <div className="material-table" role="list">
-            <div className="material-table__header" aria-hidden="true">
-              <span className="material-table__selection-columns">
-                <span>Target</span>
-                <span>Method</span>
-                <span>Base signature</span>
-              </span>
-              <span>Correct</span>
-              <span>Sites</span>
-            </div>
-            <div className="material-table__body">
-              {visibleMaterials.map((material) => {
-                const isSelected = settings.selectedMaterialIds.includes(material.id)
-                const atLimit = selectedCount >= MAX_SELECTED_MATERIALS && !isSelected
-                const resolvedSignature = resolveMaterialSignature(
-                  material,
-                  settings.signatureOverrides
-                )
-                const isEditingSignature = editingSignatureId === material.id
-                const areLocationsExpanded = expandedLocationId === material.id
-
-                return (
-                  <div
-                    className={[
-                      'material-row',
-                      isSelected ? 'material-row--selected' : '',
-                      areLocationsExpanded ? 'material-row--expanded' : ''
-                    ]
-                      .filter(Boolean)
-                      .join(' ')}
-                    role="listitem"
-                    key={material.id}
-                  >
-                    <button
-                      className="material-row__select"
-                      type="button"
-                      aria-pressed={isSelected}
-                      disabled={atLimit}
-                      onClick={() => toggleMaterial(material)}
-                    >
-                      <span className="material-row__target">
-                        <span className="target-checkbox" aria-hidden="true">
-                          {isSelected && <span />}
-                        </span>
-                        <span>
-                          <strong>{material.name}</strong>
-                          <small>{material.id}</small>
-                        </span>
-                      </span>
-                      <span className="method-label">{material.methods.join(' / ')}</span>
-                      <strong
-                        className={`material-signature ${
-                          resolvedSignature.isOverridden ? 'material-signature--overridden' : ''
-                        }`}
-                        title={
-                          resolvedSignature.isOverridden
-                            ? `Manual override; source value ${numberFormatter.format(material.signature)}`
-                            : 'Source signature'
-                        }
-                      >
-                        {numberFormatter.format(resolvedSignature.signature)}
-                        {resolvedSignature.isOverridden && (
-                          <>
-                            <span className="signature-override-marker" aria-hidden="true">
-                              *
-                            </span>
-                            <span className="sr-only">
-                              {' '}
-                              manual override from {numberFormatter.format(material.signature)}
-                            </span>
-                          </>
-                        )}
-                      </strong>
-                    </button>
-                    <button
-                      className={`material-row__override ${isEditingSignature ? 'is-active' : ''}`}
-                      type="button"
-                      aria-label={`Correct signature for ${material.name}`}
-                      aria-expanded={isEditingSignature}
-                      aria-controls={
-                        isEditingSignature ? `signature-override-editor-${material.id}` : undefined
-                      }
-                      title={`Correct signature for ${material.name}`}
-                      onClick={() => openSignatureEditor(material.id)}
-                    >
-                      <PencilLine size={13} />
-                      {resolvedSignature.isOverridden ? 'Edit' : 'Set'}
-                    </button>
-                    <button
-                      className={`material-row__locations ${
-                        areLocationsExpanded ? 'is-active' : ''
-                      }`}
-                      type="button"
-                      aria-label={`${areLocationsExpanded ? 'Hide' : 'Show'} mining locations for ${material.name}`}
-                      aria-expanded={areLocationsExpanded}
-                      aria-controls={
-                        areLocationsExpanded ? `mining-location-panel-${material.id}` : undefined
-                      }
-                      title={`Mining locations for ${material.name}`}
-                      onClick={() => toggleLocations(material)}
-                    >
-                      <MapPin size={13} />
-                      Sites
-                      <ChevronDown
-                        className="material-row__disclosure"
-                        size={11}
-                        aria-hidden="true"
-                      />
-                    </button>
-                    {isEditingSignature && (
-                      <SignatureOverrideEditor
-                        material={material}
-                        signature={resolvedSignature.signature}
-                        isOverridden={resolvedSignature.isOverridden}
-                        onApply={(signature) => saveSignatureOverride(material, signature)}
-                        onCancel={() => setEditingSignatureId(null)}
-                        onReset={() => resetSignatureOverride(material.id)}
-                      />
-                    )}
-                    {areLocationsExpanded && (
-                      <MiningLocationPanel
-                        material={material}
-                        loading={locationStates[material.id]?.loading ?? true}
-                        result={locationStates[material.id]?.result ?? null}
-                        error={locationStates[material.id]?.error ?? null}
-                        favoriteLocationId={settings.favoriteMiningLocationIds[material.id] ?? null}
-                        qualityThreshold={settings.miningQualityThreshold}
-                        onFavoriteChange={(locationId) =>
-                          setFavoriteMiningLocation(material.id, locationId)
-                        }
-                        onQualityThresholdChange={(qualityThreshold) =>
-                          void changeMiningQualityThreshold(material, qualityThreshold)
-                        }
-                        onRetry={() => void loadLocations(material)}
-                      />
-                    )}
-                  </div>
-                )
-              })}
-              {visibleMaterials.length === 0 && (
-                <div className="table-empty">
-                  <Search size={20} />
-                  <strong>No matching signatures</strong>
-                  <span>Try another material name, value, or mining method.</span>
-                </div>
-              )}
-            </div>
-          </div>
-        </section>
-
-        <aside className="overlay-console" aria-labelledby="overlay-title">
-          <div className="section-heading section-heading--compact">
-            <div>
-              <span className="section-icon">
-                <Crosshair size={17} />
-              </span>
-              <div>
-                <h2 id="overlay-title">Overlay output</h2>
-                <p>Preview mirrors the click-through game overlay.</p>
-              </div>
-            </div>
-          </div>
-
-          <div className="preview-stage">
-            <div className="preview-stage__label">
-              <span>Live preview</span>
-              <span>
-                {settings.customPosition ? 'custom position' : settings.placement.replace('-', ' ')}
-              </span>
-            </div>
-            <SignatureBoard snapshot={snapshot} preview />
-          </div>
-
-          <div className="control-stack">
-            <section className="control-group">
-              <div className="control-group__heading">
-                <SlidersHorizontal size={15} />
-                <div>
-                  <strong>Readout</strong>
-                  <span>Cluster span and surface density</span>
-                </div>
-              </div>
-
-              <label className="range-control">
-                <span>
-                  Cluster size
-                  <strong>1–{settings.clusterMax} rocks</strong>
-                </span>
-                <input
-                  type="range"
-                  min="2"
-                  max={MAX_CLUSTER_SIZE}
-                  step="1"
-                  value={settings.clusterMax}
-                  onChange={(event) =>
-                    void updateSettings({ clusterMax: Number(event.target.value) })
-                  }
-                />
-              </label>
-
-              <label className="range-control">
-                <span>
-                  Font size
-                  <strong>{Math.round(settings.fontScale * 100)}%</strong>
-                </span>
-                <input
-                  type="range"
-                  min={MIN_OVERLAY_FONT_SCALE * 100}
-                  max={MAX_OVERLAY_FONT_SCALE * 100}
-                  step={OVERLAY_FONT_SCALE_STEP * 100}
-                  value={Math.round(settings.fontScale * 100)}
-                  aria-valuetext={`${Math.round(settings.fontScale * 100)}%`}
-                  onChange={(event) =>
-                    void updateSettings({ fontScale: Number(event.target.value) / 100 })
-                  }
-                />
-              </label>
-
-              <label className="range-control">
-                <span>
-                  Backdrop opacity
-                  <strong>{Math.round(settings.opacity * 100)}%</strong>
-                </span>
-                <input
-                  type="range"
-                  min="30"
-                  max="90"
-                  step="1"
-                  value={Math.round(settings.opacity * 100)}
-                  onChange={(event) =>
-                    void updateSettings({ opacity: Number(event.target.value) / 100 })
-                  }
-                />
-              </label>
-
-              <div className="inline-controls">
-                <label className="select-control">
-                  <span>
-                    <MapPin size={13} />
-                    Screen position
-                  </span>
-                  <small>Drag the overlay header to place it anywhere.</small>
-                  <select
-                    value={settings.customPosition ? 'custom' : settings.placement}
-                    onChange={(event) => {
-                      if (event.target.value === 'custom') return
-                      void updateSettings({
-                        placement: event.target.value as OverlayPlacement,
-                        customPosition: null
-                      })
-                    }}
-                  >
-                    {settings.customPosition && (
-                      <option value="custom" disabled>
-                        Custom position
-                      </option>
-                    )}
-                    {PLACEMENTS.map((placement) => (
-                      <option key={placement.value} value={placement.value}>
-                        {placement.label}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-
-                <button
-                  className={`mode-toggle ${settings.compact ? 'is-active' : ''}`}
-                  type="button"
-                  aria-pressed={settings.compact}
-                  onClick={() =>
-                    void executeOverlayCommand({
-                      operation: 'overlay.compact.set',
-                      enabled: !settings.compact
-                    })
-                  }
-                >
-                  Compact
-                </button>
-              </div>
-            </section>
-
-            <section className="control-group shortcut-group">
-              <div className="control-group__heading control-group__heading--with-action">
-                <div className="control-group__title">
-                  <Keyboard size={15} />
-                  <div>
-                    <strong>Global controls</strong>
-                    <span>Click a binding, then press its replacement.</span>
-                  </div>
-                </div>
-                <button className="reset-button" type="button" onClick={resetShortcuts}>
-                  <RotateCcw size={12} />
-                  Reset
-                </button>
-              </div>
-              <div className="shortcut-list">
-                {shortcuts.map((shortcut) => (
-                  <div className="shortcut-row" key={shortcut.id}>
-                    <span
-                      className={`shortcut-health ${
-                        shortcut.registered ? 'is-registered' : 'is-conflicted'
-                      }`}
-                      title={shortcut.registered ? 'Registered' : 'Shortcut unavailable'}
-                    />
-                    <span>{shortcut.label}</span>
-                    <button
-                      className={`shortcut-binding ${
-                        recordingShortcut === shortcut.id ? 'is-recording' : ''
-                      }`}
-                      type="button"
-                      aria-label={`Change ${shortcut.label} shortcut`}
-                      onClick={() => beginShortcutCapture(shortcut.id)}
-                      onBlur={() => {
-                        if (recordingShortcut === shortcut.id) endShortcutCapture()
-                      }}
-                      onKeyDown={(event) => recordShortcut(shortcut.id, event)}
-                    >
-                      {recordingShortcut === shortcut.id ? (
-                        'Press modifier + key'
-                      ) : (
-                        <kbd>{formatAccelerator(shortcut.accelerator)}</kbd>
-                      )}
-                    </button>
-                  </div>
-                ))}
-              </div>
-            </section>
-          </div>
-        </aside>
+        <MiningWorkspace
+          snapshot={snapshot}
+          onUpdateSettings={updateSettings}
+          onExecuteOverlayCommand={executeOverlayCommand}
+          onRefreshMaterials={refreshMaterials}
+          onChooseGameData={chooseGameData}
+          onGetMiningLocations={getMiningLocations}
+        />
       </main>
       {activeTab === 'blueprints' && <BlueprintBrowser />}
       {activeTab === 'factions' && <FactionBrowser />}
       {activeTab === 'settings' && (
         <SettingsPage
+          snapshot={snapshot}
           fontSize={settings.appFontSize}
           apiUrl={settings.cloudApiUrl}
           lanConfig={settings.lanControl}
@@ -855,6 +216,9 @@ export default function ControlApp(): React.JSX.Element {
           starStrings={snapshot.starStrings}
           onFontSizeChange={(appFontSize) => void updateSettings({ appFontSize })}
           onApiUrlChange={(cloudApiUrl) => void updateSettings({ cloudApiUrl })}
+          onUpdateSettings={updateSettings}
+          onExecuteOverlayCommand={executeOverlayCommand}
+          onSetShortcutCapture={setShortcutCapture}
           onBeginCloudLogin={() => void beginCloudLogin()}
           onCompleteCloudLogin={(handoffCode) => void completeCloudLogin(handoffCode)}
           onCancelCloudLogin={() => void cancelCloudLogin()}
@@ -880,7 +244,7 @@ export default function ControlApp(): React.JSX.Element {
               ? 'Blueprint recipes, item names, icons, and unlock missions come from installed game files.'
               : activeTab === 'factions'
                 ? 'Faction profiles, reputation tracks, rank thresholds, drift, and gates come from installed game files.'
-                : 'Interface text uses your saved size across Rockfall windows.'}
+                : 'Overlay and interface changes are saved automatically.'}
         </span>
         {activeTab === 'mining' ? (
           <a href="https://api.star-citizen.wiki/" target="_blank" rel="noreferrer">
@@ -961,12 +325,4 @@ function DataStatus({
       {label}
     </span>
   )
-}
-
-function formatAccelerator(accelerator: string): string {
-  return accelerator
-    .replace('CommandOrControl', 'Ctrl')
-    .replaceAll('+', ' · ')
-    .replace('Right', '→')
-    .replace('Left', '←')
 }

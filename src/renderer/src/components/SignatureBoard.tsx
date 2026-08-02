@@ -1,5 +1,5 @@
 import type { CSSProperties } from 'react'
-import { Crosshair, MapPin, Move, Star } from 'lucide-react'
+import { Crosshair, MapPin, Move, Star, X } from 'lucide-react'
 
 import type {
   AppSnapshot,
@@ -69,6 +69,15 @@ export default function SignatureBoard({
           <span aria-hidden="true">·</span>
           <span>1–{settings.clusterMax} rocks</span>
         </div>
+        {!preview && (
+          <button
+            className="signature-board__close"
+            aria-label="Close overlay"
+            onClick={() => void window.rockfall.updateSettings({ visible: false })}
+          >
+            <X size={12} strokeWidth={2} />
+          </button>
+        )}
       </header>
 
       {visibleMaterials.length > 0 ? (

@@ -5700,6 +5700,33 @@ a.mission-row:hover {
   color: var(--accent-bright);
 }
 
+.signature-board__close {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  width: calc(20px * var(--overlay-font-scale));
+  height: calc(20px * var(--overlay-font-scale));
+  padding: 0;
+  border: 1px solid color-mix(in oklch, var(--edge) 58%, transparent);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  transition: background 0.12s, color 0.12s;
+}
+
+.signature-board__close:hover {
+  background: color-mix(in oklch, var(--danger) 18%, transparent);
+  border-color: color-mix(in oklch, var(--danger) 55%, transparent);
+  color: var(--danger);
+}
+
+.signature-board__close svg {
+  width: calc(12px * var(--overlay-font-scale));
+  height: calc(12px * var(--overlay-font-scale));
+}
+
 .live-state__dot {
   width: calc(5px * var(--overlay-font-scale));
   height: calc(5px * var(--overlay-font-scale));

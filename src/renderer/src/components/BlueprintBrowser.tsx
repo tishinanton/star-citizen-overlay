@@ -7,12 +7,10 @@ import {
   Database,
   ExternalLink,
   FileSearch,
-  FolderOpen,
   Hammer,
   ListChecks,
   Lock,
   PackageOpen,
-  RefreshCw,
   Route,
   Search,
   TriangleAlert,
@@ -66,8 +64,12 @@ const ownershipDateFormatter = new Intl.DateTimeFormat('en-US', {
   timeStyle: 'short'
 })
 
-export default function BlueprintBrowser(): React.JSX.Element {
-  const catalog = useBlueprintCatalog()
+export default function BlueprintBrowser({
+  gameDataRevision
+}: {
+  gameDataRevision: number
+}): React.JSX.Element {
+  const catalog = useBlueprintCatalog(gameDataRevision)
   const ownership = useBlueprintOwnership()
   const [query, setQuery] = useState('')
   const [categoryFilter, setCategoryFilter] = useState('')
@@ -245,15 +247,6 @@ export default function BlueprintBrowser(): React.JSX.Element {
             <button
               className="icon-text-button"
               type="button"
-              disabled={catalog.loading}
-              onClick={() => void catalog.reload(true)}
-            >
-              <RefreshCw size={15} className={catalog.loading ? 'is-spinning' : ''} />
-              Sync
-            </button>
-            <button
-              className="icon-text-button"
-              type="button"
               disabled={ownership.loading || ownership.result?.status === 'scanning'}
               onClick={() => void ownership.rescan()}
               title="Scan Game.log and retained log backups"
@@ -263,15 +256,6 @@ export default function BlueprintBrowser(): React.JSX.Element {
                 className={ownership.result?.status === 'scanning' ? 'is-spinning' : ''}
               />
               Logs
-            </button>
-            <button
-              className="icon-text-button"
-              type="button"
-              disabled={catalog.loading}
-              onClick={() => void catalog.chooseGameData()}
-            >
-              <FolderOpen size={15} />
-              Game files
             </button>
           </div>
           {ownership.result && (

@@ -45,8 +45,8 @@ threshold, drift behavior, perk text, and gate flag.
 ## Current data sources
 
 Rockfall reads base signatures from the installed Star Citizen `Data.p4k`.
-It automatically detects common LIVE/PTU installation paths, or **Game files**
-can select a custom archive. A bundled read-only extractor opens
+It automatically detects common LIVE/PTU installation paths, or **Settings >
+Game files** can select a custom archive. A bundled read-only extractor opens
 `Data\Game2.dcb` and reads current mineable signatures, crafting blueprints,
 output items, resource requirements, reward pools, mission contracts, contract
 providers, mission categories, faction profiles, reputation scopes, standing

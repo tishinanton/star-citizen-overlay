@@ -2,12 +2,10 @@ import { useMemo, useState, type KeyboardEvent as ReactKeyboardEvent } from 'rea
 import {
   Activity,
   Database,
-  FolderOpen,
   Gauge,
   ListTree,
   Lock,
   MapPin,
-  RefreshCw,
   Search,
   Shield,
   Target,
@@ -35,8 +33,12 @@ const numberFormatter = new Intl.NumberFormat('en-US', {
   maximumFractionDigits: 2
 })
 
-export default function FactionBrowser(): React.JSX.Element {
-  const catalog = useFactionCatalog()
+export default function FactionBrowser({
+  gameDataRevision
+}: {
+  gameDataRevision: number
+}): React.JSX.Element {
+  const catalog = useFactionCatalog(gameDataRevision)
   const [query, setQuery] = useState('')
   const [alignmentFilter, setAlignmentFilter] = useState<AlignmentFilter>('all')
   const [requestedFactionId, setRequestedFactionId] = useState<string | null>(null)
@@ -152,24 +154,6 @@ export default function FactionBrowser(): React.JSX.Element {
               placeholder="Search factions or ranks"
             />
           </label>
-          <button
-            className="icon-text-button"
-            type="button"
-            disabled={catalog.loading}
-            onClick={() => void catalog.reload(true)}
-          >
-            <RefreshCw size={15} className={catalog.loading ? 'is-spinning' : ''} />
-            Sync
-          </button>
-          <button
-            className="icon-text-button"
-            type="button"
-            disabled={catalog.loading}
-            onClick={() => void catalog.chooseGameData()}
-          >
-            <FolderOpen size={15} />
-            Game files
-          </button>
         </div>
 
         {retainedCatalogError && (
@@ -219,9 +203,6 @@ export default function FactionBrowser(): React.JSX.Element {
                 <div>
                   <button type="button" onClick={() => retryCatalog()}>
                     Retry
-                  </button>
-                  <button type="button" onClick={() => void catalog.chooseGameData()}>
-                    Choose Game files
                   </button>
                 </div>
               </div>

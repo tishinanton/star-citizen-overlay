@@ -3,6 +3,7 @@ import {
   Cloud,
   Database,
   ExternalLink,
+  FolderOpen,
   Info,
   Languages,
   Link,
@@ -47,6 +48,7 @@ interface SettingsPageProps {
   cloud: CloudSyncState
   staticData: StaticDataSyncState
   starStrings: StarStringsSyncState
+  gameDataSyncing: boolean
   onFontSizeChange: (fontSize: number) => void
   onApiUrlChange: (apiUrl: string) => void
   onConfigureLanControl: (config: LanControlConfig) => Promise<void>
@@ -65,6 +67,7 @@ interface SettingsPageProps {
   onLogoutCloud: () => void
   onPublishStaticData: () => void
   onSyncStarStrings: () => void
+  onChooseGameData: () => void
 }
 
 export default function SettingsPage({
@@ -76,6 +79,7 @@ export default function SettingsPage({
   cloud,
   staticData,
   starStrings,
+  gameDataSyncing,
   onFontSizeChange,
   onApiUrlChange,
   onConfigureLanControl,
@@ -93,7 +97,8 @@ export default function SettingsPage({
   onConfirmCloudProfileImport,
   onLogoutCloud,
   onPublishStaticData,
-  onSyncStarStrings
+  onSyncStarStrings,
+  onChooseGameData
 }: SettingsPageProps): React.JSX.Element {
   const scalePercentage = Math.round((fontSize / DEFAULT_APP_FONT_SIZE) * 100)
   const [apiUrlDraft, setApiUrlDraft] = useState<string | null>(null)
@@ -111,6 +116,8 @@ export default function SettingsPage({
     'validating'
   ].includes(staticData.status)
   const starStringsBusy = ['checking', 'downloading', 'installing'].includes(starStrings.status)
+  const gameDataBusy = gameDataSyncing || snapshot.dataStatus.state === 'loading'
+  const gameDataInteractionBusy = gameDataBusy || staticDataBusy || starStringsBusy
   const interactionBusy = busy || staticDataBusy
   const showAdminCloudSettings = canShowAdminCloudSettings(cloud)
   const displayedApiUrl = apiUrlDraft ?? apiUrl
@@ -153,22 +160,47 @@ export default function SettingsPage({
           </div>
         </header>
 
-        <OverlaySettings
-          snapshot={snapshot}
-          onUpdateSettings={onUpdateSettings}
-          onExecuteOverlayCommand={onExecuteOverlayCommand}
-          onSetShortcutCapture={onSetShortcutCapture}
-        />
+        <section className="settings-section" aria-labelledby="game-data-title">
+          <div className="settings-section__heading">
+            <FolderOpen size={18} aria-hidden="true" />
+            <div>
+              <h2 id="game-data-title">Game files</h2>
+              <p>Set the local Data.p4k archive used by mining, blueprints, and factions.</p>
+            </div>
+          </div>
 
-        <LanControlSettings
-          config={lanConfig}
-          state={lanState}
-          onConfigure={onConfigureLanControl}
-          onBeginPairing={onBeginLanPairing}
-          onCancelPairing={onCancelLanPairing}
-          onRevokeClient={onRevokeLanClient}
-          onResetIdentity={onResetLanIdentity}
-        />
+          <div className="game-data-settings">
+            <div className="cloud-connection__header">
+              <div>
+                <span className="setting-label">Selected game archive</span>
+                <span className="setting-help" role="status" aria-live="polite">
+                  {snapshot.dataStatus.message}
+                </span>
+              </div>
+              <GameDataStatus state={snapshot.dataStatus.state} />
+            </div>
+
+            <dl className="cloud-telemetry game-data-telemetry">
+              <div>
+                <dt>Data.p4k path</dt>
+                <dd title={snapshot.gameDataPath ?? undefined}>
+                  {snapshot.gameDataPath ?? 'No local archive selected'}
+                </dd>
+              </div>
+            </dl>
+
+            <div className="cloud-actions game-data-actions">
+              <button type="button" disabled={gameDataInteractionBusy} onClick={onChooseGameData}>
+                <FolderOpen size={15} aria-hidden="true" />
+                {snapshot.gameDataPath ? 'Change archive' : 'Choose archive'}
+              </button>
+              <span>
+                Common LIVE and PTU installs are detected automatically. Choose a file only to use
+                another build.
+              </span>
+            </div>
+          </div>
+        </section>
 
         <section className="settings-section" aria-labelledby="cloud-sync-title">
           <div className="settings-section__heading">
@@ -431,7 +463,9 @@ export default function SettingsPage({
                         : ''
                     }
                   />
-                  {staticData.status === 'unavailable' ? 'Check compatibility' : 'Sync game data'}
+                  {staticData.status === 'unavailable'
+                    ? 'Check compatibility'
+                    : 'Publish mobile catalog'}
                 </button>
                 <span>Requires a fresh extraction and replaces all resources together.</span>
               </div>
@@ -600,6 +634,23 @@ export default function SettingsPage({
             </div>
           </div>
         </section>
+
+        <OverlaySettings
+          snapshot={snapshot}
+          onUpdateSettings={onUpdateSettings}
+          onExecuteOverlayCommand={onExecuteOverlayCommand}
+          onSetShortcutCapture={onSetShortcutCapture}
+        />
+
+        <LanControlSettings
+          config={lanConfig}
+          state={lanState}
+          onConfigure={onConfigureLanControl}
+          onBeginPairing={onBeginLanPairing}
+          onCancelPairing={onCancelLanPairing}
+          onRevokeClient={onRevokeLanClient}
+          onResetIdentity={onResetLanIdentity}
+        />
       </div>
     </main>
   )
@@ -689,6 +740,27 @@ function CloudStatus({ status }: { status: CloudSyncState['status'] }): React.JS
   return (
     <span className={`cloud-status cloud-status--${status}`}>
       <span aria-hidden="true" />
+      {label}
+    </span>
+  )
+}
+
+function GameDataStatus({
+  state
+}: {
+  state: AppSnapshot['dataStatus']['state']
+}): React.JSX.Element {
+  const label = {
+    loading: 'Syncing',
+    game: 'Local archive',
+    live: 'Wiki fallback',
+    cached: 'Cached',
+    fallback: 'Bundled fallback'
+  }[state]
+
+  return (
+    <span className={`cloud-status game-data-status game-data-status--${state}`}>
+      <span />
       {label}
     </span>
   )

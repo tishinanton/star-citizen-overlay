@@ -484,6 +484,7 @@ export interface AppSnapshot {
   bestMiningLocations: Record<string, BestMiningLocationState>
   settings: OverlaySettings
   dataStatus: MiningDataStatus
+  gameDataPath: string | null
   shortcuts: ShortcutStatus[]
   appUpdate: AppUpdateState
   cloud: CloudSyncState

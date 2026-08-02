@@ -390,6 +390,18 @@
   font-variant-numeric: tabular-nums;
 }
 
+.game-data-sync-control {
+  min-width: 132px;
+  white-space: nowrap;
+}
+
+.icon-text-button.game-data-sync-control--syncing {
+  border-color: color-mix(in oklch, var(--accent) 45%, var(--edge));
+  background: var(--accent-soft);
+  color: var(--accent-bright);
+  opacity: 1;
+}
+
 .update-control:disabled {
   opacity: 1;
 }
@@ -1710,6 +1722,7 @@
 
 .lan-settings,
 .cloud-settings,
+.game-data-settings,
 .static-data-settings,
 .starstrings-settings {
   min-width: 0;
@@ -2216,6 +2229,20 @@
   background: var(--danger);
 }
 
+.game-data-status--game > span {
+  background: var(--success);
+}
+
+.game-data-status--loading > span {
+  background: var(--accent);
+}
+
+.game-data-status--live > span,
+.game-data-status--cached > span,
+.game-data-status--fallback > span {
+  background: var(--warning);
+}
+
 .cloud-telemetry {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
@@ -2300,6 +2327,15 @@
   justify-content: space-between;
 }
 
+.game-data-actions {
+  justify-content: space-between;
+}
+
+.game-data-telemetry {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.game-data-actions > span,
 .static-data-actions > span,
 .starstrings-actions > span {
   max-width: 42ch;
@@ -2783,13 +2819,13 @@
 
 .blueprint-tools {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: minmax(0, 1fr) auto;
   gap: 9px;
   margin-bottom: 11px;
 }
 
 .blueprint-tools .search-field {
-  grid-column: 1 / -1;
+  grid-column: auto;
 }
 
 .blueprint-tools .icon-text-button {
@@ -3815,17 +3851,6 @@ a.mission-row:hover {
 
 .ore-filter-group legend {
   margin-bottom: 7px;
-}
-
-.ore-data-actions {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 8px;
-}
-
-.ore-data-actions .icon-text-button {
-  min-width: 0;
-  padding-inline: 8px;
 }
 
 .ore-filter-strip {
@@ -4916,19 +4941,11 @@ a.mission-row:hover {
 }
 
 .faction-tools {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 9px;
   margin-bottom: 11px;
 }
 
 .faction-tools .search-field {
-  grid-column: 1 / -1;
-}
-
-.faction-tools .icon-text-button {
-  min-width: 0;
-  padding-inline: 9px;
+  width: 100%;
 }
 
 .faction-directory__warning {
@@ -5984,6 +6001,19 @@ a.mission-row:hover {
 }
 
 @media (max-width: 1040px) {
+  .brand-lockup span:not(.brand-mark) {
+    display: none;
+  }
+
+  .app-header__actions {
+    gap: 8px;
+  }
+
+  .app-header__actions .data-status {
+    gap: 0;
+    font-size: 0;
+  }
+
   .mining-workspace {
     grid-template-columns: minmax(230px, 0.64fr) minmax(285px, 0.82fr) minmax(345px, 1.14fr);
     padding: 8px;
@@ -6004,10 +6034,6 @@ a.mission-row:hover {
     width: auto;
   }
 
-  .app-shell--large-type .ore-data-actions {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
   .app-shell--large-type .ore-filter-strip {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
@@ -6022,7 +6048,6 @@ a.mission-row:hover {
     gap: 8px;
   }
 
-  .app-shell--large-type .ore-data-actions .icon-text-button,
   .app-shell--large-type .ore-filter-strip button {
     padding-inline: 4px;
     line-height: 1.15;

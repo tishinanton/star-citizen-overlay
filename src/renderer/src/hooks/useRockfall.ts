@@ -16,9 +16,11 @@ import type {
 interface RockfallState {
   snapshot: AppSnapshot | null
   error: string | null
+  gameDataSyncing: boolean
+  gameDataRevision: number
   updateSettings: (patch: OverlaySettingsPatch) => Promise<void>
   executeOverlayCommand: (command: LanOverlayCommandV1) => Promise<void>
-  refreshMaterials: () => Promise<void>
+  syncGameData: () => Promise<void>
   chooseGameData: () => Promise<boolean>
   getMiningLocations: (materialId: string) => Promise<MiningLocationResult>
   setShortcutCapture: (active: boolean) => Promise<void>
@@ -42,6 +44,8 @@ interface RockfallState {
 export function useRockfall(): RockfallState {
   const [snapshot, setSnapshot] = useState<AppSnapshot | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [gameDataSyncing, setGameDataSyncing] = useState(false)
+  const [gameDataRevision, setGameDataRevision] = useState(0)
 
   useEffect(() => {
     document.documentElement.style.fontSize = `${
@@ -91,12 +95,30 @@ export function useRockfall(): RockfallState {
     }
   }, [])
 
-  const refreshMaterials = useCallback(async (): Promise<void> => {
+  const syncGameData = useCallback(async (): Promise<void> => {
+    setError(null)
+    setGameDataSyncing(true)
     try {
-      setError(null)
-      setSnapshot(await window.rockfall.refreshMaterials())
-    } catch (reason) {
-      setError(getErrorMessage(reason))
+      const mining = await settleAction(() => window.rockfall.refreshMaterials())
+      const blueprints = await settleAction(() => window.rockfall.getBlueprintCatalog(true))
+      const factions = await settleAction(() => window.rockfall.getFactionCatalog(true))
+
+      if (mining.status === 'fulfilled') setSnapshot(mining.value)
+      setGameDataRevision((current) => current + 1)
+
+      const failures = [
+        mining.status === 'rejected' ? `Mining: ${getErrorMessage(mining.reason)}` : null,
+        blueprints.status === 'rejected'
+          ? `Blueprints: ${getErrorMessage(blueprints.reason)}`
+          : null,
+        factions.status === 'rejected' ? `Factions: ${getErrorMessage(factions.reason)}` : null
+      ].filter((message): message is string => message !== null)
+
+      if (failures.length > 0) {
+        setError(`Game data sync failed. ${failures.join(' ')}`)
+      }
+    } finally {
+      setGameDataSyncing(false)
     }
   }, [])
 
@@ -105,6 +127,7 @@ export function useRockfall(): RockfallState {
       setError(null)
       const result = await window.rockfall.chooseGameData()
       setSnapshot(result.snapshot)
+      if (result.changed) setGameDataRevision((current) => current + 1)
       return result.changed
     } catch (reason) {
       setError(getErrorMessage(reason))
@@ -266,9 +289,11 @@ export function useRockfall(): RockfallState {
   return {
     snapshot,
     error,
+    gameDataSyncing,
+    gameDataRevision,
     updateSettings,
     executeOverlayCommand,
-    refreshMaterials,
+    syncGameData,
     chooseGameData,
     getMiningLocations,
     setShortcutCapture,
@@ -292,4 +317,12 @@ export function useRockfall(): RockfallState {
 
 function getErrorMessage(reason: unknown): string {
   return reason instanceof Error ? reason.message : String(reason)
+}
+
+async function settleAction<T>(action: () => Promise<T>): Promise<PromiseSettledResult<T>> {
+  try {
+    return { status: 'fulfilled', value: await action() }
+  } catch (reason) {
+    return { status: 'rejected', reason }
+  }
 }

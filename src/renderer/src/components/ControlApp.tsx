@@ -29,9 +29,11 @@ export default function ControlApp(): React.JSX.Element {
   const {
     snapshot,
     error,
+    gameDataSyncing,
+    gameDataRevision,
     updateSettings,
     executeOverlayCommand,
-    refreshMaterials,
+    syncGameData,
     chooseGameData,
     getMiningLocations,
     setShortcutCapture,
@@ -105,6 +107,11 @@ export default function ControlApp(): React.JSX.Element {
 
         <div className="app-header__actions">
           <DataStatus state={dataStatus.state} message={dataStatus.message} />
+          <GameDataSyncControl
+            syncing={gameDataSyncing}
+            sourceLoading={dataStatus.state === 'loading'}
+            onSync={() => void syncGameData()}
+          />
           <AppUpdateControl
             state={appUpdate}
             onCheck={() => void checkForUpdates()}
@@ -195,15 +202,14 @@ export default function ControlApp(): React.JSX.Element {
       >
         <MiningWorkspace
           snapshot={snapshot}
+          gameDataRevision={gameDataRevision}
           onUpdateSettings={updateSettings}
           onExecuteOverlayCommand={executeOverlayCommand}
-          onRefreshMaterials={refreshMaterials}
-          onChooseGameData={chooseGameData}
           onGetMiningLocations={getMiningLocations}
         />
       </main>
-      {activeTab === 'blueprints' && <BlueprintBrowser />}
-      {activeTab === 'factions' && <FactionBrowser />}
+      {activeTab === 'blueprints' && <BlueprintBrowser gameDataRevision={gameDataRevision} />}
+      {activeTab === 'factions' && <FactionBrowser gameDataRevision={gameDataRevision} />}
       {activeTab === 'settings' && (
         <SettingsPage
           snapshot={snapshot}
@@ -214,6 +220,7 @@ export default function ControlApp(): React.JSX.Element {
           cloud={snapshot.cloud}
           staticData={snapshot.staticData}
           starStrings={snapshot.starStrings}
+          gameDataSyncing={gameDataSyncing}
           onFontSizeChange={(appFontSize) => void updateSettings({ appFontSize })}
           onApiUrlChange={(cloudApiUrl) => void updateSettings({ cloudApiUrl })}
           onUpdateSettings={updateSettings}
@@ -227,6 +234,7 @@ export default function ControlApp(): React.JSX.Element {
           onLogoutCloud={() => void logoutCloud()}
           onPublishStaticData={() => void publishStaticData()}
           onSyncStarStrings={() => void syncStarStrings()}
+          onChooseGameData={() => void chooseGameData()}
           onConfigureLanControl={configureLanControl}
           onBeginLanPairing={beginLanPairing}
           onCancelLanPairing={cancelLanPairing}
@@ -259,6 +267,35 @@ export default function ControlApp(): React.JSX.Element {
         )}
       </footer>
     </div>
+  )
+}
+
+function GameDataSyncControl({
+  syncing,
+  sourceLoading,
+  onSync
+}: {
+  syncing: boolean
+  sourceLoading: boolean
+  onSync: () => void
+}): React.JSX.Element {
+  const busy = syncing || sourceLoading
+  const label = busy ? 'Syncing game data…' : 'Sync game data'
+
+  return (
+    <button
+      className={`icon-text-button game-data-sync-control ${
+        busy ? 'game-data-sync-control--syncing' : ''
+      }`}
+      type="button"
+      disabled={busy}
+      aria-busy={busy}
+      title="Refresh mining, blueprint, and faction data from the selected game archive."
+      onClick={onSync}
+    >
+      <RefreshCw size={14} className={busy ? 'is-spinning' : ''} />
+      {label}
+    </button>
   )
 }
 

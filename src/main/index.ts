@@ -272,6 +272,7 @@ function getSnapshot(): AppSnapshot {
     bestMiningLocations,
     settings,
     dataStatus,
+    gameDataPath: gameDataArchive?.path ?? null,
     shortcuts: shortcutStatuses,
     appUpdate,
     cloud: cloudSync,

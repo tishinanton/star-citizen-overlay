@@ -7,10 +7,9 @@ interface FactionCatalogState {
   loading: boolean
   error: string | null
   reload: (refresh?: boolean) => Promise<void>
-  chooseGameData: () => Promise<void>
 }
 
-export function useFactionCatalog(): FactionCatalogState {
+export function useFactionCatalog(gameDataRevision = 0): FactionCatalogState {
   const [result, setResult] = useState<FactionCatalogResult | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -30,28 +29,15 @@ export function useFactionCatalog(): FactionCatalogState {
     }
   }, [])
 
-  const chooseGameData = useCallback(async (): Promise<void> => {
-    setLoading(true)
-    try {
-      const selection = await window.rockfall.chooseGameData()
-      if (!selection.changed) {
-        setLoading(false)
-        return
-      }
-    } catch (reason) {
-      setError(getErrorMessage(reason))
-      setLoading(false)
-      return
-    }
-    await reload(true)
-  }, [reload])
-
   useEffect(() => {
     const requestGeneration = ++generation.current
     window.rockfall
       .getFactionCatalog()
       .then((nextResult) => {
-        if (generation.current === requestGeneration) setResult(nextResult)
+        if (generation.current === requestGeneration) {
+          setResult(nextResult)
+          setError(null)
+        }
       })
       .catch((reason: unknown) => {
         if (generation.current === requestGeneration) setError(getErrorMessage(reason))
@@ -63,9 +49,9 @@ export function useFactionCatalog(): FactionCatalogState {
     return () => {
       generation.current += 1
     }
-  }, [])
+  }, [gameDataRevision])
 
-  return { result, loading, error, reload, chooseGameData }
+  return { result, loading, error, reload }
 }
 
 function getErrorMessage(reason: unknown): string {

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Crosshair, FolderOpen, RefreshCw, Search, SlidersHorizontal, X } from 'lucide-react'
+import { Crosshair, Search, SlidersHorizontal, X } from 'lucide-react'
 
 import {
   MAX_SELECTED_MATERIALS,
@@ -23,10 +23,9 @@ interface LocationLoadState {
 
 interface MiningWorkspaceProps {
   snapshot: AppSnapshot
+  gameDataRevision: number
   onUpdateSettings: (patch: OverlaySettingsPatch) => Promise<void>
   onExecuteOverlayCommand: (command: LanOverlayCommandV1) => Promise<void>
-  onRefreshMaterials: () => Promise<void>
-  onChooseGameData: () => Promise<boolean>
   onGetMiningLocations: (materialId: string) => Promise<MiningLocationResult>
 }
 
@@ -35,13 +34,12 @@ const numberFormatter = new Intl.NumberFormat('en-US')
 
 export default function MiningWorkspace({
   snapshot,
+  gameDataRevision,
   onUpdateSettings,
   onExecuteOverlayCommand,
-  onRefreshMaterials,
-  onChooseGameData,
   onGetMiningLocations
 }: MiningWorkspaceProps): React.JSX.Element {
-  const { materials, settings, dataStatus } = snapshot
+  const { materials, settings } = snapshot
   const [query, setQuery] = useState('')
   const [filter, setFilter] = useState<MaterialFilter>('All')
   const [activeMaterialId, setActiveMaterialId] = useState<string | null>(
@@ -51,7 +49,6 @@ export default function MiningWorkspace({
       null
   )
   const [locationStates, setLocationStates] = useState<Record<string, LocationLoadState>>({})
-  const [catalogBusy, setCatalogBusy] = useState(false)
   const locationGeneration = useRef(0)
 
   const visibleMaterials = useMemo(() => {
@@ -73,6 +70,12 @@ export default function MiningWorkspace({
     null
   const activeLocationState = activeMaterial ? locationStates[activeMaterial.id] : undefined
   const selectedCount = settings.selectedMaterialIds.length
+
+  useEffect(() => {
+    if (gameDataRevision === 0) return
+    locationGeneration.current += 1
+    setLocationStates({})
+  }, [gameDataRevision])
 
   const loadLocations = useCallback(
     async (materialId: string): Promise<void> => {
@@ -104,7 +107,7 @@ export default function MiningWorkspace({
   )
 
   useEffect(() => {
-    if (!activeMaterial || catalogBusy) return
+    if (!activeMaterial) return
     const state = locationStates[activeMaterial.id]
     if (
       !state ||
@@ -112,7 +115,7 @@ export default function MiningWorkspace({
     ) {
       void loadLocations(activeMaterial.id)
     }
-  }, [activeMaterial, catalogBusy, loadLocations, locationStates, settings.miningQualityThreshold])
+  }, [activeMaterial, loadLocations, locationStates, settings.miningQualityThreshold])
 
   useEffect(() => {
     if (activeMaterial && activeMaterial.id !== activeMaterialId) {
@@ -160,19 +163,6 @@ export default function MiningWorkspace({
     await onUpdateSettings({ miningQualityThreshold })
     await loadLocations(material.id)
   }
-
-  const reloadCatalog = async (action: () => Promise<unknown>): Promise<void> => {
-    setCatalogBusy(true)
-    locationGeneration.current += 1
-    setLocationStates({})
-    try {
-      await action()
-    } finally {
-      setCatalogBusy(false)
-    }
-  }
-
-  const sourceBusy = catalogBusy || dataStatus.state === 'loading'
 
   return (
     <>
@@ -236,28 +226,6 @@ export default function MiningWorkspace({
                 ))}
               </div>
             </fieldset>
-          </div>
-
-          <div className="ore-data-actions">
-            <button
-              className="icon-text-button"
-              type="button"
-              disabled={sourceBusy}
-              onClick={() => void reloadCatalog(onRefreshMaterials)}
-            >
-              <RefreshCw size={14} className={sourceBusy ? 'is-spinning' : ''} />
-              Sync
-            </button>
-            <button
-              className="icon-text-button"
-              type="button"
-              title="Choose a Star Citizen Data.p4k archive"
-              disabled={sourceBusy}
-              onClick={() => void reloadCatalog(onChooseGameData)}
-            >
-              <FolderOpen size={14} />
-              Game files
-            </button>
           </div>
         </div>
 

@@ -168,7 +168,7 @@ Content type must be `application/json`.
     },
     "overlay": {
       "selectedItemIds": [],
-      "maxSelectedItems": 4,
+      "maxSelectedItems": 0,
       "compact": false,
       "spotlightItemId": null
     }
@@ -223,7 +223,7 @@ independent from Rockfall Cloud.
   },
   "overlay": {
     "selectedItemIds": ["riccite-ore"],
-    "maxSelectedItems": 4,
+    "maxSelectedItems": 1,
     "compact": false,
     "spotlightItemId": null
   }
@@ -236,6 +236,8 @@ Rules:
 - `commodityId` groups method variants and is not guaranteed to be selectable or unique. A method
   variant can have an ID such as `riccite-ore--fps`.
 - `selectedItemIds` order is authoritative and defines target-cycle order.
+- `maxSelectedItems` equals the current catalog item count for compatibility; it is not an
+  artificial selection cap.
 - Catalog state can be `loading`, `game`, `live`, `cached`, or `fallback`. Commands that require an
   item are unavailable only while the catalog is `loading`.
 - `runId` changes each desktop process start and after an explicit LAN identity reset.
@@ -255,7 +257,7 @@ current state:
 ```text
 event: state
 id: 90c1b655-4053-48af-9181-a35fb2766aed:17
-data: {"protocolVersion":1,"server":{"id":"68ea238c-78ae-4dc1-a5b6-18d35e1dc625","runId":"90c1b655-4053-48af-9181-a35fb2766aed","name":"Gaming-PC","appVersion":"0.2.1"},"revision":17,"catalog":{"state":"game","message":"Loaded installed game signatures.","updatedAt":"2026-07-31T12:00:00.000Z","items":[]},"overlay":{"selectedItemIds":[],"maxSelectedItems":4,"compact":false,"spotlightItemId":null}}
+data: {"protocolVersion":1,"server":{"id":"68ea238c-78ae-4dc1-a5b6-18d35e1dc625","runId":"90c1b655-4053-48af-9181-a35fb2766aed","name":"Gaming-PC","appVersion":"0.2.1"},"revision":17,"catalog":{"state":"game","message":"Loaded installed game signatures.","updatedAt":"2026-07-31T12:00:00.000Z","items":[]},"overlay":{"selectedItemIds":[],"maxSelectedItems":0,"compact":false,"spotlightItemId":null}}
 
 ```
 
@@ -316,7 +318,7 @@ authoritative state/event channel.
 - The ID must exist in the current desktop catalog.
 - It is appended to the selected order.
 - Adding an already-selected ID is a successful no-op.
-- Adding a fifth different item returns `selection_limit`.
+- There is no artificial selection limit; every current catalog item may be selected.
 
 ### `overlay.item.remove`
 
@@ -381,7 +383,7 @@ Semantics match the existing desktop shortcut:
     },
     "overlay": {
       "selectedItemIds": ["riccite-ore"],
-      "maxSelectedItems": 4,
+      "maxSelectedItems": 0,
       "compact": false,
       "spotlightItemId": null
     }
@@ -415,7 +417,7 @@ Set-like no-op example:
     },
     "overlay": {
       "selectedItemIds": ["riccite-ore"],
-      "maxSelectedItems": 4,
+      "maxSelectedItems": 0,
       "compact": false,
       "spotlightItemId": null
     }
@@ -452,7 +454,7 @@ Set-like no-op example:
     },
     "overlay": {
       "selectedItemIds": ["riccite-ore"],
-      "maxSelectedItems": 4,
+      "maxSelectedItems": 0,
       "compact": false,
       "spotlightItemId": "riccite-ore"
     }
@@ -469,7 +471,7 @@ errors include current `state` when useful.
 | 401  | `authentication_required`, `invalid_token`                                        |
 | 403  | `pairing_inactive`, `pairing_rejected`, `non_lan_peer`                            |
 | 404  | `route_not_found`, `item_not_found`                                               |
-| 409  | `revision_conflict`, `selection_limit`, `pairing_capacity_reached`                |
+| 409  | `revision_conflict`, `pairing_capacity_reached`                                   |
 | 413  | `payload_too_large`                                                               |
 | 429  | `pairing_rate_limited`                                                            |
 | 503  | `catalog_unavailable`, `service_stopping`                                         |

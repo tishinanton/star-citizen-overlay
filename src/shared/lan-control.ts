@@ -152,7 +152,6 @@ export type LanApiErrorCode =
   | 'route_not_found'
   | 'item_not_found'
   | 'revision_conflict'
-  | 'selection_limit'
   | 'pairing_capacity_reached'
   | 'payload_too_large'
   | 'pairing_rate_limited'

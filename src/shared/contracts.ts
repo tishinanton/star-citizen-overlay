@@ -5,7 +5,6 @@ import type {
   LanPairingSession
 } from './lan-control'
 
-export const MAX_SELECTED_MATERIALS = 4
 export const MIN_CLUSTER_SIZE = 1
 export const MAX_CLUSTER_SIZE = 8
 export const MIN_APP_FONT_SIZE = 14

@@ -9,7 +9,7 @@ mining overlay, blueprint reference workspace, and faction reputation directory.
 An optional paired Android companion can control the mining overlay over the
 same local network.
 
-The first workflow lets a player select up to four mining targets and see:
+The first workflow lets a player select mining targets and see:
 
 - each target's base electromagnetic scanner signature;
 - cluster signatures from one through eight rocks;

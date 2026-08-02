@@ -224,14 +224,13 @@ test('rejects duplicate global shortcuts', () => {
   )
 })
 
-test('rejects more than four selected targets', () => {
-  assert.throws(
-    () =>
-      normalizeSettings({
-        ...DEFAULT_SETTINGS,
-        selectedMaterialIds: ['one', 'two', 'three', 'four', 'five']
-      }),
-    /no more than 4/
+test('preserves selections beyond the previous four-target limit', () => {
+  assert.deepEqual(
+    normalizeSettings({
+      ...DEFAULT_SETTINGS,
+      selectedMaterialIds: ['one', 'two', 'three', 'four', 'five']
+    }).selectedMaterialIds,
+    ['one', 'two', 'three', 'four', 'five']
   )
 })
 

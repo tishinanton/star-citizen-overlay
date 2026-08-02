@@ -166,6 +166,7 @@ test('serves info, pairs one device, authenticates, and applies all overlay oper
     assert.equal(stateResponse.status, 200)
     let state = stateResponse.body as unknown as LanOverlayStateV1
     assert.deepEqual(state.overlay.selectedItemIds, [])
+    assert.equal(state.overlay.maxSelectedItems, materials.length)
     assert.equal(state.catalog.items[1].id, 'riccite-ore--fps')
 
     const add = await sendCommand(harness.endpoint, headers, state, {

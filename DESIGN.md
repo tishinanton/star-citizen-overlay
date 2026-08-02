@@ -281,7 +281,7 @@ where those states apply.
 
 ### Signature Board
 
-- **Structure:** Instrument header, one to four target rows, base signature,
+- **Structure:** Instrument header, selected target rows, base signature,
   cluster strip, and source footer.
 - **Behavior:** Compact mode removes secondary metadata. Spotlight mode displays
   one selected target while preserving all selections. Each target shows its

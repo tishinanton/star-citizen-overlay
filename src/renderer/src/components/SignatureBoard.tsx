@@ -1,5 +1,5 @@
 import type { CSSProperties } from 'react'
-import { Crosshair, MapPin, Move, Star } from 'lucide-react'
+import { Crosshair, MapPin, Star } from 'lucide-react'
 
 import type {
   AppSnapshot,
@@ -7,10 +7,7 @@ import type {
   MiningMaterial
 } from '../../../shared/contracts'
 import { buildClusterSignatures } from '../../../shared/signatures'
-import {
-  formatMiningProbabilityBreakdown,
-  formatMiningSiteName
-} from '../lib/mining-location-format'
+import { formatMiningSiteName } from '../lib/mining-location-format'
 
 const numberFormatter = new Intl.NumberFormat('en-US')
 
@@ -25,7 +22,7 @@ export default function SignatureBoard({
   preview = false,
   collapsed = false
 }: SignatureBoardProps): React.JSX.Element {
-  const { materials, bestMiningLocations, settings, dataStatus } = snapshot
+  const { materials, bestMiningLocations, settings } = snapshot
   const selected = settings.selectedMaterialIds
     .map((id) => materials.find((material) => material.id === id))
     .filter((material): material is MiningMaterial => material !== undefined)
@@ -60,19 +57,11 @@ export default function SignatureBoard({
           <span className="signal-mark" aria-hidden="true">
             <Crosshair size={16} strokeWidth={1.8} />
           </span>
-          <div>
-            <strong>Signature index</strong>
-            <span>Mining scan reference</span>
-          </div>
+          <strong>Signature index</strong>
         </div>
-        <div className="live-state">
-          {!preview && <Move className="drag-indicator" size={12} aria-label="Drag overlay" />}
-          <span className={`live-state__dot live-state__dot--${dataStatus.state}`} />
-          <span>{settings.spotlightMaterialId ? 'Spotlight' : 'All targets'}</span>
-          <span aria-hidden="true">·</span>
-          <span>1–{settings.clusterMax} rocks</span>
-        </div>
-        {!preview && <span className="signature-board__window-controls-spacer" aria-hidden="true" />}
+        {!preview && (
+          <span className="signature-board__window-controls-spacer" aria-hidden="true" />
+        )}
       </header>
 
       {visibleMaterials.length > 0 ? (
@@ -92,7 +81,7 @@ export default function SignatureBoard({
         <div className="signature-empty">
           <Crosshair size={24} strokeWidth={1.5} />
           <strong>No targets selected</strong>
-          <span>Select up to four materials in Rockfall.</span>
+          <span>Select mining materials in Rockfall.</span>
         </div>
       )}
     </section>
@@ -114,9 +103,11 @@ function SignatureRow({
   clusterMax,
   compact
 }: SignatureRowProps): React.JSX.Element {
-  const signatures = buildClusterSignatures(material.signature, clusterMax)
-  const base = signatures[0]
-  const clusters = signatures.slice(1)
+  const signatures = buildClusterSignatures(
+    material.signature,
+    getDisplayedClusterMaximum(material, bestLocation, clusterMax)
+  )
+  const supportsShipMining = material.methods.includes('Ship')
 
   return (
     <article className="signature-row">
@@ -125,27 +116,53 @@ function SignatureRow({
           <strong>{material.name}</strong>
           {!compact && <span>{material.methods.join(' / ')}</span>}
         </div>
-        <div className="base-signature">
-          <span>Base</span>
-          <strong>{numberFormatter.format(base.signature)}</strong>
+        <BestSite
+          state={bestLocation}
+          isFavorite={
+            bestLocation?.status === 'ready' && bestLocation.location.id === favoriteLocationId
+          }
+        />
+      </div>
+      {supportsShipMining && (
+        <div className="cluster-strip" aria-label={`${material.name} base and cluster signatures`}>
+          {signatures.map((cluster) => (
+            <div
+              className={`cluster-value ${cluster.count === 1 ? 'cluster-value--base' : ''}`}
+              key={cluster.count}
+              title={cluster.count === 1 ? 'Base signature' : `${cluster.count}-rock signature`}
+            >
+              <span>×{cluster.count}</span>
+              <strong>{numberFormatter.format(cluster.signature)}</strong>
+            </div>
+          ))}
         </div>
-      </div>
-      <BestSite
-        state={bestLocation}
-        isFavorite={
-          bestLocation?.status === 'ready' && bestLocation.location.id === favoriteLocationId
-        }
-      />
-      <div className="cluster-strip" aria-label={`${material.name} cluster signatures`}>
-        {clusters.map((cluster) => (
-          <div className="cluster-value" key={cluster.count}>
-            <span>×{cluster.count}</span>
-            <strong>{numberFormatter.format(cluster.signature)}</strong>
-          </div>
-        ))}
-      </div>
+      )}
     </article>
   )
+}
+
+function getDisplayedClusterMaximum(
+  material: MiningMaterial,
+  bestLocation: BestMiningLocationState | undefined,
+  configuredMaximum: number
+): number {
+  if (bestLocation?.status !== 'ready') return configuredMaximum
+
+  const relevantRockTypes = bestLocation.location.rockTypes.filter((rockType) =>
+    rockType.compositions.some(
+      (composition) => composition.isTarget || composition.materialId === material.id
+    )
+  )
+  if (relevantRockTypes.length === 0) return configuredMaximum
+
+  const reportedMaximums = relevantRockTypes
+    .map((rockType) =>
+      rockType.cluster ? (rockType.cluster.maxSize ?? rockType.cluster.minSize) : 1
+    )
+    .filter((maximum): maximum is number => maximum !== null)
+  if (reportedMaximums.length === 0) return configuredMaximum
+
+  return Math.max(1, Math.min(configuredMaximum, Math.max(...reportedMaximums)))
 }
 
 function BestSite({
@@ -157,13 +174,9 @@ function BestSite({
 }): React.JSX.Element {
   const status = state?.status ?? 'loading'
   let site = 'Finding best site…'
-  let probability = ''
 
   if (state?.status === 'ready') {
     site = formatMiningSiteName(state.location)
-    probability = formatMiningProbabilityBreakdown(state.location, state.qualityThreshold)
-    if (state.source === 'live' || state.source === 'cached') probability += ' · wiki'
-    if (state.source === 'game-cached' || state.source === 'cached') probability += ' · cached'
   } else if (state?.status === 'empty') {
     site = 'No mining site reported'
   } else if (state?.status === 'error') {
@@ -186,7 +199,6 @@ function BestSite({
         {isFavorite ? 'Favorite site' : 'Best site'}
       </span>
       <strong>{site}</strong>
-      {probability && <span className="signature-row__site-probability">{probability}</span>}
     </div>
   )
 }

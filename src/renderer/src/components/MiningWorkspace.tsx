@@ -2,7 +2,6 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Crosshair, Search, SlidersHorizontal, X } from 'lucide-react'
 
 import {
-  MAX_SELECTED_MATERIALS,
   type AppSnapshot,
   type MiningLocationResult,
   type MiningMaterial,
@@ -179,7 +178,7 @@ export default function MiningWorkspace({
           </div>
           <div className="ore-selection-summary">
             <span>
-              <strong>{selectedCount}</strong> / {MAX_SELECTED_MATERIALS} overlay
+              <strong>{selectedCount}</strong> overlay
             </span>
             <button type="button" disabled={selectedCount === 0} onClick={clearOverlay}>
               <X size={12} aria-hidden="true" />
@@ -233,7 +232,6 @@ export default function MiningWorkspace({
           {visibleMaterials.map((material) => {
             const isActive = activeMaterial?.id === material.id
             const isSelected = settings.selectedMaterialIds.includes(material.id)
-            const atLimit = selectedCount >= MAX_SELECTED_MATERIALS && !isSelected
 
             return (
               <article
@@ -272,14 +270,9 @@ export default function MiningWorkspace({
                   aria-label={`${isSelected ? 'Remove' : 'Add'} ${material.name} ${
                     isSelected ? 'from' : 'to'
                   } the overlay`}
-                  disabled={atLimit}
-                  title={
-                    atLimit
-                      ? `The overlay supports ${MAX_SELECTED_MATERIALS} ores`
-                      : `${isSelected ? 'Remove' : 'Add'} ${material.name} ${
-                          isSelected ? 'from' : 'to'
-                        } the overlay`
-                  }
+                  title={`${isSelected ? 'Remove' : 'Add'} ${material.name} ${
+                    isSelected ? 'from' : 'to'
+                  } the overlay`}
                   onClick={() => toggleMaterial(material)}
                 >
                   <Crosshair size={13} aria-hidden="true" />

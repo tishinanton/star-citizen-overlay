@@ -1,17 +1,9 @@
-import {
-  MAX_SELECTED_MATERIALS,
-  type MiningMaterial,
-  type OverlaySettings,
-  type OverlaySettingsPatch
-} from '../shared/contracts'
+import type { MiningMaterial, OverlaySettings, OverlaySettingsPatch } from '../shared/contracts'
 import type { LanApiErrorCode, LanOverlayCommandV1 } from '../shared/lan-control'
 
 export class OverlayCommandError extends Error {
   constructor(
-    readonly code: Extract<
-      LanApiErrorCode,
-      'catalog_unavailable' | 'item_not_found' | 'selection_limit'
-    >,
+    readonly code: Extract<LanApiErrorCode, 'catalog_unavailable' | 'item_not_found'>,
     message: string
   ) {
     super(message)
@@ -34,12 +26,6 @@ export function resolveOverlayCommand(
     case 'overlay.item.add':
       assertAvailableItem(command.itemId, materials, catalogLoading)
       if (settings.selectedMaterialIds.includes(command.itemId)) return noChange()
-      if (settings.selectedMaterialIds.length >= MAX_SELECTED_MATERIALS) {
-        throw new OverlayCommandError(
-          'selection_limit',
-          `Select no more than ${MAX_SELECTED_MATERIALS} mining targets.`
-        )
-      }
       return changed({
         selectedMaterialIds: [...settings.selectedMaterialIds, command.itemId]
       })

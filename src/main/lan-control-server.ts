@@ -7,7 +7,6 @@ import type { IncomingMessage, ServerResponse } from 'node:http'
 
 import Bonjour, { type Service as BonjourService } from 'bonjour-service'
 
-import { MAX_SELECTED_MATERIALS } from '../shared/contracts'
 import {
   LAN_PROTOCOL_VERSION,
   MAX_LAN_EVENT_STREAMS,
@@ -379,7 +378,7 @@ export class LanControlServer {
       catalog: structuredClone(domain.catalog),
       overlay: {
         ...structuredClone(domain.overlay),
-        maxSelectedItems: MAX_SELECTED_MATERIALS
+        maxSelectedItems: domain.catalog.items.length
       }
     }
     this.broadcastState(this.state)
@@ -729,7 +728,7 @@ export class LanControlServer {
       requestError = error
     } else if (error instanceof OverlayCommandError) {
       requestError = new LanRequestError(
-        error.code === 'item_not_found' ? 404 : error.code === 'selection_limit' ? 409 : 503,
+        error.code === 'item_not_found' ? 404 : 503,
         error.code,
         error.message,
         error.code === 'catalog_unavailable',

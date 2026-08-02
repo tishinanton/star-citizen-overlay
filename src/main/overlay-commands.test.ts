@@ -56,7 +56,7 @@ test('adds exact item IDs in selection order and treats duplicates as no-ops', (
   )
 })
 
-test('rejects unavailable items, loading catalogs, and selection overflow', () => {
+test('rejects unavailable items and loading catalogs', () => {
   assert.throws(
     () =>
       resolveOverlayCommand(
@@ -76,14 +76,19 @@ test('rejects unavailable items, loading catalogs, and selection overflow', () =
       ),
     (error) => error instanceof OverlayCommandError && error.code === 'catalog_unavailable'
   )
-  assert.throws(
-    () =>
-      resolveOverlayCommand(
-        { operation: 'overlay.item.add', itemId: 'agricium-ore' },
-        settings({ selectedMaterialIds: ['one', 'two', 'three', 'four'] }),
-        materials
-      ),
-    (error) => error instanceof OverlayCommandError && error.code === 'selection_limit'
+})
+
+test('adds items beyond the previous four-target limit', () => {
+  assert.deepEqual(
+    resolveOverlayCommand(
+      { operation: 'overlay.item.add', itemId: 'agricium-ore' },
+      settings({ selectedMaterialIds: ['one', 'two', 'three', 'four'] }),
+      materials
+    ),
+    {
+      result: 'applied',
+      patch: { selectedMaterialIds: ['one', 'two', 'three', 'four', 'agricium-ore'] }
+    }
   )
 })
 

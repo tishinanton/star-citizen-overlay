@@ -11,7 +11,6 @@ import {
   MAX_MINING_QUALITY_THRESHOLD,
   MAX_OVERLAY_FONT_SCALE,
   MAX_CLUSTER_SIZE,
-  MAX_SELECTED_MATERIALS,
   MIN_APP_FONT_SIZE,
   MIN_MINING_QUALITY_THRESHOLD,
   MIN_CLUSTER_SIZE,
@@ -189,10 +188,6 @@ export function normalizeSettings(
   const selectedMaterialIds = Array.isArray(value.selectedMaterialIds)
     ? [...new Set(value.selectedMaterialIds.filter((id): id is string => typeof id === 'string'))]
     : [...fallback.selectedMaterialIds]
-
-  if (selectedMaterialIds.length > MAX_SELECTED_MATERIALS) {
-    throw new RangeError(`Select no more than ${MAX_SELECTED_MATERIALS} mining targets.`)
-  }
 
   const clusterMax =
     typeof value.clusterMax === 'number' &&

@@ -55,6 +55,7 @@ import {
   parseLanOverlayCommand
 } from '../shared/lan-control'
 import {
+  getOverlayDisplayLayout,
   getOverlayFallbackLayout,
   getOverlayLayoutKey,
   type OverlayLayout
@@ -153,6 +154,7 @@ const SHORTCUT_DEFINITIONS: Array<
 let controlWindow: BrowserWindow | null = null
 let overlayWindow: BrowserWindow | null = null
 let dragHandleWindow: BrowserWindow | null = null
+let overlayCollapsed = false
 let tray: Tray | null = null
 let settings: OverlaySettings = {
   ...DEFAULT_SETTINGS,
@@ -284,7 +286,11 @@ function getSnapshot(): AppSnapshot {
 }
 
 function broadcastSnapshot(
-  targetWindows: ReadonlyArray<BrowserWindow | null> = [controlWindow, overlayWindow]
+  targetWindows: ReadonlyArray<BrowserWindow | null> = [
+    controlWindow,
+    overlayWindow,
+    dragHandleWindow
+  ]
 ): void {
   const snapshot = getSnapshot()
   for (const window of targetWindows) {
@@ -371,7 +377,10 @@ function getOverlayPosition(
 function applyOverlayState(): void {
   if (!overlayWindow || overlayWindow.isDestroyed()) return
 
-  const { width, height, headerHeight } = getOverlayLayout()
+  const { width, height, headerHeight } = getOverlayDisplayLayout(
+    getOverlayLayout(),
+    overlayCollapsed
+  )
   const size = { width, height }
   const position = getOverlayPosition(settings.placement, size)
   expectedOverlayPosition = position
@@ -1662,6 +1671,7 @@ function createDragHandleWindow(): BrowserWindow {
     skipTaskbar: true,
     hasShadow: false,
     webPreferences: {
+      preload: join(__dirname, '../preload/index.js'),
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: true
@@ -1712,6 +1722,16 @@ function assertControlWindowSender(event: IpcMainInvokeEvent): void {
   }
 }
 
+function assertDragHandleWindowSender(event: IpcMainInvokeEvent): void {
+  if (
+    !dragHandleWindow ||
+    dragHandleWindow.isDestroyed() ||
+    event.sender !== dragHandleWindow.webContents
+  ) {
+    throw new Error('This action is only available from the overlay header.')
+  }
+}
+
 function registerIpcHandlers(): void {
   ipcMain.handle(IPC_CHANNELS.getSnapshot, () => getSnapshot())
   ipcMain.handle(IPC_CHANNELS.updateSettings, (event, patch: OverlaySettingsPatch) => {
@@ -1738,6 +1758,23 @@ function registerIpcHandlers(): void {
       throw new Error('Overlay metrics can only be reported by the overlay window.')
     }
     applyMeasuredOverlayMetrics(metrics)
+  })
+  ipcMain.handle(IPC_CHANNELS.getOverlayWindowState, (event) => {
+    assertDragHandleWindowSender(event)
+    return { collapsed: overlayCollapsed }
+  })
+  ipcMain.handle(IPC_CHANNELS.hideOverlay, async (event) => {
+    assertDragHandleWindowSender(event)
+    await updateSettings({ visible: false })
+  })
+  ipcMain.handle(IPC_CHANNELS.setOverlayCollapsed, (event, collapsed: unknown) => {
+    assertDragHandleWindowSender(event)
+    if (typeof collapsed !== 'boolean') {
+      throw new TypeError('Overlay collapsed state must be a boolean.')
+    }
+    overlayCollapsed = collapsed
+    applyOverlayState()
+    return { collapsed: overlayCollapsed }
   })
   ipcMain.handle(IPC_CHANNELS.refreshMaterials, () => refreshMaterials())
   ipcMain.handle(IPC_CHANNELS.chooseGameData, (event) => {

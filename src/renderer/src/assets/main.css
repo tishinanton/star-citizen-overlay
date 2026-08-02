@@ -5700,31 +5700,65 @@ a.mission-row:hover {
   color: var(--accent-bright);
 }
 
-.signature-board__close {
+.signature-board__window-controls-spacer {
+  flex: 0 0 calc(52px * var(--overlay-font-scale));
+}
+
+.overlay-window-controls {
+  position: absolute;
+  inset-block-start: 50%;
+  inset-inline-end: calc(9px * var(--overlay-font-scale));
+  display: flex;
+  gap: calc(4px * var(--overlay-font-scale));
+  transform: translateY(-50%);
+  app-region: no-drag;
+  -webkit-app-region: no-drag;
+}
+
+.overlay-window-control {
   display: flex;
   align-items: center;
   justify-content: center;
   flex: 0 0 auto;
-  width: calc(20px * var(--overlay-font-scale));
-  height: calc(20px * var(--overlay-font-scale));
+  width: calc(24px * var(--overlay-font-scale));
+  height: calc(24px * var(--overlay-font-scale));
   padding: 0;
   border: 1px solid color-mix(in oklch, var(--edge) 58%, transparent);
   border-radius: var(--radius-sm);
   background: transparent;
   color: var(--muted);
   cursor: pointer;
-  transition: background 0.12s, color 0.12s;
+  transition:
+    background-color var(--duration-fast) var(--ease-out),
+    border-color var(--duration-fast) var(--ease-out),
+    color var(--duration-fast) var(--ease-out);
 }
 
-.signature-board__close:hover {
+.overlay-window-control:hover {
+  border-color: color-mix(in oklch, var(--accent) 55%, transparent);
+  background: color-mix(in oklch, var(--accent-soft) 70%, transparent);
+  color: var(--accent-bright);
+}
+
+.overlay-window-control--close:hover {
   background: color-mix(in oklch, var(--danger) 18%, transparent);
   border-color: color-mix(in oklch, var(--danger) 55%, transparent);
   color: var(--danger);
 }
 
-.signature-board__close svg {
-  width: calc(12px * var(--overlay-font-scale));
-  height: calc(12px * var(--overlay-font-scale));
+.overlay-window-control:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 1px;
+}
+
+.overlay-window-control:disabled {
+  cursor: default;
+  opacity: 0.55;
+}
+
+.overlay-window-control svg {
+  width: calc(13px * var(--overlay-font-scale));
+  height: calc(13px * var(--overlay-font-scale));
 }
 
 .live-state__dot {
@@ -5997,6 +6031,7 @@ a.mission-row:hover {
 }
 
 .drag-handle {
+  position: relative;
   width: 100vw;
   height: 100vh;
   cursor: move;

@@ -15,6 +15,13 @@ export interface OverlayLayout {
   headerHeight: number
 }
 
+export function getOverlayDisplayLayout(
+  layout: OverlayLayout,
+  collapsed: boolean
+): OverlayLayout {
+  return collapsed ? { ...layout, height: layout.headerHeight } : layout
+}
+
 export function getOverlayLayoutKey(settings: OverlaySettings): string {
   return JSON.stringify([
     settings.appFontSize,

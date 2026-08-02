@@ -331,6 +331,10 @@ export interface OverlayContentMetrics {
   headerHeight: number
 }
 
+export interface OverlayWindowState {
+  collapsed: boolean
+}
+
 export type SignatureOverrides = Record<string, number>
 export type FavoriteMiningLocationIds = Record<string, string>
 
@@ -506,6 +510,9 @@ export interface RockfallApi {
   updateSettings: (patch: OverlaySettingsPatch) => Promise<AppSnapshot>
   executeOverlayCommand: (command: LanOverlayCommandV1) => Promise<AppSnapshot>
   reportOverlayMetrics: (metrics: OverlayContentMetrics) => Promise<void>
+  getOverlayWindowState: () => Promise<OverlayWindowState>
+  hideOverlay: () => Promise<void>
+  setOverlayCollapsed: (collapsed: boolean) => Promise<OverlayWindowState>
   refreshMaterials: () => Promise<AppSnapshot>
   chooseGameData: () => Promise<GameDataSelectionResult>
   getMiningLocations: (materialId: string) => Promise<MiningLocationResult>
@@ -540,6 +547,9 @@ export const IPC_CHANNELS = {
   updateSettings: 'rockfall:settings:update',
   executeOverlayCommand: 'rockfall:overlay:command',
   reportOverlayMetrics: 'rockfall:overlay:metrics',
+  getOverlayWindowState: 'rockfall:overlay:window-state:get',
+  hideOverlay: 'rockfall:overlay:hide',
+  setOverlayCollapsed: 'rockfall:overlay:collapsed:set',
   refreshMaterials: 'rockfall:materials:refresh',
   chooseGameData: 'rockfall:game-data:choose',
   getMiningLocations: 'rockfall:mining-locations:get',

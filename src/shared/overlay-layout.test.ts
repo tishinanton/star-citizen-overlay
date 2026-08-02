@@ -2,7 +2,11 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 
 import { DEFAULT_SHORTCUTS, type OverlaySettings, type OverlaySettingsPatch } from './contracts'
-import { getOverlayFallbackLayout, getOverlayLayoutKey } from './overlay-layout'
+import {
+  getOverlayDisplayLayout,
+  getOverlayFallbackLayout,
+  getOverlayLayoutKey
+} from './overlay-layout'
 
 function createSettings(overrides: OverlaySettingsPatch = {}): OverlaySettings {
   return {
@@ -55,6 +59,17 @@ test('sizes fallback layouts for compact, spotlight, and empty states', () => {
     144
   )
   assert.equal(getOverlayFallbackLayout(createSettings({ selectedMaterialIds: [] })).height, 160)
+})
+
+test('collapses the overlay window to its header height', () => {
+  const layout = getOverlayFallbackLayout(createSettings())
+
+  assert.deepEqual(getOverlayDisplayLayout(layout, true), {
+    width: 420,
+    height: 42,
+    headerHeight: 42
+  })
+  assert.equal(getOverlayDisplayLayout(layout, false), layout)
 })
 
 test('changes the layout key only for settings that affect rendered dimensions', () => {

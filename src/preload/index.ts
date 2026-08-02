@@ -6,6 +6,7 @@ import {
   type BlueprintOwnershipSnapshot,
   type OverlayContentMetrics,
   type OverlaySettingsPatch,
+  type OverlayWindowState,
   type RockfallApi
 } from '../shared/contracts'
 import type {
@@ -22,6 +23,11 @@ const rockfallApi: RockfallApi = {
     ipcRenderer.invoke(IPC_CHANNELS.executeOverlayCommand, command),
   reportOverlayMetrics: (metrics: OverlayContentMetrics) =>
     ipcRenderer.invoke(IPC_CHANNELS.reportOverlayMetrics, metrics),
+  getOverlayWindowState: (): Promise<OverlayWindowState> =>
+    ipcRenderer.invoke(IPC_CHANNELS.getOverlayWindowState),
+  hideOverlay: () => ipcRenderer.invoke(IPC_CHANNELS.hideOverlay),
+  setOverlayCollapsed: (collapsed: boolean): Promise<OverlayWindowState> =>
+    ipcRenderer.invoke(IPC_CHANNELS.setOverlayCollapsed, collapsed),
   refreshMaterials: () => ipcRenderer.invoke(IPC_CHANNELS.refreshMaterials),
   chooseGameData: () => ipcRenderer.invoke(IPC_CHANNELS.chooseGameData),
   getMiningLocations: (materialId: string) =>

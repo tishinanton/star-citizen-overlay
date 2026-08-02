@@ -1,5 +1,5 @@
 import type { CSSProperties } from 'react'
-import { Crosshair, MapPin, Move, Star, X } from 'lucide-react'
+import { Crosshair, MapPin, Move, Star } from 'lucide-react'
 
 import type {
   AppSnapshot,
@@ -46,7 +46,7 @@ export default function SignatureBoard({
         .filter(Boolean)
         .join(' ')}
       style={boardStyle}
-      aria-label="Mining signature overlay preview"
+      aria-label={preview ? 'Mining signature overlay preview' : 'Mining signature overlay'}
     >
       <header
         className={['signature-board__header', !preview ? 'signature-board__header--draggable' : '']
@@ -69,15 +69,7 @@ export default function SignatureBoard({
           <span aria-hidden="true">·</span>
           <span>1–{settings.clusterMax} rocks</span>
         </div>
-        {!preview && (
-          <button
-            className="signature-board__close"
-            aria-label="Close overlay"
-            onClick={() => void window.rockfall.updateSettings({ visible: false })}
-          >
-            <X size={12} strokeWidth={2} />
-          </button>
-        )}
+        {!preview && <span className="signature-board__window-controls-spacer" aria-hidden="true" />}
       </header>
 
       {visibleMaterials.length > 0 ? (

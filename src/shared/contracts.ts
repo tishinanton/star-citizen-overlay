@@ -513,6 +513,7 @@ export interface RockfallApi {
   getOverlayWindowState: () => Promise<OverlayWindowState>
   hideOverlay: () => Promise<void>
   setOverlayCollapsed: (collapsed: boolean) => Promise<OverlayWindowState>
+  onOverlayWindowState: (listener: (state: OverlayWindowState) => void) => () => void
   refreshMaterials: () => Promise<AppSnapshot>
   chooseGameData: () => Promise<GameDataSelectionResult>
   getMiningLocations: (materialId: string) => Promise<MiningLocationResult>
@@ -548,6 +549,7 @@ export const IPC_CHANNELS = {
   executeOverlayCommand: 'rockfall:overlay:command',
   reportOverlayMetrics: 'rockfall:overlay:metrics',
   getOverlayWindowState: 'rockfall:overlay:window-state:get',
+  overlayWindowStateChanged: 'rockfall:overlay:window-state:changed',
   hideOverlay: 'rockfall:overlay:hide',
   setOverlayCollapsed: 'rockfall:overlay:collapsed:set',
   refreshMaterials: 'rockfall:materials:refresh',

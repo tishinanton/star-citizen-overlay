@@ -17,11 +17,13 @@ const numberFormatter = new Intl.NumberFormat('en-US')
 interface SignatureBoardProps {
   snapshot: AppSnapshot
   preview?: boolean
+  collapsed?: boolean
 }
 
 export default function SignatureBoard({
   snapshot,
-  preview = false
+  preview = false,
+  collapsed = false
 }: SignatureBoardProps): React.JSX.Element {
   const { materials, bestMiningLocations, settings, dataStatus } = snapshot
   const selected = settings.selectedMaterialIds
@@ -41,6 +43,7 @@ export default function SignatureBoard({
       className={[
         'signature-board',
         settings.compact ? 'signature-board--compact' : '',
+        collapsed ? 'signature-board--collapsed' : '',
         preview ? 'signature-board--preview' : ''
       ]
         .filter(Boolean)

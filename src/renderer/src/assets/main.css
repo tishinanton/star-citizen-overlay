@@ -5704,6 +5704,10 @@ a.mission-row:hover {
   flex: 0 0 calc(52px * var(--overlay-font-scale));
 }
 
+.signature-board--collapsed > :not(.signature-board__header) {
+  display: none;
+}
+
 .overlay-window-controls {
   position: absolute;
   inset-block-start: 50%;

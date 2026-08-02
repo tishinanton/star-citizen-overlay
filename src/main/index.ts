@@ -300,6 +300,16 @@ function broadcastSnapshot(
   }
 }
 
+function broadcastOverlayWindowState(): void {
+  for (const window of [overlayWindow, dragHandleWindow]) {
+    if (window && !window.isDestroyed()) {
+      window.webContents.send(IPC_CHANNELS.overlayWindowStateChanged, {
+        collapsed: overlayCollapsed
+      })
+    }
+  }
+}
+
 function broadcastBlueprintOwnership(): void {
   if (!blueprintDataResult || !blueprintOwnershipService) return
   if (controlWindow && !controlWindow.isDestroyed()) {
@@ -1732,6 +1742,15 @@ function assertDragHandleWindowSender(event: IpcMainInvokeEvent): void {
   }
 }
 
+function assertOverlayWindowStateSender(event: IpcMainInvokeEvent): void {
+  const allowedSenders = [overlayWindow, dragHandleWindow]
+    .filter((window): window is BrowserWindow => window !== null && !window.isDestroyed())
+    .map((window) => window.webContents)
+  if (!allowedSenders.includes(event.sender)) {
+    throw new Error('Overlay window state is only available to overlay windows.')
+  }
+}
+
 function registerIpcHandlers(): void {
   ipcMain.handle(IPC_CHANNELS.getSnapshot, () => getSnapshot())
   ipcMain.handle(IPC_CHANNELS.updateSettings, (event, patch: OverlaySettingsPatch) => {
@@ -1760,7 +1779,7 @@ function registerIpcHandlers(): void {
     applyMeasuredOverlayMetrics(metrics)
   })
   ipcMain.handle(IPC_CHANNELS.getOverlayWindowState, (event) => {
-    assertDragHandleWindowSender(event)
+    assertOverlayWindowStateSender(event)
     return { collapsed: overlayCollapsed }
   })
   ipcMain.handle(IPC_CHANNELS.hideOverlay, async (event) => {
@@ -1773,6 +1792,7 @@ function registerIpcHandlers(): void {
       throw new TypeError('Overlay collapsed state must be a boolean.')
     }
     overlayCollapsed = collapsed
+    broadcastOverlayWindowState()
     applyOverlayState()
     return { collapsed: overlayCollapsed }
   })

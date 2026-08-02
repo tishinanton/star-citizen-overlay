@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 
 import { useRockfall } from '../hooks/useRockfall'
 import { getOverlayLayoutKey } from '../../../shared/overlay-layout'
@@ -7,11 +7,31 @@ import SignatureBoard from './SignatureBoard'
 export default function OverlayApp(): React.JSX.Element | null {
   const { snapshot } = useRockfall()
   const rootRef = useRef<HTMLElement>(null)
+  const [collapsed, setCollapsed] = useState(false)
 
   useEffect(() => {
     document.documentElement.dataset.view = 'overlay'
     return () => {
       delete document.documentElement.dataset.view
+    }
+  }, [])
+
+  useEffect(() => {
+    let active = true
+    const unsubscribe = window.rockfall.onOverlayWindowState((state) => {
+      if (active) setCollapsed(state.collapsed)
+    })
+    void window.rockfall
+      .getOverlayWindowState()
+      .then((state) => {
+        if (active) setCollapsed(state.collapsed)
+      })
+      .catch((reason: unknown) => {
+        console.error('Overlay window state could not be loaded.', reason)
+      })
+    return () => {
+      active = false
+      unsubscribe()
     }
   }, [])
 
@@ -65,7 +85,7 @@ export default function OverlayApp(): React.JSX.Element | null {
 
   return snapshot ? (
     <main className="overlay-root" ref={rootRef}>
-      <SignatureBoard snapshot={snapshot} />
+      <SignatureBoard snapshot={snapshot} collapsed={collapsed} />
     </main>
   ) : null
 }

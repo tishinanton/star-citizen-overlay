@@ -28,6 +28,13 @@ const rockfallApi: RockfallApi = {
   hideOverlay: () => ipcRenderer.invoke(IPC_CHANNELS.hideOverlay),
   setOverlayCollapsed: (collapsed: boolean): Promise<OverlayWindowState> =>
     ipcRenderer.invoke(IPC_CHANNELS.setOverlayCollapsed, collapsed),
+  onOverlayWindowState: (listener: (state: OverlayWindowState) => void) => {
+    const handler = (_event: Electron.IpcRendererEvent, state: OverlayWindowState): void => {
+      listener(state)
+    }
+    ipcRenderer.on(IPC_CHANNELS.overlayWindowStateChanged, handler)
+    return () => ipcRenderer.removeListener(IPC_CHANNELS.overlayWindowStateChanged, handler)
+  },
   refreshMaterials: () => ipcRenderer.invoke(IPC_CHANNELS.refreshMaterials),
   chooseGameData: () => ipcRenderer.invoke(IPC_CHANNELS.chooseGameData),
   getMiningLocations: (materialId: string) =>

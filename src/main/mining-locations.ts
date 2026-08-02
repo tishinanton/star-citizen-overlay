@@ -203,7 +203,8 @@ function parseWikiRockType(
         qualityStdDev: finiteNumber(entry.quality_stddev),
         quantizedValues: parseWikiQuantizedValues(
           entry.quality_quantized_values ?? entry.quality_quantization
-        )
+        ),
+        quantizationProbabilities: []
       }
     })
     .filter((entry): entry is MiningRockCompositionPart => entry !== null)
@@ -502,7 +503,14 @@ function buildLocalRockType(
       maxQuality: contributionMaterial?.effectiveQuality.max ?? null,
       meanQuality: contributionMaterial?.effectiveQuality.mean ?? null,
       qualityStdDev: contributionMaterial?.effectiveQuality.stdDev ?? null,
-      quantizedValues: contributionMaterial?.reachableQuantizedValues ?? []
+      quantizedValues: contributionMaterial?.reachableQuantizedValues ?? [],
+      quantizationProbabilities:
+        contributionMaterial && catalogMaterial
+          ? estimateQuantizedValueProbabilities(
+              catalogMaterial.quantizationBands,
+              contributionMaterial.effectiveQuality
+            )
+          : []
     }
   })
 
@@ -1129,6 +1137,9 @@ function parseCachedRockComposition(value: unknown): MiningRockCompositionPart |
   const meanQuality = value.meanQuality === null ? null : wikiQuality(value.meanQuality)
   const qualityStdDev = value.qualityStdDev === null ? null : finiteNumber(value.qualityStdDev)
   const quantizedValues = parseCachedQuantizedValues(value.quantizedValues)
+  const quantizationProbabilities = parseCachedQuantizationProbabilities(
+    value.quantizationProbabilities
+  )
   if (
     typeof value.id !== 'string' ||
     !value.id ||
@@ -1148,7 +1159,8 @@ function parseCachedRockComposition(value: unknown): MiningRockCompositionPart |
     (minQuality !== null && maxQuality !== null && minQuality > maxQuality) ||
     (value.meanQuality !== null && meanQuality === null) ||
     (value.qualityStdDev !== null && (qualityStdDev === null || qualityStdDev < 0)) ||
-    quantizedValues === null
+    quantizedValues === null ||
+    quantizationProbabilities === null
   ) {
     return null
   }
@@ -1166,7 +1178,8 @@ function parseCachedRockComposition(value: unknown): MiningRockCompositionPart |
     maxQuality,
     meanQuality,
     qualityStdDev,
-    quantizedValues
+    quantizedValues,
+    quantizationProbabilities
   }
 }
 

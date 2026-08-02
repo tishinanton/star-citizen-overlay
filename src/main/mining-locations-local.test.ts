@@ -241,6 +241,18 @@ test('buildLocalMiningLocations derives the resolved Aberdeen row entirely from 
   assert.equal(aberdeen.rockTypes[0].compositions[0].qualityScale, 1)
   assert.equal(aberdeen.rockTypes[0].compositions[0].curveExponent, 1)
   assert.deepEqual(aberdeen.rockTypes[0].compositions[0].quantizedValues, REACHABLE_VALUES)
+  assert.deepEqual(
+    aberdeen.rockTypes[0].compositions[0].quantizationProbabilities.map((entry) => entry.quality),
+    REACHABLE_VALUES
+  )
+  assert.ok(
+    Math.abs(
+      aberdeen.rockTypes[0].compositions[0].quantizationProbabilities.reduce(
+        (sum, entry) => sum + entry.probability,
+        0
+      ) - 1
+    ) < 1e-9
+  )
   assert.ok(Math.abs((aberdeen.rockSpawnProbability ?? 0) - 0.25 * 0.06) < 1e-9)
   assert.ok(aberdeen.qualityThresholdProbability !== null)
   assert.ok(
@@ -320,11 +332,24 @@ test('buildLocalMiningLocations combines repeated material parts and keeps their
       minPercentage: part.minPercentage,
       maxPercentage: part.maxPercentage,
       minQuality: part.minQuality,
-      maxQuality: part.maxQuality
+      maxQuality: part.maxQuality,
+      quantizedQualities: part.quantizationProbabilities.map((entry) => entry.quality)
     })),
     [
-      { minPercentage: 50, maxPercentage: 70, minQuality: 201, maxQuality: 1_000 },
-      { minPercentage: 10, maxPercentage: 20, minQuality: 100, maxQuality: 500 }
+      {
+        minPercentage: 50,
+        maxPercentage: 70,
+        minQuality: 201,
+        maxQuality: 1_000,
+        quantizedQualities: REACHABLE_VALUES
+      },
+      {
+        minPercentage: 10,
+        maxPercentage: 20,
+        minQuality: 100,
+        maxQuality: 500,
+        quantizedQualities: [274, 526]
+      }
     ]
   )
 

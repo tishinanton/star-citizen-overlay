@@ -676,144 +676,6 @@
   white-space: nowrap;
 }
 
-.material-signature--overridden {
-  color: var(--accent-bright);
-}
-
-.signature-override-marker {
-  margin-left: 1px;
-  color: var(--accent-bright);
-  font-size: 1rem;
-  line-height: 0;
-  vertical-align: super;
-}
-
-.signature-override-editor {
-  display: grid;
-  grid-column: 1 / -1;
-  grid-template-columns: minmax(120px, 1fr) 144px auto;
-  align-items: start;
-  width: 100%;
-  padding: 10px 12px 11px;
-  gap: 12px;
-  border-top: 1px solid var(--edge);
-  background: var(--surface);
-}
-
-.signature-override-editor__heading,
-.signature-override-editor__field {
-  display: flex;
-  align-items: flex-start;
-  flex-direction: column;
-  min-width: 0;
-}
-
-.signature-override-editor__heading strong {
-  color: var(--ink);
-  font-size: 1rem;
-}
-
-.signature-override-editor__heading span,
-.signature-override-editor__field > span,
-.signature-override-editor__field small {
-  color: var(--muted);
-  font-size: 1rem;
-}
-
-.signature-override-editor__heading span {
-  overflow: hidden;
-  width: 100%;
-  margin-top: 4px;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.signature-override-editor__field {
-  gap: 5px;
-}
-
-.signature-override-editor__field input {
-  width: 100%;
-  height: 31px;
-  padding: 0 8px;
-  border: 1px solid var(--edge);
-  border-radius: var(--radius-sm);
-  background: var(--surface-low);
-  color: var(--ink);
-  font-size: 1rem;
-  font-variant-numeric: tabular-nums;
-}
-
-.signature-override-editor__field input:focus {
-  border-color: var(--accent);
-}
-
-.signature-override-editor__field input[aria-invalid='true'] {
-  border-color: var(--danger);
-}
-
-.signature-override-editor__field small {
-  line-height: 1.3;
-}
-
-.signature-override-editor__field small.is-error {
-  color: var(--danger-ink);
-}
-
-.signature-override-editor__actions {
-  display: flex;
-  align-items: center;
-  align-self: center;
-  gap: 5px;
-  padding-top: 13px;
-}
-
-.signature-override-editor__button {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 48px;
-  height: 30px;
-  padding: 0 8px;
-  border: 1px solid var(--edge);
-  border-radius: var(--radius-sm);
-  background: var(--surface-low);
-  color: var(--ink-soft);
-  font-size: 1rem;
-  transition:
-    border-color var(--duration-fast) var(--ease-out),
-    background-color var(--duration-fast) var(--ease-out),
-    color var(--duration-fast) var(--ease-out);
-}
-
-.signature-override-editor__button:hover:not(:disabled) {
-  border-color: var(--edge-strong);
-  background: var(--surface-high);
-  color: var(--ink);
-}
-
-.signature-override-editor__button--reset {
-  min-width: 30px;
-  width: 30px;
-  padding: 0;
-}
-
-.signature-override-editor__button--primary {
-  border-color: var(--accent);
-  background: var(--accent);
-  color: var(--bg);
-}
-
-.signature-override-editor__button--primary:hover:not(:disabled) {
-  border-color: var(--accent-bright);
-  background: var(--accent-bright);
-  color: var(--bg);
-}
-
-.signature-override-editor__button:disabled {
-  opacity: 0.45;
-}
-
 .mining-location-panel {
   grid-column: 1 / -1;
   min-width: 0;
@@ -1785,7 +1647,7 @@
 }
 
 .settings-page {
-  width: min(100%, 860px);
+  width: min(100%, 1040px);
   margin: 0 auto;
 }
 
@@ -3763,6 +3625,1119 @@ a.mission-row:hover {
   color: var(--success);
 }
 
+.mining-workspace {
+  display: grid;
+  grid-template-columns: minmax(240px, 0.68fr) minmax(300px, 0.84fr) minmax(360px, 1.18fr);
+  min-width: 0;
+  min-height: 0;
+  padding: 10px;
+  gap: 10px;
+  overflow: hidden;
+  background: color-mix(in oklch, var(--surface) 72%, var(--bg));
+}
+
+.mining-workspace[hidden] {
+  display: none;
+}
+
+.mining-pane {
+  grid-template-columns: minmax(0, 1fr);
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  border: 1px solid var(--edge-strong);
+  border-radius: var(--radius-md);
+  background: var(--bg);
+}
+
+.mining-ore-pane {
+  display: grid;
+  grid-template-rows: auto auto minmax(0, 1fr);
+  --pane-header-tint: 13%;
+}
+
+.mining-location-pane {
+  display: grid;
+  grid-template-rows: auto auto minmax(0, 1fr) auto;
+  --pane-header-tint: 9%;
+  background: color-mix(in oklch, var(--surface-low) 72%, var(--bg));
+}
+
+.mining-composition-pane {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  --pane-header-tint: 6%;
+  background: color-mix(in oklch, var(--surface-low) 38%, var(--bg));
+}
+
+.mining-pane__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  min-height: 72px;
+  padding: 16px;
+  gap: 12px;
+  border-bottom: 1px solid var(--edge-strong);
+  background: color-mix(in oklch, var(--accent) var(--pane-header-tint), var(--surface));
+}
+
+.mining-pane__header > div {
+  min-width: 0;
+}
+
+.mining-pane__identity {
+  display: flex;
+  align-items: flex-start;
+  min-width: 0;
+  flex: 1 1 auto;
+  gap: 10px;
+}
+
+.mining-pane__identity > div {
+  min-width: 0;
+}
+
+.mining-pane__step {
+  display: grid;
+  width: 28px;
+  height: 28px;
+  flex: 0 0 auto;
+  place-items: center;
+  border: 1px solid color-mix(in oklch, var(--accent) 70%, var(--edge-strong));
+  border-radius: var(--radius-sm);
+  background: var(--accent-soft);
+  color: var(--accent-bright);
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+}
+
+.mining-pane__header h1,
+.mining-pane__header h2 {
+  margin: 0;
+  color: var(--ink);
+  font-size: 1.214rem;
+  font-weight: 650;
+  line-height: 1.15;
+  letter-spacing: -0.01em;
+}
+
+.mining-pane__header p {
+  margin-top: 5px;
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 1rem;
+  line-height: 1.35;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ore-selection-summary {
+  display: grid;
+  justify-items: end;
+  flex: 0 0 auto;
+  gap: 7px;
+  color: var(--muted);
+  font-size: 1rem;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.ore-selection-summary strong {
+  color: var(--accent-bright);
+}
+
+.ore-selection-summary button {
+  display: inline-flex;
+  align-items: center;
+  min-height: 25px;
+  padding: 0 7px;
+  gap: 4px;
+  border: 1px solid var(--edge);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--muted);
+  font-size: 1rem;
+}
+
+.ore-selection-summary button:hover:not(:disabled) {
+  border-color: var(--edge-strong);
+  color: var(--ink);
+}
+
+.ore-selection-summary button:disabled {
+  opacity: 0.42;
+}
+
+.ore-tools {
+  display: grid;
+  padding: 12px;
+  gap: 10px;
+  border-bottom: 1px solid var(--edge-strong);
+  background: var(--surface-low);
+}
+
+.ore-filter-deck {
+  padding: 10px;
+  border: 1px solid var(--edge-strong);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+}
+
+.ore-search-control {
+  display: grid;
+  gap: 7px;
+}
+
+.ore-control-label,
+.ore-filter-group legend {
+  display: flex;
+  align-items: center;
+  padding: 0;
+  gap: 6px;
+  color: var(--ink-soft);
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.ore-search-control .search-field {
+  height: 38px;
+  border-color: var(--edge-strong);
+  background: var(--bg);
+}
+
+.ore-filter-group {
+  min-width: 0;
+  margin: 11px 0 0;
+  padding: 10px 0 0;
+  border: 0;
+  border-top: 1px solid var(--edge);
+}
+
+.ore-filter-group legend {
+  margin-bottom: 7px;
+}
+
+.ore-data-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.ore-data-actions .icon-text-button {
+  min-width: 0;
+  padding-inline: 8px;
+}
+
+.ore-filter-strip {
+  margin: 0;
+  border-color: var(--edge-strong);
+  background: var(--bg);
+}
+
+.ore-filter-strip button {
+  min-width: 0;
+  padding-inline: 5px;
+}
+
+.ore-filter-strip button.is-active {
+  background: var(--accent-soft);
+  color: var(--accent-bright);
+}
+
+.ore-list {
+  min-height: 0;
+  overflow-y: auto;
+  background: var(--bg);
+}
+
+.ore-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  border-bottom: 1px solid color-mix(in oklch, var(--edge) 65%, transparent);
+  background: transparent;
+  transition: background-color var(--duration-fast) var(--ease-out);
+}
+
+.ore-row:hover {
+  background: var(--surface-low);
+}
+
+.ore-row--active,
+.ore-row--active:hover {
+  background: var(--surface-selected);
+  box-shadow: inset 0 0 0 1px color-mix(in oklch, var(--accent) 58%, var(--edge));
+}
+
+.ore-row__main {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  width: 100%;
+  min-width: 0;
+  min-height: 68px;
+  padding: 10px 8px 10px 12px;
+  gap: 8px;
+  background: transparent;
+  color: var(--ink-soft);
+  text-align: left;
+}
+
+.ore-row__identity,
+.ore-row__identity strong,
+.ore-row__identity small,
+.ore-row__signature small,
+.ore-row__signature strong {
+  display: block;
+  min-width: 0;
+}
+
+.ore-row__identity strong {
+  overflow: hidden;
+  color: var(--ink);
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ore-row__identity small {
+  margin-top: 4px;
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 1rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ore-row__signature {
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.ore-row__signature small {
+  color: var(--muted);
+  font-size: 1rem;
+}
+
+.ore-row__signature strong {
+  margin-top: 3px;
+  color: var(--ink);
+  font-weight: 650;
+}
+
+.ore-row__overlay-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 60px;
+  min-height: 32px;
+  margin-right: 10px;
+  padding: 0 8px;
+  gap: 5px;
+  border: 1px solid var(--edge);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--muted);
+  font-size: 1rem;
+  white-space: nowrap;
+  transition:
+    border-color var(--duration-fast) var(--ease-out),
+    background-color var(--duration-fast) var(--ease-out),
+    color var(--duration-fast) var(--ease-out);
+}
+
+.ore-row__overlay-action:hover:not(:disabled) {
+  border-color: var(--edge-strong);
+  background: var(--surface-high);
+  color: var(--ink);
+}
+
+.ore-row__overlay-action.is-active {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  color: var(--accent-bright);
+}
+
+.ore-row__overlay-action:disabled {
+  opacity: 0.4;
+}
+
+.mining-quality-target {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+  min-width: 0;
+  padding: 11px 13px 12px;
+  gap: 9px;
+  border-bottom: 1px solid var(--edge-strong);
+  background: color-mix(in oklch, var(--accent) 4%, var(--surface));
+}
+
+.mining-quality-target label {
+  display: grid;
+  min-width: 0;
+  gap: 7px;
+  color: var(--ink-soft);
+  font-size: 1rem;
+}
+
+.mining-quality-target label > span {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.mining-quality-target label small {
+  color: var(--muted);
+  font-size: 1rem;
+  font-weight: 400;
+}
+
+.mining-quality-target input[type='range'] {
+  width: 100%;
+  accent-color: var(--accent);
+}
+
+.mining-quality-target > div {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.mining-quality-target input[type='number'] {
+  width: 68px;
+  height: 30px;
+  padding: 0 7px;
+  border: 1px solid var(--edge);
+  border-radius: var(--radius-sm);
+  background: var(--surface-low);
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.mining-quality-target button,
+.mining-empty button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 30px;
+  padding: 0 9px;
+  gap: 5px;
+  border: 1px solid var(--edge);
+  border-radius: var(--radius-sm);
+  background: var(--surface-low);
+  color: var(--ink-soft);
+  font-size: 1rem;
+}
+
+.mining-quality-target button:hover:not(:disabled),
+.mining-empty button:hover:not(:disabled) {
+  border-color: var(--edge-strong);
+  background: var(--surface-high);
+  color: var(--ink);
+}
+
+.mining-quality-target button:disabled {
+  opacity: 0.45;
+}
+
+.mining-location-source {
+  display: inline-flex;
+  align-items: center;
+  flex: 0 0 auto;
+  gap: 6px;
+  color: var(--ink-soft);
+  font-size: 1rem;
+  white-space: nowrap;
+}
+
+.mining-location-source > span {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--success);
+}
+
+.mining-location-source--cached > span,
+.mining-location-source--game-cached > span {
+  background: var(--warning);
+}
+
+.mining-location-pane__body,
+.mining-composition-pane__body {
+  min-width: 0;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.mining-location-list {
+  min-width: 0;
+}
+
+.mining-location-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  border-bottom: 1px solid color-mix(in oklch, var(--edge) 65%, transparent);
+  background: var(--bg);
+  transition: background-color var(--duration-fast) var(--ease-out);
+}
+
+.mining-location-row:hover {
+  background: var(--surface);
+}
+
+.mining-location-row.is-selected,
+.mining-location-row.is-selected:hover {
+  background: var(--surface-selected);
+  box-shadow: inset 0 0 0 1px color-mix(in oklch, var(--accent) 58%, var(--edge));
+}
+
+.mining-location-row__main {
+  display: grid;
+  grid-template-columns: 25px minmax(0, 1fr) auto;
+  align-items: center;
+  width: 100%;
+  min-width: 0;
+  padding: 11px 12px 9px;
+  gap: 8px;
+  background: transparent;
+  color: var(--ink-soft);
+  text-align: left;
+}
+
+.mining-location-row__rank {
+  display: grid;
+  width: 23px;
+  height: 23px;
+  place-items: center;
+  border: 1px solid var(--edge);
+  border-radius: var(--radius-xs);
+  background: var(--bg);
+  color: var(--muted);
+  font-size: 1rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.mining-location-row.is-selected .mining-location-row__rank {
+  border-color: var(--edge-strong);
+  background: var(--accent-soft);
+  color: var(--accent-bright);
+}
+
+.mining-location-row__identity,
+.mining-location-row__identity > span,
+.mining-location-row__identity strong,
+.mining-location-row__identity > small,
+.mining-location-row__combined strong,
+.mining-location-row__combined small {
+  display: block;
+  min-width: 0;
+}
+
+.mining-location-row__identity > span {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.mining-location-row__identity strong {
+  overflow: hidden;
+  color: var(--ink);
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mining-location-row__identity > small {
+  margin-top: 4px;
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 1rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mining-location-row__identity-note {
+  flex: 0 0 auto;
+  padding: 1px 4px;
+  border: 1px solid var(--edge);
+  border-radius: var(--radius-xs);
+  color: var(--muted);
+  font-size: 1rem;
+  white-space: nowrap;
+}
+
+.mining-location-row__combined {
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.mining-location-row__combined strong {
+  color: var(--accent-bright);
+  font-weight: 650;
+}
+
+.mining-location-row__combined small {
+  margin-top: 3px;
+  color: var(--muted);
+  font-size: 1rem;
+}
+
+.mining-location-row__metrics {
+  display: grid;
+  grid-column: 2 / -1;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin-top: 9px;
+  border-top: 1px solid color-mix(in oklch, var(--edge) 65%, transparent);
+}
+
+.mining-location-row__metrics > span {
+  min-width: 0;
+  padding: 8px 8px 0 0;
+}
+
+.mining-location-row__metrics small,
+.mining-location-row__metrics strong {
+  display: block;
+  min-width: 0;
+}
+
+.mining-location-row__metrics small {
+  color: var(--muted);
+  font-size: 1rem;
+}
+
+.mining-location-row__metrics strong {
+  margin-top: 3px;
+  overflow: hidden;
+  color: var(--ink-soft);
+  font-size: 1rem;
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mining-location-row__favorite {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 62px;
+  height: 32px;
+  min-height: 31px;
+  margin-right: 10px;
+  padding: 0 8px;
+  gap: 6px;
+  border: 1px solid var(--edge);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--muted);
+  font-size: 1rem;
+}
+
+.mining-location-row__favorite:hover {
+  border-color: var(--edge-strong);
+  background: var(--surface-high);
+  color: var(--ink);
+}
+
+.mining-location-row__favorite.is-active {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  color: var(--accent-bright);
+}
+
+.mining-location-pane__footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 34px;
+  padding: 7px 12px;
+  gap: 12px;
+  border-top: 1px solid var(--edge);
+  background: var(--surface);
+  color: var(--muted);
+  font-size: 1rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.composition-preset-count {
+  flex: 0 0 auto;
+  color: var(--muted);
+  font-size: 1rem;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.composition-preset-count strong {
+  color: var(--accent-bright);
+}
+
+.composition-location-context {
+  display: flex;
+  align-items: flex-start;
+  padding: 14px 16px;
+  gap: 9px;
+  border-bottom: 1px solid var(--edge);
+  background: var(--surface);
+}
+
+.composition-location-context > svg {
+  flex: 0 0 auto;
+  margin-top: 1px;
+  color: var(--accent-bright);
+}
+
+.composition-location-context strong,
+.composition-location-context span {
+  display: block;
+}
+
+.composition-location-context strong {
+  color: var(--ink);
+  font-weight: 600;
+}
+
+.composition-location-context span {
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 1rem;
+}
+
+.mining-quality-outcomes {
+  border-bottom: 1px solid var(--edge);
+  background: var(--surface-low);
+}
+
+.mining-quality-outcomes summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 43px;
+  padding: 9px 16px;
+  gap: 12px;
+  color: var(--ink-soft);
+  cursor: pointer;
+  list-style: none;
+}
+
+.mining-quality-outcomes summary::-webkit-details-marker {
+  display: none;
+}
+
+.mining-quality-outcomes summary small {
+  color: var(--muted);
+  font-size: 1rem;
+}
+
+.mining-quality-outcomes[open] summary {
+  border-bottom: 1px solid var(--edge);
+}
+
+.mining-quality-outcomes > div {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(82px, 1fr));
+}
+
+.mining-quality-outcomes > div > span {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-width: 0;
+  padding: 8px 10px;
+  gap: 8px;
+  border-right: 1px solid var(--edge);
+  border-bottom: 1px solid var(--edge);
+  font-variant-numeric: tabular-nums;
+}
+
+.mining-quality-outcomes > div > span small {
+  color: var(--muted);
+}
+
+.mining-quality-outcomes > div > span strong {
+  color: var(--ink);
+  font-weight: 600;
+}
+
+.mining-rock-tabs {
+  position: sticky;
+  z-index: var(--z-sticky);
+  top: 0;
+  display: grid;
+  padding: 10px 12px;
+  gap: 7px;
+  border-bottom: 1px solid var(--edge-strong);
+  background: var(--surface);
+  color: var(--muted);
+}
+
+.mining-rock-tabs > span {
+  color: var(--ink-soft);
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.mining-rock-tabs > div {
+  display: flex;
+  min-width: 0;
+  gap: 5px;
+}
+
+.mining-rock-tabs button {
+  display: block;
+  min-width: 0;
+  min-height: 42px;
+  flex: 1 1 0;
+  padding: 6px 8px;
+  border: 1px solid var(--edge);
+  border-radius: var(--radius-sm);
+  background: var(--surface-low);
+  color: var(--ink-soft);
+  text-align: left;
+  transition:
+    border-color var(--duration-fast) var(--ease-out),
+    background-color var(--duration-fast) var(--ease-out),
+    color var(--duration-fast) var(--ease-out);
+}
+
+.mining-rock-tabs button:hover {
+  border-color: var(--edge-strong);
+  background: var(--surface-high);
+  color: var(--ink);
+}
+
+.mining-rock-tabs button.is-active {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  color: var(--accent-bright);
+}
+
+.mining-rock-tabs button strong,
+.mining-rock-tabs button small {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mining-rock-tabs button strong {
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.mining-rock-tabs button small {
+  margin-top: 3px;
+  color: var(--muted);
+  font-size: 1rem;
+}
+
+.mining-rock-tabs button.is-active small {
+  color: var(--ink-soft);
+}
+
+.mining-rock-detail__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  padding: 14px 16px;
+  gap: 14px;
+  border-bottom: 1px solid var(--edge);
+}
+
+.mining-rock-detail__header > div {
+  min-width: 0;
+}
+
+.mining-rock-detail__header h3 {
+  margin: 0;
+  overflow: hidden;
+  color: var(--ink);
+  font-size: 1rem;
+  font-weight: 650;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mining-rock-detail__header code {
+  display: block;
+  margin-top: 4px;
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 1rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mining-rock-detail__header > span {
+  flex: 0 0 auto;
+  color: var(--muted);
+  font-size: 1rem;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.mining-rock-detail__header > span strong {
+  color: var(--accent-bright);
+}
+
+.mining-rock-facts {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin: 0;
+  border-bottom: 1px solid var(--edge);
+  background: var(--surface-low);
+}
+
+.mining-rock-facts > div {
+  min-width: 0;
+  padding: 10px 16px;
+  border-right: 1px solid var(--edge);
+  border-bottom: 1px solid var(--edge);
+}
+
+.mining-rock-facts dt,
+.mining-composition-entry dt {
+  color: var(--muted);
+  font-size: 1rem;
+}
+
+.mining-rock-facts dd,
+.mining-composition-entry dd {
+  margin: 4px 0 0;
+  color: var(--ink-soft);
+  font-variant-numeric: tabular-nums;
+  line-height: 1.35;
+}
+
+.mining-composition-list__heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  gap: 12px;
+  border-bottom: 1px solid var(--edge);
+  background: var(--surface);
+}
+
+.mining-composition-list__heading strong {
+  color: var(--ink);
+  font-weight: 650;
+}
+
+.mining-composition-list__heading span {
+  color: var(--muted);
+  font-size: 1rem;
+}
+
+.mining-composition-entry {
+  border-bottom: 1px solid color-mix(in oklch, var(--edge) 65%, transparent);
+  background: var(--bg);
+}
+
+.mining-composition-entry.is-target {
+  background: color-mix(in oklch, var(--surface-selected) 52%, var(--bg));
+}
+
+.mining-composition-entry > header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  padding: 11px 16px 9px;
+  gap: 12px;
+}
+
+.mining-composition-entry > header strong,
+.mining-composition-entry > header span {
+  display: block;
+}
+
+.mining-composition-entry > header strong {
+  color: var(--ink);
+  font-weight: 600;
+}
+
+.mining-composition-entry > header div > span,
+.mining-composition-entry > header > span {
+  margin-top: 3px;
+  color: var(--muted);
+  font-size: 1rem;
+}
+
+.mining-composition-entry.is-target > header div > span {
+  color: var(--accent-bright);
+}
+
+.mining-composition-entry > dl {
+  margin: 0;
+  border-top: 1px solid color-mix(in oklch, var(--edge) 55%, transparent);
+}
+
+.mining-composition-entry > dl > div {
+  min-width: 0;
+  padding: 10px 16px 12px;
+}
+
+.mining-composition-entry small {
+  display: block;
+  margin-top: 3px;
+  color: var(--muted);
+  font-size: 1rem;
+}
+
+.mining-quality-values {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(64px, 1fr));
+  gap: 6px;
+}
+
+.mining-quality-values > span {
+  display: block;
+  min-width: 0;
+  padding: 7px 8px;
+  border: 1px solid var(--edge);
+  border-radius: var(--radius-xs);
+  background: var(--surface-low);
+  text-align: center;
+}
+
+.mining-quality-values strong,
+.mining-quality-values small,
+.mining-quality-fallback strong,
+.mining-quality-fallback small {
+  display: block;
+}
+
+.mining-quality-values strong {
+  overflow: hidden;
+  color: var(--accent-bright);
+  font-weight: 650;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mining-quality-values small {
+  margin-top: 3px;
+  color: var(--ink-soft);
+  font-size: 1rem;
+}
+
+.mining-quality-fallback strong {
+  color: var(--ink-soft);
+  font-weight: 600;
+  line-height: 1.45;
+}
+
+.mining-empty {
+  display: flex;
+  align-items: center;
+  flex-direction: column;
+  justify-content: center;
+  min-height: 210px;
+  padding: 28px 20px;
+  color: var(--muted);
+  text-align: center;
+}
+
+.mining-empty > strong {
+  margin-top: 10px;
+  color: var(--ink-soft);
+  font-weight: 600;
+}
+
+.mining-empty > span {
+  max-width: 34ch;
+  margin-top: 5px;
+  line-height: 1.4;
+}
+
+.mining-empty > button {
+  margin-top: 13px;
+}
+
+.mining-location-skeleton {
+  overflow: hidden;
+}
+
+.mining-location-skeleton > span {
+  display: grid;
+  grid-template-columns: 24px minmax(0, 1fr) 62px;
+  align-items: center;
+  min-width: 0;
+  height: 126px;
+  padding: 12px;
+  gap: 9px;
+  border-bottom: 1px solid var(--edge);
+}
+
+.mining-location-skeleton i,
+.mining-composition-skeleton > span {
+  display: block;
+  height: 9px;
+  border-radius: var(--radius-xs);
+  background: var(--surface-high);
+  animation: location-skeleton-pulse 1.2s ease-in-out infinite;
+}
+
+.mining-location-skeleton i:first-child {
+  width: 23px;
+  height: 23px;
+}
+
+.mining-location-skeleton i:nth-child(3) {
+  justify-self: end;
+  width: 55px;
+}
+
+.mining-location-skeleton i:last-child {
+  grid-column: 2 / -1;
+  width: 82%;
+}
+
+.mining-composition-skeleton {
+  padding: 16px;
+}
+
+.mining-composition-skeleton > span {
+  height: 42px;
+}
+
+.mining-composition-skeleton > span + span {
+  height: 104px;
+  margin-top: 10px;
+}
+
+.overlay-settings {
+  min-width: 0;
+  padding: 18px;
+}
+
+.overlay-settings__controls {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin-top: 14px;
+  overflow: hidden;
+  gap: 1px;
+  border: 1px solid var(--edge);
+  border-radius: var(--radius-md);
+  background: var(--edge);
+}
+
+.overlay-settings__controls .control-group {
+  min-width: 0;
+}
+
+.settings-section--overlay .preview-stage {
+  min-width: 0;
+}
+
+.app-shell--large-type .overlay-settings__controls {
+  grid-template-columns: minmax(0, 1fr);
+}
+
 .blueprint-inline-empty {
   padding: 16px;
   color: var(--muted);
@@ -5009,6 +5984,88 @@ a.mission-row:hover {
 }
 
 @media (max-width: 1040px) {
+  .mining-workspace {
+    grid-template-columns: minmax(230px, 0.64fr) minmax(285px, 0.82fr) minmax(345px, 1.14fr);
+    padding: 8px;
+    gap: 8px;
+  }
+
+  .app-shell--large-type .mining-ore-pane .mining-pane__header {
+    flex-wrap: nowrap;
+  }
+
+  .app-shell--large-type .mining-ore-pane .mining-pane__header p {
+    display: none;
+  }
+
+  .app-shell--large-type .ore-selection-summary {
+    grid-template-columns: none;
+    justify-items: end;
+    width: auto;
+  }
+
+  .app-shell--large-type .ore-data-actions {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .app-shell--large-type .ore-filter-strip {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .app-shell--large-type .ore-filter-strip {
+    display: grid;
+  }
+
+  .app-shell--large-type .ore-tools,
+  .app-shell--large-type .ore-filter-deck {
+    padding: 8px;
+    gap: 8px;
+  }
+
+  .app-shell--large-type .ore-data-actions .icon-text-button,
+  .app-shell--large-type .ore-filter-strip button {
+    padding-inline: 4px;
+    line-height: 1.15;
+    white-space: normal;
+  }
+
+  .app-shell--large-type .ore-row__main {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .app-shell--large-type .ore-row__signature {
+    display: block;
+    text-align: left;
+  }
+
+  .app-shell--large-type .ore-row__signature strong {
+    margin-top: 3px;
+  }
+
+  .app-shell--large-type .mining-location-pane .mining-pane__header {
+    flex-wrap: wrap;
+  }
+
+  .app-shell--large-type .mining-location-pane .mining-location-source {
+    flex-basis: 100%;
+    padding-left: 38px;
+    white-space: normal;
+  }
+
+  .app-shell--large-type .mining-quality-outcomes > div > span {
+    display: grid;
+    justify-content: start;
+    gap: 2px;
+  }
+
+  .mining-pane__header {
+    padding-inline: 13px;
+  }
+
+  .overlay-settings__controls {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
   .workspace {
     grid-template-columns: minmax(500px, 1.05fr) minmax(380px, 0.95fr);
   }

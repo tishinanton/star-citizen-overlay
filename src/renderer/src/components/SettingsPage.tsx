@@ -22,19 +22,24 @@ import {
   DEFAULT_APP_FONT_SIZE,
   MAX_APP_FONT_SIZE,
   MIN_APP_FONT_SIZE,
+  type AppSnapshot,
   type CloudSyncState,
+  type OverlaySettingsPatch,
   type StarStringsSyncState,
   type StaticDataSyncState
 } from '../../../shared/contracts'
 import type {
   LanControlConfig,
   LanControlState,
+  LanOverlayCommandV1,
   LanPairingSession
 } from '../../../shared/lan-control'
 import { canShowAdminCloudSettings } from '../lib/cloud-admin-visibility'
 import LanControlSettings from './LanControlSettings'
+import OverlaySettings from './OverlaySettings'
 
 interface SettingsPageProps {
+  snapshot: AppSnapshot
   fontSize: number
   apiUrl: string
   lanConfig: LanControlConfig
@@ -49,6 +54,9 @@ interface SettingsPageProps {
   onCancelLanPairing: () => Promise<void>
   onRevokeLanClient: (clientId: string) => Promise<void>
   onResetLanIdentity: () => Promise<void>
+  onUpdateSettings: (patch: OverlaySettingsPatch) => Promise<void>
+  onExecuteOverlayCommand: (command: LanOverlayCommandV1) => Promise<void>
+  onSetShortcutCapture: (active: boolean) => Promise<void>
   onBeginCloudLogin: () => void
   onCompleteCloudLogin: (handoffCode: string) => void
   onCancelCloudLogin: () => void
@@ -60,6 +68,7 @@ interface SettingsPageProps {
 }
 
 export default function SettingsPage({
+  snapshot,
   fontSize,
   apiUrl,
   lanConfig,
@@ -74,6 +83,9 @@ export default function SettingsPage({
   onCancelLanPairing,
   onRevokeLanClient,
   onResetLanIdentity,
+  onUpdateSettings,
+  onExecuteOverlayCommand,
+  onSetShortcutCapture,
   onBeginCloudLogin,
   onCompleteCloudLogin,
   onCancelCloudLogin,
@@ -136,11 +148,17 @@ export default function SettingsPage({
           <div>
             <h1>Settings</h1>
             <p>
-              Control Rockfall&apos;s display, phone pairing, cloud connection, and game
-              integrations.
+              Control the in-game overlay, phone pairing, cloud connection, and game integrations.
             </p>
           </div>
         </header>
+
+        <OverlaySettings
+          snapshot={snapshot}
+          onUpdateSettings={onUpdateSettings}
+          onExecuteOverlayCommand={onExecuteOverlayCommand}
+          onSetShortcutCapture={onSetShortcutCapture}
+        />
 
         <LanControlSettings
           config={lanConfig}

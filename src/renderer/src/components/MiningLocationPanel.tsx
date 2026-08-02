@@ -1,5 +1,5 @@
-import { Fragment, useState } from 'react'
-import { ChevronDown, Layers3, MapPin, RefreshCw, Star, TriangleAlert } from 'lucide-react'
+import { useState } from 'react'
+import { Layers3, MapPin, RefreshCw, Star, TriangleAlert } from 'lucide-react'
 
 import type {
   MiningLocationRecommendation,
@@ -23,7 +23,7 @@ const SOURCE_LABELS: Record<MiningLocationSourceState, string> = {
 }
 
 interface MiningLocationPanelProps {
-  material: MiningMaterial
+  material: MiningMaterial | null
   loading: boolean
   result: MiningLocationResult | null
   error: string | null
@@ -45,420 +45,593 @@ export default function MiningLocationPanel({
   onQualityThresholdChange,
   onRetry
 }: MiningLocationPanelProps): React.JSX.Element {
-  const [draftThreshold, setDraftThreshold] = useState(qualityThreshold)
-  const [expandedLocationId, setExpandedLocationId] = useState<string | null>(null)
+  const [selection, setSelection] = useState<{
+    materialId: string | null
+    locationId: string | null
+    rockTypeId: string | null
+  }>({ materialId: null, locationId: null, rockTypeId: null })
   const locations = result?.locations ?? []
-  const topProbability =
-    locations.find(
-      (location) => location.combinedProbability !== null && location.combinedProbability > 0
-    )?.combinedProbability ?? 0
-  const panelId = `mining-location-panel-${material.id}`
-  const titleId = `${panelId}-title`
+  const selectedLocationId = selection.materialId === material?.id ? selection.locationId : null
+  const preferredLocation =
+    locations.find((location) => location.id === selectedLocationId) ??
+    locations.find((location) => location.id === favoriteLocationId) ??
+    locations[0] ??
+    null
+  const selectedRockTypeId =
+    selection.materialId === material?.id && selection.locationId === preferredLocation?.id
+      ? selection.rockTypeId
+      : null
+  const selectedRockType =
+    preferredLocation?.rockTypes.find((rockType) => rockType.id === selectedRockTypeId) ??
+    preferredLocation?.rockTypes[0] ??
+    null
+  const panelId = `mining-location-panel-${material?.id ?? 'empty'}`
+  const compositionId = `${panelId}-composition`
   const activeThreshold = result?.qualityThreshold ?? qualityThreshold
 
   return (
-    <section
-      id={panelId}
-      className="mining-location-panel"
-      aria-labelledby={titleId}
-      aria-busy={loading}
-    >
-      <header className="mining-location-panel__header">
-        <span className="mining-location-panel__icon" aria-hidden="true">
-          <MapPin size={17} />
-        </span>
-        <div>
-          <h2 id={titleId}>All {material.name} mining sites</h2>
-          <p>
-            Sites are ordered by the chance to find a rock with any {material.name} composition
-            entry at or above the target. Expand a site to inspect its rock presets and slots.
-          </p>
-        </div>
-        <div className="mining-quality-target">
-          <label htmlFor={`${panelId}-quality-target`}>
-            Quality target
-            <input
-              id={`${panelId}-quality-target`}
-              type="range"
-              min="0"
-              max="1000"
-              step="1"
-              value={draftThreshold}
-              onChange={(event) => setDraftThreshold(Number(event.target.value))}
-            />
-          </label>
-          <div>
-            <input
-              type="number"
-              min="0"
-              max="1000"
-              step="1"
-              aria-label="Raw mining quality target"
-              value={draftThreshold}
-              onChange={(event) => {
-                const value = Number(event.target.value)
-                if (Number.isFinite(value)) {
-                  setDraftThreshold(Math.min(1_000, Math.max(0, Math.round(value))))
-                }
-              }}
-            />
-            <button
-              type="button"
-              disabled={loading || draftThreshold === qualityThreshold}
-              onClick={() => onQualityThresholdChange(draftThreshold)}
-            >
-              Apply
-            </button>
+    <>
+      <section
+        id={panelId}
+        className="mining-pane mining-location-pane"
+        aria-labelledby={`${panelId}-title`}
+        aria-busy={loading}
+      >
+        <header className="mining-pane__header">
+          <div className="mining-pane__identity">
+            <span className="mining-pane__step" aria-hidden="true">
+              2
+            </span>
+            <div>
+              <h2 id={`${panelId}-title`}>Location</h2>
+              <p>
+                {material ? `Ranked sites for ${material.name}.` : 'Select an ore to view sites.'}
+              </p>
+            </div>
           </div>
-        </div>
-      </header>
+          {result && !loading && !error && (
+            <span className={`mining-location-source mining-location-source--${result.state}`}>
+              <span aria-hidden="true" />
+              {SOURCE_LABELS[result.state]}
+            </span>
+          )}
+        </header>
 
-      <div className="mining-location-panel__body" aria-live="polite">
-        {loading && <LocationSkeleton />}
-
-        {!loading && error && (
-          <div className="mining-location-panel__state" role="alert">
-            <TriangleAlert size={20} />
-            <strong>Location data unavailable</strong>
-            <span>{error}</span>
-            <button type="button" onClick={onRetry}>
-              <RefreshCw size={13} />
-              Retry
-            </button>
-          </div>
+        {material && (
+          <QualityTarget
+            key={`${material.id}-${qualityThreshold}`}
+            panelId={panelId}
+            loading={loading}
+            qualityThreshold={qualityThreshold}
+            onChange={onQualityThresholdChange}
+          />
         )}
 
-        {!loading && !error && result && locations.length === 0 && (
-          <div className="mining-location-panel__state">
-            <MapPin size={20} />
-            <strong>No mining sites reported</strong>
-            <span>The current data source has no location records for this material.</span>
-          </div>
-        )}
-
-        {!loading && !error && locations.length > 0 && (
-          <div className="mining-location-table-wrap">
-            <table className="mining-location-table">
-              <thead>
-                <tr>
-                  <th scope="col" aria-label="Rank">
-                    #
-                  </th>
-                  <th scope="col">Site</th>
-                  <th scope="col">Find rock</th>
-                  <th scope="col">Any entry ≥{activeThreshold}</th>
-                  <th scope="col">Combined</th>
-                  <th scope="col">Quality</th>
-                  <th scope="col">Overlay</th>
-                </tr>
-              </thead>
-              <tbody>
-                {locations.map((location, index) => {
-                  const isFavorite = favoriteLocationId === location.id
-                  const isLocationExpanded = expandedLocationId === location.id
-                  const rockDetailsId = `${panelId}-rocks-${index}`
-                  return (
-                    <Fragment key={location.id}>
-                      <tr
-                        className={[index === 0 ? 'is-best' : '', isFavorite ? 'is-favorite' : '']
-                          .filter(Boolean)
-                          .join(' ')}
-                      >
-                        <td className="mining-location-table__rank">
-                          <span aria-label={`Rank ${index + 1}`}>{index + 1}</span>
-                        </td>
-                        <th className="mining-location-table__site" scope="row">
-                          <span className="mining-location-table__site-name">
-                            <strong>{location.name}</strong>
-                            {location.area && (
-                              <span>
-                                <MapPin size={10} />
-                                {location.area}
-                              </span>
-                            )}
-                            {location.identitySource === 'game-wiki' && (
-                              <span
-                                className="mining-location-table__identity-note"
-                                title="Site values are from installed game data; the Star Citizen Wiki supplied only this location's name because the game archive could not tie this provider to a single named location."
-                              >
-                                name via Wiki
-                              </span>
-                            )}
-                          </span>
-                          <small>{formatLocationContext(location)}</small>
-                        </th>
-                        <ProbabilityCell
-                          className="mining-location-table__rock-probability"
-                          value={location.rockSpawnProbability}
-                          caption="per spawn"
-                          title={`Estimated chance that a mining spawn at ${location.name} selects ${material.name}.`}
-                        />
-                        <ProbabilityCell
-                          className="mining-location-table__quality-probability"
-                          value={location.qualityThresholdProbability}
-                          caption="among entries"
-                          title={`Conditional chance that at least one ${material.name} composition entry in a found rock reaches quantized quality ${activeThreshold} or higher.`}
-                        />
-                        <td
-                          className={[
-                            'mining-location-table__probability',
-                            location.combinedProbability === null ? 'is-unavailable' : ''
-                          ]
-                            .filter(Boolean)
-                            .join(' ')}
-                          title={`Combined chance: find a rock containing ${material.name} with at least one composition entry at quantized quality ${activeThreshold} or higher.`}
-                        >
-                          <strong>
-                            {location.combinedProbability === null
-                              ? 'Unavailable'
-                              : formatMiningProbability(location.combinedProbability)}
-                          </strong>
-                          <small>both</small>
-                          {location.combinedProbability !== null && (
-                            <span className="mining-location-table__meter" aria-hidden="true">
-                              <span
-                                style={{
-                                  width:
-                                    topProbability > 0
-                                      ? `${Math.max(
-                                          location.combinedProbability > 0 ? 3 : 0,
-                                          (location.combinedProbability / topProbability) * 100
-                                        )}%`
-                                      : '0%'
-                                }}
-                              />
-                            </span>
-                          )}
-                        </td>
-                        <td className="mining-location-table__yield">
-                          <strong>{formatMiningQualityRange(location)}</strong>
-                          <small>{formatMiningCompositionRange(location)} target share</small>
-                          {location.rockTypes.length > 0 ? (
-                            <button
-                              className="mining-location-table__rock-toggle"
-                              type="button"
-                              aria-expanded={isLocationExpanded}
-                              aria-controls={rockDetailsId}
-                              aria-label={`Inspect ${location.rockTypes.length} ${location.rockTypes.length === 1 ? 'rock preset' : 'rock presets'} at ${location.name}`}
-                              title={`Inspect every rock preset and composition entry for ${location.name}.`}
-                              onClick={() =>
-                                setExpandedLocationId(isLocationExpanded ? null : location.id)
-                              }
+        <div className="mining-location-pane__body" aria-live="polite">
+          {!material && (
+            <MiningEmpty
+              icon={<MapPin size={21} />}
+              title="Choose an ore"
+              message="Its ranked mining sites will appear here."
+            />
+          )}
+          {material && loading && <LocationSkeleton />}
+          {material && !loading && error && (
+            <MiningEmpty
+              alert
+              icon={<TriangleAlert size={21} />}
+              title="Location data unavailable"
+              message={error}
+              action={
+                <button type="button" onClick={onRetry}>
+                  <RefreshCw size={13} />
+                  Retry
+                </button>
+              }
+            />
+          )}
+          {material && !loading && !error && result && locations.length === 0 && (
+            <MiningEmpty
+              icon={<MapPin size={21} />}
+              title="No mining sites reported"
+              message="The current data source has no location records for this ore."
+            />
+          )}
+          {material && !loading && !error && locations.length > 0 && (
+            <div className="mining-location-list" role="list">
+              {locations.map((location, index) => {
+                const isSelected = preferredLocation?.id === location.id
+                const isFavorite = favoriteLocationId === location.id
+                return (
+                  <article
+                    className={[
+                      'mining-location-row',
+                      isSelected ? 'is-selected' : '',
+                      isFavorite ? 'is-favorite' : ''
+                    ]
+                      .filter(Boolean)
+                      .join(' ')}
+                    role="listitem"
+                    key={location.id}
+                  >
+                    <button
+                      className="mining-location-row__main"
+                      type="button"
+                      aria-current={isSelected ? 'true' : undefined}
+                      aria-controls={compositionId}
+                      onClick={() => {
+                        setSelection({
+                          materialId: material.id,
+                          locationId: location.id,
+                          rockTypeId: location.rockTypes[0]?.id ?? null
+                        })
+                      }}
+                    >
+                      <span className="mining-location-row__rank">{index + 1}</span>
+                      <span className="mining-location-row__identity">
+                        <span>
+                          <strong>{location.name}</strong>
+                          {location.identitySource === 'game-wiki' && (
+                            <small
+                              className="mining-location-row__identity-note"
+                              title="Values are from installed game data; the Wiki supplied this location name."
                             >
-                              <Layers3 size={11} aria-hidden="true" />
-                              {location.rockTypes.length}{' '}
-                              {location.rockTypes.length === 1 ? 'rock preset' : 'rock presets'}
-                              <ChevronDown size={11} aria-hidden="true" />
-                            </button>
-                          ) : (
-                            <small>Rock composition unavailable</small>
+                              name via Wiki
+                            </small>
                           )}
-                        </td>
-                        <td className="mining-location-table__favorite">
-                          <button
-                            className={isFavorite ? 'is-active' : ''}
-                            type="button"
-                            aria-pressed={isFavorite}
-                            aria-label={`${isFavorite ? 'Remove' : 'Set'} ${location.name} as the favorite mining site for ${material.name}`}
-                            title={
-                              isFavorite
-                                ? 'Use the highest-ranked site in the overlay'
-                                : 'Use this site in the overlay'
-                            }
-                            onClick={() => onFavoriteChange(isFavorite ? null : location.id)}
-                          >
-                            <Star size={13} fill={isFavorite ? 'currentColor' : 'none'} />
-                            {isFavorite ? 'Using' : 'Use'}
-                          </button>
-                        </td>
-                      </tr>
-                      {isLocationExpanded && (
-                        <tr className="mining-location-table__rock-row">
-                          <td colSpan={7}>
-                            <RockTypeDrilldown
-                              id={rockDetailsId}
-                              location={location}
-                              materialName={material.name}
-                            />
-                          </td>
-                        </tr>
-                      )}
-                    </Fragment>
-                  )
-                })}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
+                        </span>
+                        <small>
+                          {location.area ? `${location.area} · ` : ''}
+                          {formatLocationContext(location)}
+                        </small>
+                      </span>
+                      <span className="mining-location-row__combined">
+                        <strong>
+                          {location.combinedProbability === null
+                            ? 'Unavailable'
+                            : formatMiningProbability(location.combinedProbability)}
+                        </strong>
+                        <small>combined</small>
+                      </span>
+                      <span className="mining-location-row__metrics">
+                        <span>
+                          <small>Find rock</small>
+                          <strong>
+                            {location.rockSpawnProbability === null
+                              ? 'Unavailable'
+                              : formatMiningProbability(location.rockSpawnProbability)}
+                          </strong>
+                        </span>
+                        <span>
+                          <small>Entry ≥{activeThreshold}</small>
+                          <strong>
+                            {location.qualityThresholdProbability === null
+                              ? 'Unavailable'
+                              : formatMiningProbability(location.qualityThresholdProbability)}
+                          </strong>
+                        </span>
+                        <span>
+                          <small>Raw quality</small>
+                          <strong>{formatMiningQualityRange(location)}</strong>
+                        </span>
+                        <span>
+                          <small>Target share</small>
+                          <strong>{formatMiningCompositionRange(location)}</strong>
+                        </span>
+                      </span>
+                    </button>
+                    <button
+                      className={`mining-location-row__favorite ${isFavorite ? 'is-active' : ''}`}
+                      type="button"
+                      aria-pressed={isFavorite}
+                      aria-label={`${isFavorite ? 'Clear' : 'Use'} ${location.name} as the overlay site`}
+                      title={
+                        isFavorite
+                          ? 'Use the highest-ranked site in the overlay'
+                          : `Use ${location.name} in the overlay`
+                      }
+                      onClick={() => onFavoriteChange(isFavorite ? null : location.id)}
+                    >
+                      <Star size={13} fill={isFavorite ? 'currentColor' : 'none'} />
+                      {isFavorite ? 'Using' : 'Use'}
+                    </button>
+                  </article>
+                )
+              })}
+            </div>
+          )}
+        </div>
 
-      {result && !loading && !error && (
-        <footer className="mining-location-panel__footer" title={result.message}>
-          <span className={`mining-location-source mining-location-source--${result.state}`}>
-            <span />
-            {SOURCE_LABELS[result.state]}
-          </span>
-          <span>
-            {locations.length} reported {locations.length === 1 ? 'site' : 'sites'} · static game
-            rules · quality target {activeThreshold}
-          </span>
-        </footer>
-      )}
-    </section>
+        {result && !loading && !error && (
+          <footer className="mining-location-pane__footer" title={result.message}>
+            <span>
+              {locations.length} {locations.length === 1 ? 'site' : 'sites'}
+            </span>
+            <span>Quality target {activeThreshold}</span>
+          </footer>
+        )}
+      </section>
+
+      <section
+        id={compositionId}
+        className="mining-pane mining-composition-pane"
+        aria-labelledby={`${compositionId}-title`}
+        aria-busy={loading}
+      >
+        <header className="mining-pane__header">
+          <div className="mining-pane__identity">
+            <span className="mining-pane__step" aria-hidden="true">
+              3
+            </span>
+            <div>
+              <h2 id={`${compositionId}-title`}>Composition</h2>
+              <p>
+                {preferredLocation
+                  ? `${preferredLocation.name} rock presets and entries.`
+                  : 'Select a location to inspect its rocks.'}
+              </p>
+            </div>
+          </div>
+          {preferredLocation && (
+            <span className="composition-preset-count">
+              <strong>{preferredLocation.rockTypes.length}</strong>{' '}
+              {preferredLocation.rockTypes.length === 1 ? 'preset' : 'presets'}
+            </span>
+          )}
+        </header>
+
+        <div className="mining-composition-pane__body" aria-live="polite">
+          {!material && (
+            <MiningEmpty
+              icon={<Layers3 size={21} />}
+              title="No ore selected"
+              message="Choose an ore, then a mining site."
+            />
+          )}
+          {material && loading && <CompositionSkeleton />}
+          {material && !loading && error && (
+            <MiningEmpty
+              icon={<TriangleAlert size={21} />}
+              title="Composition unavailable"
+              message="Retry the location data to inspect rock presets."
+            />
+          )}
+          {material && !loading && !error && result && !preferredLocation && (
+            <MiningEmpty
+              icon={<Layers3 size={21} />}
+              title="No location selected"
+              message="Choose a reported mining site to inspect its composition."
+            />
+          )}
+          {preferredLocation && preferredLocation.rockTypes.length === 0 && (
+            <MiningEmpty
+              icon={<Layers3 size={21} />}
+              title="Rock composition unavailable"
+              message="This site has no reported rock presets."
+            />
+          )}
+          {material && preferredLocation && selectedRockType && (
+            <>
+              <div className="mining-rock-tabs">
+                <span>Rock preset</span>
+                <div role="group" aria-label={`Rock presets at ${preferredLocation.name}`}>
+                  {preferredLocation.rockTypes.map((rockType) => {
+                    const isSelected = rockType.id === selectedRockType.id
+                    return (
+                      <button
+                        key={rockType.id}
+                        type="button"
+                        className={isSelected ? 'is-active' : ''}
+                        aria-pressed={isSelected}
+                        title={`${rockType.name}, ${rockType.compositions.length} composition ${
+                          rockType.compositions.length === 1 ? 'entry' : 'entries'
+                        }`}
+                        onClick={() =>
+                          setSelection({
+                            materialId: material.id,
+                            locationId: preferredLocation.id,
+                            rockTypeId: rockType.id
+                          })
+                        }
+                      >
+                        <strong>{rockType.name}</strong>
+                        <small>
+                          {rockType.compositions.length}{' '}
+                          {rockType.compositions.length === 1 ? 'entry' : 'entries'}
+                        </small>
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+
+              <div className="composition-location-context">
+                <MapPin size={15} aria-hidden="true" />
+                <div>
+                  <strong>{preferredLocation.name}</strong>
+                  <span>
+                    {preferredLocation.area ? `${preferredLocation.area} · ` : ''}
+                    {formatLocationContext(preferredLocation)}
+                  </span>
+                </div>
+              </div>
+
+              {preferredLocation.quantizationProbabilities.length > 0 && (
+                <details className="mining-quality-outcomes">
+                  <summary>
+                    <span>Quality outcome distribution</span>
+                    <small>
+                      {preferredLocation.quantizationProbabilities.length} reported values
+                    </small>
+                  </summary>
+                  <div>
+                    {preferredLocation.quantizationProbabilities.map((outcome) => (
+                      <span key={outcome.quality}>
+                        <small>{integerFormatter.format(outcome.quality)}</small>
+                        <strong>{formatMiningProbability(outcome.probability)}</strong>
+                      </span>
+                    ))}
+                  </div>
+                </details>
+              )}
+
+              <RockTypeRecord rockType={selectedRockType} />
+            </>
+          )}
+        </div>
+      </section>
+    </>
   )
 }
 
-function RockTypeDrilldown({
-  id,
-  location,
-  materialName
+function QualityTarget({
+  panelId,
+  loading,
+  qualityThreshold,
+  onChange
 }: {
-  id: string
-  location: MiningLocationRecommendation
-  materialName: string
+  panelId: string
+  loading: boolean
+  qualityThreshold: number
+  onChange: (qualityThreshold: number) => void
 }): React.JSX.Element {
-  const targetEntryCount = location.rockTypes.reduce(
-    (count, rockType) =>
-      count + rockType.compositions.filter((composition) => composition.isTarget).length,
-    0
-  )
+  const [draftThreshold, setDraftThreshold] = useState(qualityThreshold)
+
   return (
-    <section id={id} className="mining-rock-browser" aria-label={`${location.name} rock presets`}>
-      <header className="mining-rock-browser__header">
+    <div className="mining-quality-target">
+      <label htmlFor={`${panelId}-quality-target`}>
         <span>
-          <Layers3 size={14} aria-hidden="true" />
-          <strong>
-            {location.rockTypes.length}{' '}
-            {location.rockTypes.length === 1 ? 'rock preset' : 'rock presets'} at {location.name}
-          </strong>
+          Quality target
+          <small>Raw game scale, 0-1000</small>
         </span>
-        <small>
-          {targetEntryCount} {materialName}{' '}
-          {targetEntryCount === 1 ? 'composition entry' : 'composition entries'}
-        </small>
-      </header>
-      <div className="mining-rock-browser__list">
-        {location.rockTypes.map((rockType) => (
-          <RockTypeRecord key={rockType.id} rockType={rockType} />
-        ))}
+        <input
+          id={`${panelId}-quality-target`}
+          type="range"
+          min="0"
+          max="1000"
+          step="1"
+          value={draftThreshold}
+          onChange={(event) => setDraftThreshold(Number(event.target.value))}
+        />
+      </label>
+      <div>
+        <input
+          type="number"
+          min="0"
+          max="1000"
+          step="1"
+          aria-label="Raw mining quality target"
+          value={draftThreshold}
+          onChange={(event) => {
+            const value = Number(event.target.value)
+            if (Number.isFinite(value)) {
+              setDraftThreshold(Math.min(1_000, Math.max(0, Math.round(value))))
+            }
+          }}
+        />
+        <button
+          type="button"
+          disabled={loading || draftThreshold === qualityThreshold}
+          onClick={() => onChange(draftThreshold)}
+        >
+          Apply
+        </button>
       </div>
-    </section>
+    </div>
   )
 }
 
 function RockTypeRecord({ rockType }: { rockType: MiningRockType }): React.JSX.Element {
   return (
-    <article className="mining-rock-type">
-      <header className="mining-rock-type__header">
+    <article className="mining-rock-detail">
+      <header className="mining-rock-detail__header">
         <div>
           <h3>{rockType.name}</h3>
           <code>{rockType.key}</code>
         </div>
-        <div className="mining-rock-type__facts">
+        {rockType.signature !== null && (
           <span>
-            {rockType.compositions.length} composition{' '}
-            {rockType.compositions.length === 1 ? 'slot' : 'slots'}
-            {rockType.minimumCompositionCount !== null
-              ? ` · minimum ${rockType.minimumCompositionCount}`
-              : ''}
+            Signature <strong>{integerFormatter.format(rockType.signature)}</strong>
           </span>
-          {rockType.signature !== null && (
-            <span>Signature {integerFormatter.format(rockType.signature)}</span>
-          )}
-          {rockType.groupProbability !== null && (
-            <span>Group roll {formatMiningProbability(rockType.groupProbability)}</span>
-          )}
-          {rockType.relativeProbability !== null && (
-            <span>{formatMiningProbability(rockType.relativeProbability)} within group</span>
-          )}
-          {rockType.cluster && (
-            <span>
-              {formatClusterSize(rockType.cluster.minSize, rockType.cluster.maxSize)} ·{' '}
-              {formatMiningProbability(rockType.cluster.probability)} clustered
-            </span>
-          )}
-        </div>
+        )}
       </header>
-      <div className="mining-rock-composition-wrap">
-        <table className="mining-rock-composition-table">
-          <thead>
-            <tr>
-              <th scope="col">Composition entry</th>
-              <th scope="col">Share</th>
-              <th scope="col">Raw quality</th>
-              <th scope="col">Scale</th>
-              <th scope="col">Quantized outputs</th>
-            </tr>
-          </thead>
-          <tbody>
-            {rockType.compositions.map((composition, index) => (
-              <CompositionRow
-                key={composition.id}
-                composition={composition}
-                slotNumber={index + 1}
-              />
-            ))}
-          </tbody>
-        </table>
+
+      <dl className="mining-rock-facts">
+        <RockFact
+          label="Composition"
+          value={`${rockType.compositions.length} ${
+            rockType.compositions.length === 1 ? 'entry' : 'entries'
+          }${
+            rockType.minimumCompositionCount !== null
+              ? `, minimum ${rockType.minimumCompositionCount}`
+              : ''
+          }`}
+        />
+        {rockType.groupProbability !== null && (
+          <RockFact label="Group roll" value={formatMiningProbability(rockType.groupProbability)} />
+        )}
+        {rockType.relativeProbability !== null && (
+          <RockFact
+            label="Within group"
+            value={formatMiningProbability(rockType.relativeProbability)}
+          />
+        )}
+        {rockType.cluster && (
+          <RockFact
+            label="Cluster"
+            value={`${formatClusterSize(
+              rockType.cluster.minSize,
+              rockType.cluster.maxSize
+            )}, ${formatMiningProbability(rockType.cluster.probability)} chance`}
+          />
+        )}
+      </dl>
+
+      <div className="mining-composition-list">
+        <div className="mining-composition-list__heading">
+          <strong>Composition entries</strong>
+          <span>
+            {rockType.compositions.length}{' '}
+            {rockType.compositions.length === 1 ? 'entry' : 'entries'}
+          </span>
+        </div>
+        {rockType.compositions.map((composition) => (
+          <CompositionRecord key={composition.id} composition={composition} />
+        ))}
       </div>
     </article>
   )
 }
 
-function CompositionRow({
-  composition,
-  slotNumber
+function RockFact({ label, value }: { label: string; value: string }): React.JSX.Element {
+  return (
+    <div>
+      <dt>{label}</dt>
+      <dd>{value}</dd>
+    </div>
+  )
+}
+
+function CompositionRecord({
+  composition
 }: {
   composition: MiningRockCompositionPart
-  slotNumber: number
 }): React.JSX.Element {
   return (
-    <tr className={composition.isTarget ? 'is-target' : ''}>
-      <th scope="row">
-        <span>{composition.name}</span>
-        <small>
-          Slot {slotNumber}
-          {composition.isTarget ? ' · selected ore' : ''}
-          {composition.probability !== null
-            ? ` · ${formatMiningProbability(composition.probability)} inclusion`
-            : ''}
-        </small>
-      </th>
-      <td>{formatOptionalRange(composition.minPercentage, composition.maxPercentage, '%')}</td>
-      <td>
-        <span>{formatOptionalRange(composition.minQuality, composition.maxQuality)}</span>
-        {(composition.meanQuality !== null || composition.qualityStdDev !== null) && (
-          <small>
-            μ {formatOptionalNumber(composition.meanQuality)} · σ{' '}
-            {formatOptionalNumber(composition.qualityStdDev)}
-          </small>
+    <article className={`mining-composition-entry ${composition.isTarget ? 'is-target' : ''}`}>
+      <header>
+        <div>
+          <strong>{composition.name}</strong>
+          <span>
+            {formatOptionalRange(composition.minPercentage, composition.maxPercentage, '%')} share
+            {composition.isTarget ? ' · selected ore' : ''}
+          </span>
+        </div>
+        {composition.probability !== null && (
+          <span>{formatMiningProbability(composition.probability)} inclusion</span>
         )}
-      </td>
-      <td>
-        <span>
-          {composition.qualityScale === null
-            ? 'Unavailable'
-            : `×${qualityValueFormatter.format(composition.qualityScale)}`}
+      </header>
+      <dl className="mining-composition-entry__quality">
+        <div>
+          <dt>Quality outcomes</dt>
+          <dd>
+            <CompositionQualityOutcomes composition={composition} />
+          </dd>
+        </div>
+      </dl>
+    </article>
+  )
+}
+
+function CompositionQualityOutcomes({
+  composition
+}: {
+  composition: MiningRockCompositionPart
+}): React.JSX.Element {
+  const quantizationProbabilities = composition.quantizationProbabilities ?? []
+  if (quantizationProbabilities.length > 0) {
+    return (
+      <span className="mining-quality-values">
+        {quantizationProbabilities.map((outcome) => (
+          <span key={outcome.quality}>
+            <strong>{integerFormatter.format(outcome.quality)}</strong>
+            <small>{formatMiningProbability(outcome.probability)}</small>
+          </span>
+        ))}
+      </span>
+    )
+  }
+
+  if (composition.quantizedValues.length > 0) {
+    return (
+      <span className="mining-quality-fallback">
+        <strong>
+          {composition.quantizedValues.map((value) => integerFormatter.format(value)).join(' · ')}
+        </strong>
+        <small>Probability unavailable</small>
+      </span>
+    )
+  }
+
+  return (
+    <span className="mining-quality-fallback">
+      <strong>{formatOptionalRange(composition.minQuality, composition.maxQuality)}</strong>
+      <small>Quantization unavailable</small>
+    </span>
+  )
+}
+
+function MiningEmpty({
+  icon,
+  title,
+  message,
+  action,
+  alert = false
+}: {
+  icon: React.ReactNode
+  title: string
+  message: string
+  action?: React.ReactNode
+  alert?: boolean
+}): React.JSX.Element {
+  return (
+    <div className="mining-empty" role={alert ? 'alert' : undefined}>
+      {icon}
+      <strong>{title}</strong>
+      <span>{message}</span>
+      {action}
+    </div>
+  )
+}
+
+function LocationSkeleton(): React.JSX.Element {
+  return (
+    <div className="mining-location-skeleton" aria-label="Loading mining locations">
+      {Array.from({ length: 5 }, (_, index) => (
+        <span key={index}>
+          <i />
+          <i />
+          <i />
+          <i />
         </span>
-        {composition.curveExponent !== null && (
-          <small>curve ×{qualityValueFormatter.format(composition.curveExponent)}</small>
-        )}
-      </td>
-      <td>
-        {composition.quantizedValues.length > 0
-          ? composition.quantizedValues.map((value) => integerFormatter.format(value)).join(' · ')
-          : 'Unavailable'}
-      </td>
-    </tr>
+      ))}
+    </div>
+  )
+}
+
+function CompositionSkeleton(): React.JSX.Element {
+  return (
+    <div className="mining-composition-skeleton" aria-label="Loading rock composition">
+      <span />
+      <span />
+      <span />
+      <span />
+    </div>
   )
 }
 
 const integerFormatter = new Intl.NumberFormat('en-US', { maximumFractionDigits: 0 })
 const qualityValueFormatter = new Intl.NumberFormat('en-US', { maximumFractionDigits: 3 })
-
-function formatOptionalNumber(value: number | null): string {
-  return value === null ? '—' : qualityValueFormatter.format(value)
-}
 
 function formatOptionalRange(minimum: number | null, maximum: number | null, suffix = ''): string {
   if (minimum === null && maximum === null) return 'Unavailable'
@@ -472,51 +645,9 @@ function formatOptionalRange(minimum: number | null, maximum: number | null, suf
 function formatClusterSize(minimum: number | null, maximum: number | null): string {
   if (minimum === null && maximum === null) return 'Cluster size unavailable'
   if (minimum === maximum) return `${integerFormatter.format(minimum ?? maximum ?? 0)} rocks`
-  return `${integerFormatter.format(minimum ?? 0)}–${integerFormatter.format(maximum ?? minimum ?? 0)} rocks`
-}
-
-function ProbabilityCell({
-  className,
-  value,
-  caption,
-  title
-}: {
-  className: string
-  value: number | null
-  caption: string
-  title: string
-}): React.JSX.Element {
-  return (
-    <td
-      className={[
-        className,
-        'mining-location-table__probability',
-        value === null ? 'is-unavailable' : ''
-      ]
-        .filter(Boolean)
-        .join(' ')}
-      title={title}
-    >
-      <strong>{value === null ? 'Unavailable' : formatMiningProbability(value)}</strong>
-      <small>{value === null ? 'incomplete' : caption}</small>
-    </td>
-  )
-}
-
-function LocationSkeleton(): React.JSX.Element {
-  return (
-    <div className="mining-location-skeleton" aria-label="Loading mining locations">
-      {Array.from({ length: 5 }, (_, index) => (
-        <span key={index}>
-          <i />
-          <i />
-          <i />
-          <i />
-          <i />
-        </span>
-      ))}
-    </div>
-  )
+  return `${integerFormatter.format(minimum ?? 0)}–${integerFormatter.format(
+    maximum ?? minimum ?? 0
+  )} rocks`
 }
 
 function formatLocationContext(location: MiningLocationRecommendation): string {

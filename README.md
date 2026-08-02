@@ -65,10 +65,7 @@ and as a full fallback (commodity list, mining-quality distributions, and
 site data) when no usable installed game archive/catalog exists. Extracted
 results are cached by game-archive version. If local extraction is
 unavailable, Rockfall falls back to Wiki, cached, and finally bundled
-signatures in that order. Any material can also use a locally persisted
-manual signature correction. Corrected values are marked with `*` in the
-control window and overlay, and can be reset to the current source value at
-any time.
+signatures in that order.
 
 The blueprint workspace depends only on installed game files. Derived records
 are cached against the selected archive fingerprint for faster subsequent
@@ -102,24 +99,19 @@ capability contract, then confirms and atomically publishes one release. The
 control is absent for ordinary users. Wiki location data and local ownership or
 log state are never included.
 
-The **Sites** action loads the selected material's detailed deposit data and
-ranks every reported location by the combined chance of finding that material
-at the user's persisted raw quality target (`0`–`1000`). Each row separates the
-rock spawn chance, the conditional chance of meeting the quality target after
-the rock spawns, and their combined probability. Quality uses raw game values,
-while material composition remains a percentage range. Expand a row's
-quantization details to see every possible mapped quality value and its
-conditional probability. When independent groups can spawn the material
-together, this is the distribution of the best result. The estimate combines spawn-group probability,
-relative deposit probability, quality distribution, quantization, and any
-boosted area modifier. Location results are cached per quality target and
-identify when cached data is being shown. Sites expand inline beneath their
-material so all ranked locations can be compared in one table. Expand a
-location to inspect every rock preset that can contain the selected ore and
-each ordered composition slot, including duplicate material slots with
-different percentage and quality ranges. Star one
-location per material to show it in the overlay; clearing the star, or an
-unavailable saved location, falls back to the highest-ranked site.
+Selecting an ore loads its detailed deposit data in the adjacent **Location**
+column and ranks every reported site by the combined chance of finding that
+material at the user's persisted raw quality target (`0`–`1000`). Each site
+separates the rock spawn chance, conditional quality chance, combined
+probability, raw quality range, and target composition range. Selecting a site
+opens its **Composition** column, where one rock preset at a time exposes every
+composition entry, share range, inclusion chance, and the probability of each
+quantized quality outcome. The estimate combines
+spawn-group probability, relative deposit probability, quality distribution,
+quantization, and any boosted area modifier. Results are cached per quality
+target and identify cached sources explicitly. Star one location per material
+to show it in the overlay; clearing the star, or an unavailable saved location,
+falls back to the highest-ranked site.
 
 The UEX API is useful for prices, routes, locations, and refinery planning, but
 it does not expose scanner signatures.
@@ -134,16 +126,12 @@ Complete endpoint inventories:
 ## Controls
 
 The control window has dedicated **Mining**, **Blueprints**, **Factions**, and
-**Settings** tabs. Mining supports material search and mining-method filters,
-overlay position, opacity, font size, cluster range, compact mode, visibility,
-the persisted raw site-quality target, game-data selection, and data refresh.
-Each material row also exposes a
-contextual signature correction editor; cluster values recalculate from the
-corrected base immediately. Font size ranges from 80% to 160%; the native
-overlay resizes with the readout so larger text remains fully visible. Changes
-are persisted in Electron's per-user application data directory. Selected ores
-stay pinned above filtered results, **Sites** expands the ranked mining-location
-table, and **Clear overlay** removes every target at once.
+**Settings** tabs. Mining uses persistent **Ore**, **Location**, and
+**Composition** columns so each selection updates the detail to its right
+without expanding the page. Ore search, mining-method filters, overlay target
+selection, the persisted raw site-quality target, game-data selection, and data
+refresh remain in this workspace. Selected ores stay pinned above filtered
+results, and **Clear** removes every overlay target at once.
 
 Blueprint controls keep every item category visible in a wrapping filter row,
 alongside independent Collection and Access filters. **Owned** shows default,
@@ -157,10 +145,12 @@ with lawful and unlawful roster filters. Arrow keys move through the faction
 list, and the detail pane keeps every named standing requirement in aligned,
 scrollable tables.
 
-The **Settings** workspace exposes cloud connection state, manual sync, Discord
-sign-in and sign-out, and the Rockfall Cloud API URL. Enter the service root,
-Swagger page, or OpenAPI document; Rockfall normalizes documentation URLs to
-their service origin. Changing endpoints clears the current local cloud session.
+The **Settings** workspace contains the live overlay preview, cluster range,
+overlay font scale, opacity, screen position, compact mode, and global shortcut
+bindings. It also exposes cloud connection state, manual sync, Discord sign-in
+and sign-out, and the Rockfall Cloud API URL. Enter the service root, Swagger
+page, or OpenAPI document; Rockfall normalizes documentation URLs to their
+service origin. Changing endpoints clears the current local cloud session.
 Loopback HTTP and self-signed HTTPS certificates are accepted only for local
 development.
 
@@ -198,7 +188,7 @@ Global shortcuts remain active while Star Citizen has focus:
 | `Ctrl` + `Shift` + `A` | Return to all selected targets     |
 | `Ctrl` + `Shift` + `C` | Toggle compact layout              |
 
-Click any binding in **Global controls** and press a replacement key
+In Settings, select any binding under **Global controls** and press a replacement key
 combination. Function keys can be used alone; regular keys require Ctrl, Alt,
 or Shift. The app reports when another program has already claimed a shortcut.
 

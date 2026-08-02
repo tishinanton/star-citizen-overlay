@@ -256,8 +256,26 @@ where those states apply.
 
 - **Style:** A compact tab rail beneath the persistent header switches between
   Mining, Blueprints, Factions, and Settings. The active task uses a two-pixel
-  Scanner Cyan indicator; inactive tasks remain neutral. Overlay controls stay
-  available in the header across every workspace.
+  Scanner Cyan indicator; inactive tasks remain neutral. Overlay visibility
+  stays available in the header; its preview and configuration live in Settings.
+
+### Mining Workspace
+
+- **Structure:** Three persistent columns follow the decision path: Ore,
+  Location, and Composition. Selecting an ore updates the ranked locations;
+  selecting a location updates its rock presets and composition entries.
+- **Behavior:** Ore browsing remains separate from overlay targeting. Search,
+  method filters, quality target, favorites, source provenance, probabilities,
+  and quantized outcomes remain available without inline table expansion.
+  Overlay actions occupy a compact right edge on ore and location rows. The
+  expected one to three rock presets use a sticky segmented selector, with one
+  preset disclosed at a time. Each composition entry leads with its share range
+  and exposes the probability of every reachable quantized quality; internal
+  scale and curve parameters stay out of the player-facing surface.
+- **Surface:** Three bounded instrument panes sit in visible gutters, with
+  numbered headers and progressively quieter cyan-tinted surfaces. Scanner Cyan
+  identifies the current selection and overlay state; information density
+  increases from left to right as the user's question becomes specific.
 
 ### Signature Board
 

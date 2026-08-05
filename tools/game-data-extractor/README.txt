@@ -21,6 +21,14 @@ to use the adjacent Data/Localization/english/global.ini override instead.
 The helper does not read game memory, modify game
 files, connect to the running game, or redistribute extracted assets.
 
+The internal `thumbnail-asset` mode extracts one allowlisted blueprint geometry
+pair (`.cgf`/`.cgfm` or `.cga`/`.cgam`) to a caller-provided temporary
+directory. It rejects traversal, non-Objects paths, unsupported formats, and
+assets over 128 MiB. Rockfall deletes these temporary files after local
+conversion and stores only the generated PNG in Electron's user-data cache.
+Skinned `.skin`/`.skinm` and `.chr` assets are recorded in blueprint metadata
+but are intentionally not extracted or rendered.
+
 Mining mode (MiningExtractor.cs)
 
 Reads the full material/entity/location/provider/cluster chain directly from

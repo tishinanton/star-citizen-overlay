@@ -12,6 +12,7 @@ import type {
   BlueprintOutputStat,
   BlueprintRequirementGroup,
   BlueprintRequirementIngredient,
+  BlueprintRenderAsset,
   BlueprintSummary,
   BlueprintUnlockMission,
   LocalizationSource
@@ -19,8 +20,8 @@ import type {
 import { getLocalizedGameArchiveFingerprint, type GameDataArchive } from './game-data'
 
 const execFileAsync = promisify(execFile)
-const EXTRACTOR_SCHEMA_VERSION = 9
-const BLUEPRINT_CACHE_VERSION = 10
+const EXTRACTOR_SCHEMA_VERSION = 10
+const BLUEPRINT_CACHE_VERSION = 11
 const MIN_SUPPORTED_BLUEPRINT_CACHE_VERSION = 4
 const MIN_BLUEPRINT_COUNT = 1_500
 const MAX_BLUEPRINT_COUNT = 2_500
@@ -113,6 +114,22 @@ function parseHttpsUrl(value: unknown): string | null {
   } catch {
     return null
   }
+}
+
+function parseRenderAsset(value: unknown): BlueprintRenderAsset | null {
+  if (value === null || value === undefined) return null
+  if (!isRecord(value)) throw new TypeError('The blueprint render asset is invalid.')
+  const path = readString(value, 'path')
+  const format = readString(value, 'format')
+  if (
+    !path ||
+    path.length > 500 ||
+    !/^Objects\/(?!.*(?:^|\/)\.\.(?:\/|$))[^<>:"|?*]+\.(?:cgf|cga|skin|chr)$/i.test(path) ||
+    (format !== 'cgf' && format !== 'cga' && format !== 'skin' && format !== 'chr')
+  ) {
+    throw new TypeError('The blueprint render asset is invalid.')
+  }
+  return { path, format }
 }
 
 function parseIngredient(value: unknown): BlueprintIngredient | null {
@@ -279,6 +296,7 @@ export function parseGameBlueprint(value: unknown): BlueprintDetail | null {
     unlockingMissions: unlockingMissions as BlueprintUnlockMission[],
     gameVersion,
     imageKey: imageKey && imageKey.length <= 500 ? imageKey : null,
+    renderAsset: parseRenderAsset(value.renderAsset),
     webUrl: parseHttpsUrl(value.webUrl)
   }
 }

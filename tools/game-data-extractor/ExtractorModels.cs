@@ -39,12 +39,22 @@ internal sealed record GameBlueprintRecord(
     IReadOnlyList<GameBlueprintMission> UnlockingMissions,
     string GameVersion,
     string? ImageKey,
+    GameBlueprintRenderAsset? RenderAsset,
     string? WebUrl);
 
 internal sealed record GameBlueprintStat(
     string Key,
     string Label,
     string Value);
+
+internal sealed record GameBlueprintRenderAsset(
+    string Path,
+    string Format);
+
+internal sealed record GameThumbnailAssetExtraction(
+    int SchemaVersion,
+    string AssetFileName,
+    IReadOnlyList<string> ExtractedFiles);
 
 internal sealed record GameBlueprintIngredient(
     string Name,
@@ -237,6 +247,7 @@ internal sealed record GameMiningClusterBucket(
     WriteIndented = false)]
 [JsonSerializable(typeof(SignatureExtractorPayload))]
 [JsonSerializable(typeof(BlueprintExtractorPayload))]
+[JsonSerializable(typeof(GameThumbnailAssetExtraction))]
 [JsonSerializable(typeof(FactionExtractorPayload))]
 [JsonSerializable(typeof(MiningExtractorPayload))]
 internal sealed partial class ExtractorJsonContext : JsonSerializerContext;

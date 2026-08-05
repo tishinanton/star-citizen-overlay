@@ -60,6 +60,41 @@ loadout icons. Users can explicitly select the adjacent
 `Data\Localization\english\global.ini` override in Settings. Rockfall does not
 unpack the whole archive: this build expands to more than 233 GiB.
 
+### Local blueprint thumbnails
+
+Blueprint output `EntityClassDefinition` records can carry a direct geometry
+path. On the locally configured `4.9.188.23497-LIVE` archive, 1,191 of 1,591
+crafted outputs resolved to rigid geometry: 820 `.cgf` records and 371 `.cga`
+records. Of those, 505 outputs had no packaged item-specific icon (155 `.cgf`
+and 350 `.cga`). The Arbor MH1 mining laser, for example, resolves to
+`Objects/Spaceships/Weapons/GRIN/grin_min_hed_s1_2.cga` with a companion
+`.cgam`; both files use the current Star Citizen `#ivo` header.
+
+Rockfall's phase-one thumbnail path is deliberately bounded:
+
+- the extractor allowlists one referenced `.cgf`/`.cgfm` or `.cga`/`.cgam`
+  pair and writes it to a per-request temporary directory;
+- [Cryengine Converter 2.0](https://github.com/Markemp/Cryengine-Converter)
+  converts that local geometry to an untextured GLB as a separate process;
+- Rockfall's deterministic software renderer produces a 256×256 transparent
+  PNG with fixed framing and lighting; and
+- only that PNG is retained under Electron `userData/blueprint-thumbnails`,
+  keyed by archive size/mtime, renderer schema, output class, and asset path.
+
+Cryengine Converter is GPL-2.0 and is not bundled or downloaded by Rockfall.
+Install it separately or set `ROCKFALL_CGF_CONVERTER` to its local executable.
+When it is absent, generation reports an unavailable status and the blueprint
+browser keeps its generic glyph. `.skin`, `.skinm`, `.chr`, skeletal animation,
+and material/texture rendering are explicitly unsupported in phase one.
+
+Materials are CryXMLB `.mtl` documents and current textures commonly use a DDS
+base plus streamed mip segments. Supporting them requires a bounded material
+resolver, DDS segment reconstruction, and BC1-BC7 decoding. Phase one passes
+`-notex`, so it neither extracts nor persists `.mtl` or DDS data. Extracted
+geometry and converted GLB files are deleted after every request. Rockfall
+never uploads, publishes, commits, or transmits extracted assets or generated
+thumbnails.
+
 ## Archive-level data
 
 ### Major paths

@@ -38,6 +38,10 @@ test('parses installed blueprint requirements, missions, and icons', () => {
   ])
   assert.equal(blueprint.imageKey, ICON_KEY)
   assert.equal(extraction.icons[ICON_KEY], ICON_DATA)
+  assert.equal(
+    blueprint.renderAsset?.path,
+    'Objects/Characters/Human/male_v7/armor/field_recon_arms.skin'
+  )
 })
 
 test('rejects malformed and duplicate installed blueprint records', () => {
@@ -60,6 +64,13 @@ test('rejects malformed and duplicate installed blueprint records', () => {
   const duplicateStats = extractorPayload()
   duplicateStats.blueprints[0].outputStats.push(duplicateStats.blueprints[0].outputStats[0])
   assert.throws(() => parseGameBlueprintPayload(duplicateStats), /invalid blueprint record/)
+
+  const invalidAsset = extractorPayload()
+  invalidAsset.blueprints[0].renderAsset = {
+    path: '../escaped.cgf',
+    format: 'cgf'
+  }
+  assert.throws(() => parseGameBlueprintPayload(invalidAsset), /render asset is invalid/)
 })
 
 test('caches installed blueprints by archive fingerprint', async () => {
@@ -399,7 +410,7 @@ function extractorPayload(): {
   warnings: string[]
 } {
   return {
-    schemaVersion: 9,
+    schemaVersion: 10,
     gameVersion: GAME_VERSION,
     blueprints: Array.from({ length: 1_500 }, (_, index) => blueprint(index)),
     icons: { [ICON_KEY]: ICON_DATA },
@@ -470,6 +481,13 @@ function blueprint(index: number): BlueprintDetail {
     ],
     gameVersion: GAME_VERSION,
     imageKey: index === 0 ? ICON_KEY : null,
+    renderAsset:
+      index === 0
+        ? {
+            path: 'Objects/Characters/Human/male_v7/armor/field_recon_arms.skin',
+            format: 'skin'
+          }
+        : null,
     webUrl: null
   }
 }

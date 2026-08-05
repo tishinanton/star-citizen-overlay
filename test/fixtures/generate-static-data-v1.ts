@@ -92,6 +92,7 @@ function blueprint(id: string, imageKey: string | null): BlueprintDetail {
     ],
     gameVersion: '0.0.1-TEST',
     imageKey,
+    renderAsset: null,
     webUrl: null,
     requirementGroups: [
       {

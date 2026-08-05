@@ -98,7 +98,7 @@ internal static partial class BlueprintExtractor
             .ToArray();
 
         return new BlueprintExtractorPayload(
-            9,
+            10,
             gameVersion,
             sortedBlueprints,
             iconResult.Icons,
@@ -392,12 +392,18 @@ internal static partial class BlueprintExtractor
             return null;
         }
 
-        var output = ReadItemMetadata(outputId, dataForge, localization);
+        var outputRecord = ReadReference(outputId, dataForge);
+        var output = outputRecord is null
+            ? null
+            : ReadItemMetadata(outputRecord, localization);
         if (output is null)
         {
             warnings.Add($"{root.Name}: crafted output record {outputId} could not be resolved");
             return null;
         }
+        var renderAsset = outputRecord is null
+            ? null
+            : BlueprintThumbnailAssetResolver.Resolve(outputRecord);
 
         var requirementGroups = ParseRequirements(root, dataForge, localization);
         var ingredients = requirementGroups
@@ -435,6 +441,7 @@ internal static partial class BlueprintExtractor
             unlockingMissions,
             gameVersion,
             output.ImageKey,
+            renderAsset,
             null);
     }
 
@@ -543,8 +550,13 @@ internal static partial class BlueprintExtractor
         LocalizationCatalog localization)
     {
         var root = ReadReference(itemId, dataForge);
-        if (root is null) return null;
+        return root is null ? null : ReadItemMetadata(root, localization);
+    }
 
+    private static ItemMetadata ReadItemMetadata(
+        XmlElement root,
+        LocalizationCatalog localization)
+    {
         var attach = root
             .GetElementsByTagName("AttachDef")
             .OfType<XmlElement>()

@@ -3,11 +3,13 @@ using System.Xml;
 using ICSharpCode.SharpZipLib.Zip;
 using unforge;
 
-if (args.Length is < 1 or > 3)
+if (args.Length is < 1 or > 4)
 {
     Console.Error.WriteLine(
         "Usage: Rockfall.GameDataExtractor <Data.p4k|Game2.dcb> " +
-        "[signatures|blueprints|factions|mining] [game|global-ini]");
+        "[signatures|blueprints|factions|mining] [game|global-ini]\n" +
+        "       Rockfall.GameDataExtractor <Data.p4k> thumbnail-asset " +
+        "<Objects/... asset path> <temporary output directory>");
     return 2;
 }
 
@@ -19,12 +21,12 @@ if (!File.Exists(inputPath))
     Console.Error.WriteLine($"Game data file does not exist: {inputPath}");
     return 2;
 }
-if (mode is not ("signatures" or "blueprints" or "factions" or "mining"))
+if (mode is not ("signatures" or "blueprints" or "factions" or "mining" or "thumbnail-asset"))
 {
     Console.Error.WriteLine($"Unsupported extraction mode: {mode}");
     return 2;
 }
-if (localizationSource is not ("game" or "global-ini"))
+if (mode != "thumbnail-asset" && localizationSource is not ("game" or "global-ini"))
 {
     Console.Error.WriteLine($"Unsupported localization source: {localizationSource}");
     return 2;
@@ -34,6 +36,35 @@ if (mode is "blueprints" or "factions" or "mining"
 {
     Console.Error.WriteLine($"{mode} extraction requires the Star Citizen Data.p4k archive.");
     return 2;
+}
+if (mode == "thumbnail-asset")
+{
+    if (args.Length != 4
+        || !Path.GetExtension(inputPath).Equals(".p4k", StringComparison.OrdinalIgnoreCase))
+    {
+        Console.Error.WriteLine(
+            "thumbnail-asset requires Data.p4k, an Objects/... asset path, and an output directory.");
+        return 2;
+    }
+    try
+    {
+        var extraction = GameArchive.ExtractThumbnailAsset(inputPath, args[2], args[3]);
+        Console.WriteLine(
+            JsonSerializer.Serialize(
+                extraction,
+                ExtractorJsonContext.Default.GameThumbnailAssetExtraction));
+        return 0;
+    }
+    catch (Exception error) when (
+        error is IOException
+            or InvalidDataException
+            or UnauthorizedAccessException
+            or NotSupportedException
+            or ZipException)
+    {
+        Console.Error.WriteLine(error.Message);
+        return 1;
+    }
 }
 
 var temporaryDcbPath = Path.GetExtension(inputPath).Equals(".p4k", StringComparison.OrdinalIgnoreCase)

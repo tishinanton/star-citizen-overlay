@@ -3,7 +3,8 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import type {
   BlueprintCatalogResult,
   BlueprintDetailResult,
-  BlueprintOwnershipSnapshot
+  BlueprintOwnershipSnapshot,
+  BlueprintThumbnailResult
 } from '../../../shared/contracts'
 
 const DETAIL_SELECTION_DELAY_MS = 120
@@ -20,6 +21,10 @@ interface BlueprintDetailState {
   loading: boolean
   error: string | null
   reload: () => Promise<void>
+}
+
+interface BlueprintThumbnailState {
+  result: BlueprintThumbnailResult | null
 }
 
 interface BlueprintOwnershipState {
@@ -128,6 +133,7 @@ export function useBlueprintDetail(
         setError({ requestKey, message: getErrorMessage(reason) })
       }
     }
+
   }, [blueprintId, requestKey])
 
   useEffect(() => {
@@ -162,6 +168,46 @@ export function useBlueprintDetail(
     loading: blueprintId !== null && currentResult === null && currentError === null,
     error: currentError,
     reload
+  }
+}
+
+export function useBlueprintThumbnail(
+  blueprintId: string | null,
+  packagedImageDataUrl: string | null,
+  catalogUpdatedAt: string | null
+): BlueprintThumbnailState {
+  const [success, setSuccess] = useState<{
+    requestKey: string
+    result: BlueprintThumbnailResult
+  } | null>(null)
+  const generation = useRef(0)
+  const requestKey = blueprintId ? `${blueprintId}:${catalogUpdatedAt ?? 'loading'}` : ''
+
+  useEffect(() => {
+    const requestGeneration = ++generation.current
+    if (!blueprintId || packagedImageDataUrl) return
+
+    const timer = window.setTimeout(() => {
+      window.rockfall
+        .getBlueprintThumbnail(blueprintId)
+        .then((nextResult) => {
+          if (generation.current === requestGeneration) {
+            setSuccess({ requestKey, result: nextResult })
+          }
+        })
+        .catch((reason: unknown) => {
+          console.error('Blueprint thumbnail could not be requested.', reason)
+        })
+    }, DETAIL_SELECTION_DELAY_MS)
+    return () => {
+      window.clearTimeout(timer)
+      generation.current += 1
+    }
+  }, [blueprintId, packagedImageDataUrl, requestKey])
+
+  return {
+    result:
+      !packagedImageDataUrl && success?.requestKey === requestKey ? success.result : null
   }
 }
 

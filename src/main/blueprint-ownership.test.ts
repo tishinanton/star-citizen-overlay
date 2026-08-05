@@ -367,6 +367,7 @@ function blueprint(
     ingredients: [],
     gameVersion: '4.9-test',
     imageKey: null,
+    renderAsset: null,
     webUrl: null
   }
 }

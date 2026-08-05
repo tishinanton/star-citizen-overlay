@@ -28,6 +28,7 @@ import {
   type BlueprintCatalogResult,
   type BlueprintDetailResult,
   type BlueprintOwnershipSnapshot,
+  type BlueprintThumbnailResult,
   type CloudSyncState,
   type FactionCatalogResult,
   type GameDataSelectionResult,
@@ -64,6 +65,7 @@ import {
 import { AppUpdaterController, createUpdaterClient } from './app-updater'
 import { prepareBlueprintDataLoad, type BlueprintDataResult } from './blueprint-data'
 import { BlueprintOwnershipService } from './blueprint-ownership'
+import { BlueprintThumbnailService } from './blueprint-thumbnail'
 import { CloudSyncController } from './cloud-sync'
 import { loadFactionData } from './faction-data'
 import {
@@ -233,6 +235,8 @@ let cachePath = ''
 let miningCatalogCachePath = ''
 let locationCachePath = ''
 let blueprintCatalogCachePath = ''
+let blueprintThumbnailCachePath = ''
+let blueprintThumbnailTemporaryPath = ''
 let factionCatalogCachePath = ''
 let blueprintOwnershipPath = ''
 let cloudStatePath = ''
@@ -272,6 +276,7 @@ let pendingFactionData: {
   request: Promise<FactionCatalogResult>
 } | null = null
 let blueprintOwnershipService: BlueprintOwnershipService | null = null
+let blueprintThumbnailService: BlueprintThumbnailService | null = null
 let cloudSyncController: CloudSyncController | null = null
 let lanControlServer: LanControlServer | null = null
 let suppressCloudOwnershipCapture = false
@@ -1577,6 +1582,35 @@ async function getBlueprintDetail(blueprintId: unknown): Promise<BlueprintDetail
   }
 }
 
+async function getBlueprintThumbnail(blueprintId: unknown): Promise<BlueprintThumbnailResult> {
+  if (typeof blueprintId !== 'string' || blueprintId.length === 0 || blueprintId.length > 200) {
+    throw new TypeError('A valid blueprint is required.')
+  }
+  if (!blueprintDataResult) await getBlueprintCatalog()
+  const data = blueprintDataResult
+  const blueprint = data?.details[blueprintId]
+  if (!data || !blueprint) {
+    throw new Error('That blueprint is no longer available.')
+  }
+
+  const packagedIcon = blueprint.imageKey ? data.catalog.icons[blueprint.imageKey] : null
+  if (packagedIcon) {
+    return {
+      status: 'ready' as const,
+      dataUrl: packagedIcon,
+      message: 'Packaged icon extracted from installed game files.'
+    }
+  }
+  if (!blueprintThumbnailService) {
+    return {
+      status: 'unavailable' as const,
+      dataUrl: null,
+      message: 'Local thumbnail generation is not initialized.'
+    }
+  }
+  return blueprintThumbnailService.get(blueprint)
+}
+
 function loadRenderer(window: BrowserWindow, view: 'control' | 'overlay' | 'drag-handle'): void {
   if (is.dev && process.env['ELECTRON_RENDERER_URL']) {
     const url = new URL(process.env['ELECTRON_RENDERER_URL'])
@@ -1877,6 +1911,10 @@ function registerIpcHandlers(): void {
     assertControlWindowSender(event)
     return getBlueprintDetail(blueprintId)
   })
+  ipcMain.handle(IPC_CHANNELS.getBlueprintThumbnail, (event, blueprintId: unknown) => {
+    assertControlWindowSender(event)
+    return getBlueprintThumbnail(blueprintId)
+  })
   ipcMain.handle(IPC_CHANNELS.getFactionCatalog, (event, refresh: unknown) => {
     assertControlWindowSender(event)
     return getFactionCatalog(refresh)
@@ -2023,6 +2061,8 @@ if (!hasSingleInstanceLock) {
     miningCatalogCachePath = join(app.getPath('userData'), 'mining-catalog.json')
     locationCachePath = join(app.getPath('userData'), 'mining-locations.json')
     blueprintCatalogCachePath = join(app.getPath('userData'), 'blueprints.json')
+    blueprintThumbnailCachePath = join(app.getPath('userData'), 'blueprint-thumbnails')
+    blueprintThumbnailTemporaryPath = join(app.getPath('temp'), 'rockfall-blueprint-thumbnails')
     factionCatalogCachePath = join(app.getPath('userData'), 'factions.json')
     blueprintOwnershipPath = join(app.getPath('userData'), 'blueprint-ownership.json')
     cloudStatePath = join(app.getPath('userData'), 'cloud-state.json')
@@ -2047,6 +2087,14 @@ if (!hasSingleInstanceLock) {
     blueprintOwnershipService = new BlueprintOwnershipService({
       storePath: blueprintOwnershipPath,
       onChange: handleBlueprintOwnershipChange
+    })
+    blueprintThumbnailService = new BlueprintThumbnailService({
+      cacheDirectory: blueprintThumbnailCachePath,
+      temporaryDirectory: blueprintThumbnailTemporaryPath,
+      extractorPath,
+      converterPath:
+        process.env.ROCKFALL_CGF_CONVERTER ?? 'cgf-converter.exe',
+      getGameDataArchive: () => gameDataArchive
     })
     const [loaded, gameDataPreference, loadedLocalization] = await Promise.all([
       loadSettings(settingsPath),

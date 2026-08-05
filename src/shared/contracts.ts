@@ -146,6 +146,12 @@ export interface MiningLocationResult {
 export type LocalGameDataState = 'game' | 'cached'
 export type BlueprintSourceState = LocalGameDataState
 export type BlueprintIngredientKind = 'resource' | 'item' | 'unknown'
+export type BlueprintRenderAssetFormat = 'cgf' | 'cga' | 'skin' | 'chr'
+
+export interface BlueprintRenderAsset {
+  path: string
+  format: BlueprintRenderAssetFormat
+}
 
 export interface BlueprintIngredient {
   name: string
@@ -171,6 +177,7 @@ export interface BlueprintSummary {
   ingredients: BlueprintIngredient[]
   gameVersion: string
   imageKey: string | null
+  renderAsset: BlueprintRenderAsset | null
   webUrl: string | null
 }
 
@@ -225,6 +232,14 @@ export interface BlueprintDetailResult {
   state: BlueprintSourceState
   message: string
   updatedAt: string
+}
+
+export type BlueprintThumbnailStatus = 'ready' | 'unsupported' | 'unavailable' | 'error'
+
+export interface BlueprintThumbnailResult {
+  status: BlueprintThumbnailStatus
+  dataUrl: string | null
+  message: string
 }
 
 export type BlueprintOwnershipSource = 'default' | 'log' | 'manual'
@@ -530,6 +545,7 @@ export interface RockfallApi {
   getMiningLocations: (materialId: string) => Promise<MiningLocationResult>
   getBlueprintCatalog: (refresh?: boolean) => Promise<BlueprintCatalogResult>
   getBlueprintDetail: (blueprintId: string) => Promise<BlueprintDetailResult>
+  getBlueprintThumbnail: (blueprintId: string) => Promise<BlueprintThumbnailResult>
   getBlueprintOwnership: () => Promise<BlueprintOwnershipSnapshot>
   rescanBlueprintOwnership: () => Promise<BlueprintOwnershipSnapshot>
   setBlueprintOwned: (blueprintId: string, owned: boolean) => Promise<BlueprintOwnershipSnapshot>
@@ -571,6 +587,7 @@ export const IPC_CHANNELS = {
   getBlueprintCatalog: 'rockfall:blueprints:get',
   blueprintCatalogChanged: 'rockfall:blueprints:changed',
   getBlueprintDetail: 'rockfall:blueprints:detail',
+  getBlueprintThumbnail: 'rockfall:blueprints:thumbnail',
   getBlueprintOwnership: 'rockfall:blueprints:ownership:get',
   rescanBlueprintOwnership: 'rockfall:blueprints:ownership:rescan',
   setBlueprintOwned: 'rockfall:blueprints:ownership:set',

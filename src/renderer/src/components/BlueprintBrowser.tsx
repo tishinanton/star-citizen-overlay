@@ -29,7 +29,8 @@ import type {
 import {
   useBlueprintCatalog,
   useBlueprintDetail,
-  useBlueprintOwnership
+  useBlueprintOwnership,
+  useBlueprintThumbnail
 } from '../hooks/useBlueprints'
 import {
   getBlueprintCategoryOptions,
@@ -168,6 +169,15 @@ export default function BlueprintBrowser({
     selectedBlueprint?.id ?? null,
     catalog.result?.updatedAt ?? null,
     catalog.result?.state ?? null
+  )
+  const packagedImageDataUrl =
+    selectedBlueprint?.imageKey && catalog.result
+      ? (catalog.result.icons[selectedBlueprint.imageKey] ?? null)
+      : null
+  const thumbnail = useBlueprintThumbnail(
+    selectedBlueprint?.id ?? null,
+    packagedImageDataUrl,
+    catalog.result?.updatedAt ?? null
   )
   const totalCount = catalog.result?.blueprints.length ?? 0
   const ownedCount =
@@ -574,10 +584,13 @@ export default function BlueprintBrowser({
               detail={detail.result?.blueprint ?? null}
               detailState={detail.result?.state ?? null}
               detailMessage={detail.result?.message ?? null}
-              imageDataUrl={
-                selectedBlueprint.imageKey
-                  ? (catalog.result?.icons[selectedBlueprint.imageKey] ?? null)
-                  : null
+              imageDataUrl={packagedImageDataUrl ?? thumbnail.result?.dataUrl ?? null}
+              imageTitle={
+                packagedImageDataUrl
+                  ? 'Icon extracted from installed game files'
+                  : thumbnail.result?.status === 'ready'
+                    ? thumbnail.result.message
+                    : null
               }
               loading={detail.loading}
               error={detail.error}
@@ -694,6 +707,7 @@ function BlueprintDetailPane({
   detailState,
   detailMessage,
   imageDataUrl,
+  imageTitle,
   loading,
   error,
   onRetry,
@@ -706,6 +720,7 @@ function BlueprintDetailPane({
   detailState: 'game' | 'cached' | null
   detailMessage: string | null
   imageDataUrl: string | null
+  imageTitle: string | null
   loading: boolean
   error: string | null
   onRetry: () => void
@@ -719,7 +734,7 @@ function BlueprintDetailPane({
   return (
     <>
       <header className="blueprint-detail__header">
-        <BlueprintOutputMark imageDataUrl={imageDataUrl} />
+        <BlueprintOutputMark imageDataUrl={imageDataUrl} imageTitle={imageTitle} />
         <div className="blueprint-detail__identity">
           <span>
             {summary.outputTypeLabel}
@@ -1070,7 +1085,13 @@ function RequirementGroup({ group }: { group: BlueprintRequirementGroup }): Reac
   )
 }
 
-function BlueprintOutputMark({ imageDataUrl }: { imageDataUrl: string | null }): React.JSX.Element {
+function BlueprintOutputMark({
+  imageDataUrl,
+  imageTitle
+}: {
+  imageDataUrl: string | null
+  imageTitle: string | null
+}): React.JSX.Element {
   const [failedUrl, setFailedUrl] = useState<string | null>(null)
   const showImage = imageDataUrl !== null && failedUrl !== imageDataUrl
 
@@ -1078,7 +1099,7 @@ function BlueprintOutputMark({ imageDataUrl }: { imageDataUrl: string | null }):
     <span
       className={`blueprint-detail__mark ${showImage ? 'blueprint-detail__mark--image' : ''}`}
       aria-hidden="true"
-      title={showImage ? 'Icon extracted from installed game files' : undefined}
+      title={showImage ? (imageTitle ?? undefined) : undefined}
     >
       {showImage ? (
         <img src={imageDataUrl} alt="" onError={() => setFailedUrl(imageDataUrl)} />

@@ -1,4 +1,10 @@
-import { useMemo, useState, type KeyboardEvent as ReactKeyboardEvent } from 'react'
+import {
+  memo,
+  useCallback,
+  useMemo,
+  useState,
+  type KeyboardEvent as ReactKeyboardEvent
+} from 'react'
 import {
   Box,
   CheckCircle2,
@@ -193,35 +199,38 @@ export default function BlueprintBrowser({
     ? getOwnershipRecord(selectedBlueprint, ownership.result)
     : null
 
-  const handleBlueprintKeyDown = (
-    event: ReactKeyboardEvent<HTMLButtonElement>,
-    index: number
-  ): void => {
-    const nextIndex =
-      event.key === 'Home'
-        ? 0
-        : event.key === 'End'
-          ? visibleBlueprints.length - 1
-          : event.key === 'ArrowUp'
-            ? Math.max(index - 1, 0)
-            : event.key === 'ArrowDown'
-              ? Math.min(index + 1, visibleBlueprints.length - 1)
-              : null
-    if (nextIndex === null || nextIndex === index) return
+  const selectBlueprint = useCallback((blueprintId: string): void => {
+    setRequestedBlueprintId(blueprintId)
+  }, [])
+  const handleBlueprintKeyDown = useCallback(
+    (event: ReactKeyboardEvent<HTMLButtonElement>, index: number): void => {
+      const nextIndex =
+        event.key === 'Home'
+          ? 0
+          : event.key === 'End'
+            ? visibleBlueprints.length - 1
+            : event.key === 'ArrowUp'
+              ? Math.max(index - 1, 0)
+              : event.key === 'ArrowDown'
+                ? Math.min(index + 1, visibleBlueprints.length - 1)
+                : null
+      if (nextIndex === null || nextIndex === index) return
 
-    event.preventDefault()
-    const nextBlueprint = visibleBlueprints[nextIndex]
-    if (nextIndex >= effectiveRenderedBlueprintCount) {
-      setRenderWindow({
-        scope: renderScope,
-        count: Math.min(visibleBlueprints.length, nextIndex + BLUEPRINT_RENDER_BATCH_SIZE)
-      })
-    }
-    setRequestedBlueprintId(nextBlueprint.id)
-    requestAnimationFrame(() =>
-      document.getElementById(`blueprint-option-${nextBlueprint.id}`)?.focus()
-    )
-  }
+      event.preventDefault()
+      const nextBlueprint = visibleBlueprints[nextIndex]
+      if (nextIndex >= effectiveRenderedBlueprintCount) {
+        setRenderWindow({
+          scope: renderScope,
+          count: Math.min(visibleBlueprints.length, nextIndex + BLUEPRINT_RENDER_BATCH_SIZE)
+        })
+      }
+      setRequestedBlueprintId(nextBlueprint.id)
+      requestAnimationFrame(() =>
+        document.getElementById(`blueprint-option-${nextBlueprint.id}`)?.focus()
+      )
+    },
+    [effectiveRenderedBlueprintCount, renderScope, visibleBlueprints]
+  )
 
   const retryCatalog = (refresh = false): void => {
     document.getElementById('blueprint-catalog-title')?.focus()
@@ -524,40 +533,16 @@ export default function BlueprintBrowser({
               </div>
             )}
 
-            {catalog.result &&
-              renderedBlueprints.map((blueprint, index) => {
-                const selected = blueprint.id === selectedBlueprint?.id
-                const rowOwnership = getOwnershipRecord(blueprint, ownership.result)
-                return (
-                  <button
-                    id={`blueprint-option-${blueprint.id}`}
-                    className={`blueprint-row ${selected ? 'blueprint-row--selected' : ''}`}
-                    type="button"
-                    role="option"
-                    aria-selected={selected}
-                    aria-posinset={index + 1}
-                    aria-setsize={visibleBlueprints.length}
-                    tabIndex={selected ? 0 : -1}
-                    key={blueprint.id}
-                    onClick={() => setRequestedBlueprintId(blueprint.id)}
-                    onKeyDown={(event) => handleBlueprintKeyDown(event, index)}
-                  >
-                    <span className="blueprint-row__identity">
-                      <strong>{blueprint.outputName}</strong>
-                      <small className="blueprint-row__meta">
-                        <span>{blueprint.outputTypeLabel}</span>
-                        <span aria-hidden="true">·</span>
-                        <span className="blueprint-row__time">{blueprint.craftTimeLabel}</span>
-                      </small>
-                    </span>
-                    <BlueprintCollectionStatus
-                      blueprint={blueprint}
-                      record={rowOwnership}
-                      compact
-                    />
-                  </button>
-                )
-              })}
+            {catalog.result && (
+              <BlueprintRows
+                blueprints={renderedBlueprints}
+                totalSize={visibleBlueprints.length}
+                selectedBlueprintId={selectedBlueprint?.id ?? null}
+                ownership={ownership.result}
+                onSelect={selectBlueprint}
+                onKeyDown={handleBlueprintKeyDown}
+              />
+            )}
 
             {catalog.result && visibleBlueprints.length === 0 && (
               <div className="blueprint-empty">
@@ -613,6 +598,86 @@ export default function BlueprintBrowser({
     </main>
   )
 }
+
+const BlueprintRows = memo(function BlueprintRows({
+  blueprints,
+  totalSize,
+  selectedBlueprintId,
+  ownership,
+  onSelect,
+  onKeyDown
+}: {
+  blueprints: BlueprintSummary[]
+  totalSize: number
+  selectedBlueprintId: string | null
+  ownership: BlueprintOwnershipSnapshot | null
+  onSelect: (blueprintId: string) => void
+  onKeyDown: (event: ReactKeyboardEvent<HTMLButtonElement>, index: number) => void
+}): React.JSX.Element {
+  return (
+    <>
+      {blueprints.map((blueprint, index) => (
+        <BlueprintRow
+          key={blueprint.id}
+          blueprint={blueprint}
+          selected={blueprint.id === selectedBlueprintId}
+          ownership={ownership}
+          index={index}
+          totalSize={totalSize}
+          onSelect={onSelect}
+          onKeyDown={onKeyDown}
+        />
+      ))}
+    </>
+  )
+})
+
+const BlueprintRow = memo(function BlueprintRow({
+  blueprint,
+  selected,
+  ownership,
+  index,
+  totalSize,
+  onSelect,
+  onKeyDown
+}: {
+  blueprint: BlueprintSummary
+  selected: boolean
+  ownership: BlueprintOwnershipSnapshot | null
+  index: number
+  totalSize: number
+  onSelect: (blueprintId: string) => void
+  onKeyDown: (event: ReactKeyboardEvent<HTMLButtonElement>, index: number) => void
+}): React.JSX.Element {
+  return (
+    <button
+      id={`blueprint-option-${blueprint.id}`}
+      className={`blueprint-row ${selected ? 'blueprint-row--selected' : ''}`}
+      type="button"
+      role="option"
+      aria-selected={selected}
+      aria-posinset={index + 1}
+      aria-setsize={totalSize}
+      tabIndex={selected ? 0 : -1}
+      onClick={() => onSelect(blueprint.id)}
+      onKeyDown={(event) => onKeyDown(event, index)}
+    >
+      <span className="blueprint-row__identity">
+        <strong>{blueprint.outputName}</strong>
+        <small className="blueprint-row__meta">
+          <span>{blueprint.outputTypeLabel}</span>
+          <span aria-hidden="true">·</span>
+          <span className="blueprint-row__time">{blueprint.craftTimeLabel}</span>
+        </small>
+      </span>
+      <BlueprintCollectionStatus
+        blueprint={blueprint}
+        record={getOwnershipRecord(blueprint, ownership)}
+        compact
+      />
+    </button>
+  )
+})
 
 function BlueprintAccess({
   blueprint,

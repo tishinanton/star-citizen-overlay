@@ -11,7 +11,28 @@ import {
   Vector3
 } from 'three'
 
-import { disposeModel, getModelFraming, resetModelCamera } from './model-viewer'
+import {
+  disposeModel,
+  getModelFraming,
+  getSupportedShaderPrecision,
+  resetModelCamera
+} from './model-viewer'
+
+function shaderContext(
+  precisions: Partial<Record<number, number | null>>
+): Parameters<typeof getSupportedShaderPrecision>[0] {
+  return {
+    VERTEX_SHADER: 1,
+    FRAGMENT_SHADER: 2,
+    HIGH_FLOAT: 3,
+    MEDIUM_FLOAT: 4,
+    LOW_FLOAT: 5,
+    getShaderPrecisionFormat: (_shaderType, precisionType) => {
+      const precision = precisions[precisionType]
+      return precision === undefined || precision === null ? null : { precision }
+    }
+  }
+}
 
 test('frames models deterministically with bounded zoom distances', () => {
   const root = new Group()
@@ -52,4 +73,14 @@ test('disposes model geometry, materials, and textures once', () => {
   assert.equal(geometryDisposals, 1)
   assert.equal(materialDisposals, 1)
   assert.equal(textureDisposals, 1)
+})
+
+test('selects the best shader precision supported by both shader stages', () => {
+  assert.equal(getSupportedShaderPrecision(shaderContext({ 3: 23, 4: 10, 5: 8 })), 'highp')
+  assert.equal(getSupportedShaderPrecision(shaderContext({ 3: null, 4: 10, 5: 8 })), 'mediump')
+  assert.equal(getSupportedShaderPrecision(shaderContext({ 3: 0, 4: null, 5: 8 })), 'lowp')
+})
+
+test('rejects a lost WebGL context without reading null precision values', () => {
+  assert.equal(getSupportedShaderPrecision(shaderContext({ 3: null, 4: null, 5: null })), null)
 })

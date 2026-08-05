@@ -3079,6 +3079,8 @@
   width: 100%;
   min-height: 53px;
   padding: 7px 11px;
+  content-visibility: auto;
+  contain-intrinsic-block-size: 53px;
   border-bottom: 1px solid color-mix(in oklch, var(--edge) 65%, transparent);
   background: transparent;
   color: var(--ink-soft);

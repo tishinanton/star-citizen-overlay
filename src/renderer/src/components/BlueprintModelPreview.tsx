@@ -27,7 +27,12 @@ import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js'
 
 import type { BlueprintModelResult } from '../../../shared/contracts'
-import { disposeModel, getModelFraming, resetModelCamera } from '../lib/model-viewer'
+import {
+  disposeModel,
+  getModelFraming,
+  getSupportedShaderPrecision,
+  resetModelCamera
+} from '../lib/model-viewer'
 
 interface BlueprintModelPreviewProps {
   model: BlueprintModelResult | null
@@ -177,19 +182,36 @@ function InteractiveModelCanvas({
     let resizeObserver: ResizeObserver | null = null
     let renderer: WebGLRenderer | null = null
     let controls: OrbitControls | null = null
+    let cancelParse: (() => void) | null = null
+    let context: WebGL2RenderingContext | null = null
 
     try {
-      renderer = new WebGLRenderer({
-        canvas,
+      const contextAttributes: WebGLContextAttributes = {
         alpha: true,
         antialias: true,
         powerPreference: 'low-power'
+      }
+      context = canvas.getContext('webgl2', contextAttributes)
+      if (!context) throw new Error('WebGL 2 is not available.')
+      const precision = getSupportedShaderPrecision(context)
+      if (!precision) throw new Error('The graphics context does not expose shader precision.')
+      renderer = new WebGLRenderer({
+        canvas,
+        context,
+        alpha: true,
+        antialias: true,
+        powerPreference: 'low-power',
+        precision
       })
       renderer.outputColorSpace = SRGBColorSpace
       renderer.setClearColor(new Color(0x061218), 0)
       renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5))
     } catch (reason) {
-      onError(`WebGL preview could not start: ${errorMessage(reason)}`)
+      console.error('WebGL preview could not start.', reason)
+      context?.getExtension('WEBGL_lose_context')?.loseContext()
+      onError(
+        'Interactive rendering could not start with the current graphics driver. The static preview is still available.'
+      )
       return
     }
 
@@ -232,51 +254,67 @@ function InteractiveModelCanvas({
       throw new Error('External model resources are blocked.')
     })
     const loader = new GLTFLoader(manager)
-    const buffer = bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength)
-    loader.parse(
-      buffer,
-      '',
-      (gltf) => {
-        if (disposed) {
-          disposeModel(gltf.scene)
-          return
+    const parseModel = (): void => {
+      if (disposed) return
+      const buffer = bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength)
+      loader.parse(
+        buffer,
+        '',
+        (gltf) => {
+          if (disposed) {
+            disposeModel(gltf.scene)
+            return
+          }
+          modelRoot = gltf.scene
+          const material = new MeshStandardMaterial({
+            color: 0x6ba2b5,
+            emissive: 0x07151a,
+            metalness: 0.24,
+            roughness: 0.68,
+            side: DoubleSide
+          })
+          modelRoot.traverse((object) => {
+            if (!(object instanceof Mesh)) return
+            const previous = Array.isArray(object.material) ? object.material : [object.material]
+            for (const item of previous) item.dispose()
+            object.material = material
+            object.castShadow = false
+            object.receiveShadow = false
+          })
+          scene.add(modelRoot)
+          const framing = getModelFraming(modelRoot, camera.fov)
+          controls!.minDistance = framing.minimumDistance
+          controls!.maxDistance = framing.maximumDistance
+          const reset = (): void => {
+            resetModelCamera(camera, framing, controls!.target)
+            controls!.update()
+            render()
+          }
+          resetRef.current = reset
+          reset()
+          onReady()
+        },
+        (reason) => {
+          if (!disposed) onError(`The converted model could not be opened: ${errorMessage(reason)}`)
         }
-        modelRoot = gltf.scene
-        const material = new MeshStandardMaterial({
-          color: 0x6ba2b5,
-          emissive: 0x07151a,
-          metalness: 0.24,
-          roughness: 0.68,
-          side: DoubleSide
-        })
-        modelRoot.traverse((object) => {
-          if (!(object instanceof Mesh)) return
-          const previous = Array.isArray(object.material) ? object.material : [object.material]
-          for (const item of previous) item.dispose()
-          object.material = material
-          object.castShadow = false
-          object.receiveShadow = false
-        })
-        scene.add(modelRoot)
-        const framing = getModelFraming(modelRoot, camera.fov)
-        controls!.minDistance = framing.minimumDistance
-        controls!.maxDistance = framing.maximumDistance
-        const reset = (): void => {
-          resetModelCamera(camera, framing, controls!.target)
-          controls!.update()
-          render()
-        }
-        resetRef.current = reset
-        reset()
-        onReady()
-      },
-      (reason) => {
-        if (!disposed) onError(`The converted model could not be opened: ${errorMessage(reason)}`)
+      )
+    }
+    const idleWindow = window as Window &
+      typeof globalThis & {
+        requestIdleCallback?: typeof window.requestIdleCallback
+        cancelIdleCallback?: typeof window.cancelIdleCallback
       }
-    )
+    if (idleWindow.requestIdleCallback && idleWindow.cancelIdleCallback) {
+      const handle = idleWindow.requestIdleCallback(parseModel, { timeout: 500 })
+      cancelParse = () => idleWindow.cancelIdleCallback?.(handle)
+    } else {
+      const handle = globalThis.setTimeout(parseModel, 0)
+      cancelParse = () => globalThis.clearTimeout(handle)
+    }
 
     return () => {
       disposed = true
+      cancelParse?.()
       resetRef.current = null
       interactionRef.current = null
       resizeObserver?.disconnect()

@@ -15,7 +15,41 @@ export interface ModelFraming {
   maximumDistance: number
 }
 
+export type ModelShaderPrecision = 'highp' | 'mediump' | 'lowp'
+
+interface ShaderPrecisionContext {
+  VERTEX_SHADER: number
+  FRAGMENT_SHADER: number
+  HIGH_FLOAT: number
+  MEDIUM_FLOAT: number
+  LOW_FLOAT: number
+  getShaderPrecisionFormat(
+    shaderType: number,
+    precisionType: number
+  ): Pick<WebGLShaderPrecisionFormat, 'precision'> | null
+}
+
 const INITIAL_VIEW_DIRECTION = new Vector3(1.25, -1.6, 1.05).normalize()
+
+export function getSupportedShaderPrecision(
+  context: ShaderPrecisionContext
+): ModelShaderPrecision | null {
+  const candidates: Array<[ModelShaderPrecision, number]> = [
+    ['highp', context.HIGH_FLOAT],
+    ['mediump', context.MEDIUM_FLOAT],
+    ['lowp', context.LOW_FLOAT]
+  ]
+  for (const [name, precisionType] of candidates) {
+    try {
+      const vertex = context.getShaderPrecisionFormat(context.VERTEX_SHADER, precisionType)
+      const fragment = context.getShaderPrecisionFormat(context.FRAGMENT_SHADER, precisionType)
+      if (vertex && fragment && vertex.precision > 0 && fragment.precision > 0) return name
+    } catch {
+      // A lost or incomplete context cannot support the interactive preview.
+    }
+  }
+  return null
+}
 
 export function getModelFraming(root: Object3D, verticalFovDegrees: number): ModelFraming {
   const bounds = new Box3().setFromObject(root)

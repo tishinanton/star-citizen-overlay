@@ -395,7 +395,7 @@ internal static partial class BlueprintExtractor
         var outputRecord = ReadReference(outputId, dataForge);
         var output = outputRecord is null
             ? null
-            : ReadItemMetadata(outputRecord, localization);
+            : ReadItemMetadata(outputRecord, dataForge, localization);
         if (output is null)
         {
             warnings.Add($"{root.Name}: crafted output record {outputId} could not be resolved");
@@ -550,11 +550,12 @@ internal static partial class BlueprintExtractor
         LocalizationCatalog localization)
     {
         var root = ReadReference(itemId, dataForge);
-        return root is null ? null : ReadItemMetadata(root, localization);
+        return root is null ? null : ReadItemMetadata(root, dataForge, localization);
     }
 
     private static ItemMetadata ReadItemMetadata(
         XmlElement root,
+        DataForge dataForge,
         LocalizationCatalog localization)
     {
         var attach = root

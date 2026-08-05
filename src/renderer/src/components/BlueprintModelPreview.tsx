@@ -26,18 +26,19 @@ import {
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js'
 
-import type { BlueprintModelResult } from '../../../shared/contracts'
 import {
   disposeModel,
   getModelFraming,
   getSupportedShaderPrecision,
-  resetModelCamera
+  resetModelCamera,
+  type BlueprintModelMetadata
 } from '../lib/model-viewer'
 
 interface BlueprintModelPreviewProps {
-  model: BlueprintModelResult | null
+  model: BlueprintModelMetadata | null
   preparing: boolean
   requestKey: string
+  readBytes: () => Uint8Array | null
   fallbackImageDataUrl: string | null
   onRetry: () => void
 }
@@ -46,6 +47,7 @@ export default function BlueprintModelPreview({
   model,
   preparing,
   requestKey,
+  readBytes,
   fallbackImageDataUrl,
   onRetry
 }: BlueprintModelPreviewProps): React.JSX.Element {
@@ -56,9 +58,8 @@ export default function BlueprintModelPreview({
   } | null>(null)
   const [readyRequestKey, setReadyRequestKey] = useState('')
   const readyModel = model?.status === 'ready' ? model : null
-  const modelBytes = readyModel?.bytes ?? null
   const currentError = viewerError?.requestKey === requestKey ? viewerError.message : null
-  const viewerReady = modelBytes !== null && readyRequestKey === requestKey
+  const viewerReady = readyModel !== null && readyRequestKey === requestKey
   const status = currentError
     ? 'error'
     : preparing || (readyModel !== null && !viewerReady)
@@ -95,9 +96,9 @@ export default function BlueprintModelPreview({
 
       <div className={`blueprint-model__stage blueprint-model__stage--${status}`}>
         <PreviewFallback imageDataUrl={fallbackImageDataUrl} hidden={viewerReady} />
-        {readyModel?.bytes && (
+        {readyModel && (
           <InteractiveModelCanvas
-            bytes={readyModel.bytes}
+            readBytes={readBytes}
             resetVersion={resetVersion}
             onReady={handleReady}
             onError={handleError}
@@ -151,12 +152,12 @@ function PreviewFallback({
 }
 
 function InteractiveModelCanvas({
-  bytes,
+  readBytes,
   resetVersion,
   onReady,
   onError
 }: {
-  bytes: Uint8Array
+  readBytes: () => Uint8Array | null
   resetVersion: number
   onReady: () => void
   onError: (message: string) => void
@@ -176,6 +177,11 @@ function InteractiveModelCanvas({
   useEffect(() => {
     const canvas = canvasRef.current
     if (!canvas) return
+    const bytes = readBytes()
+    if (!bytes) {
+      onError('The prepared model data is no longer available. Retry the preview.')
+      return
+    }
 
     let disposed = false
     let modelRoot: Group | null = null
@@ -327,7 +333,7 @@ function InteractiveModelCanvas({
       renderer?.dispose()
       renderer?.forceContextLoss()
     }
-  }, [bytes, onError, onReady])
+  }, [onError, onReady, readBytes])
 
   const handleKeyDown = (event: ReactKeyboardEvent<HTMLCanvasElement>): void => {
     const interaction = interactionRef.current

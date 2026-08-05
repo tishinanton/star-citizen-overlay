@@ -3,10 +3,13 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import type {
   BlueprintCatalogResult,
   BlueprintDetailResult,
-  BlueprintModelResult,
   BlueprintOwnershipSnapshot,
   BlueprintThumbnailResult
 } from '../../../shared/contracts'
+import {
+  getBlueprintModelMetadata,
+  type BlueprintModelMetadata
+} from '../lib/model-viewer'
 
 const DETAIL_SELECTION_DELAY_MS = 120
 
@@ -29,9 +32,10 @@ interface BlueprintThumbnailState {
 }
 
 interface BlueprintModelState {
-  result: BlueprintModelResult | null
+  result: BlueprintModelMetadata | null
   preparing: boolean
   requestKey: string
+  readBytes: () => Uint8Array | null
   retry: () => void
 }
 
@@ -223,16 +227,18 @@ export function useBlueprintModel(
 ): BlueprintModelState {
   const [success, setSuccess] = useState<{
     requestKey: string
-    result: BlueprintModelResult
+    result: BlueprintModelMetadata
   } | null>(null)
   const [retryVersion, setRetryVersion] = useState(0)
   const generation = useRef(0)
+  const bytes = useRef<Uint8Array | null>(null)
   const requestKey = blueprintId
     ? `${blueprintId}:${catalogUpdatedAt ?? 'loading'}:${retryVersion}`
     : ''
 
   useEffect(() => {
     const requestGeneration = ++generation.current
+    bytes.current = null
     if (!blueprintId) return
 
     const timer = window.setTimeout(() => {
@@ -240,7 +246,8 @@ export function useBlueprintModel(
         .getBlueprintModel(blueprintId)
         .then((nextResult) => {
           if (generation.current === requestGeneration) {
-            setSuccess({ requestKey, result: nextResult })
+            bytes.current = nextResult.bytes
+            setSuccess({ requestKey, result: getBlueprintModelMetadata(nextResult) })
           }
         })
         .catch((reason: unknown) => {
@@ -249,7 +256,6 @@ export function useBlueprintModel(
               requestKey,
               result: {
                 status: 'error',
-                bytes: null,
                 stats: null,
                 cache: null,
                 message: getErrorMessage(reason)
@@ -262,6 +268,7 @@ export function useBlueprintModel(
     return () => {
       window.clearTimeout(timer)
       generation.current += 1
+      bytes.current = null
     }
   }, [blueprintId, requestKey])
 
@@ -271,6 +278,7 @@ export function useBlueprintModel(
     preparing:
       blueprintId !== null && (currentResult === null || currentResult.status === 'superseded'),
     requestKey,
+    readBytes: useCallback(() => bytes.current, []),
     retry: () => setRetryVersion((current) => current + 1)
   }
 }

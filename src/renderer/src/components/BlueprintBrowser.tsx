@@ -30,8 +30,7 @@ import type {
   BlueprintOwnershipSnapshot,
   BlueprintRequirementGroup,
   BlueprintSummary,
-  BlueprintUnlockMission,
-  BlueprintModelResult
+  BlueprintUnlockMission
 } from '../../../shared/contracts'
 import BlueprintModelPreview from './BlueprintModelPreview'
 import {
@@ -41,6 +40,7 @@ import {
   useBlueprintOwnership,
   useBlueprintThumbnail
 } from '../hooks/useBlueprints'
+import type { BlueprintModelMetadata } from '../lib/model-viewer'
 import {
   getBlueprintCategoryOptions,
   getBlueprintSubcategoryOptions,
@@ -584,6 +584,7 @@ export default function BlueprintBrowser({
               model={model.result}
               modelPreparing={model.preparing}
               modelRequestKey={model.requestKey}
+              readModelBytes={model.readBytes}
               onRetryModel={model.retry}
               loading={detail.loading}
               error={detail.error}
@@ -784,6 +785,7 @@ function BlueprintDetailPane({
   model,
   modelPreparing,
   modelRequestKey,
+  readModelBytes,
   onRetryModel,
   loading,
   error,
@@ -798,9 +800,10 @@ function BlueprintDetailPane({
   detailMessage: string | null
   imageDataUrl: string | null
   imageTitle: string | null
-  model: BlueprintModelResult | null
+  model: BlueprintModelMetadata | null
   modelPreparing: boolean
   modelRequestKey: string
+  readModelBytes: () => Uint8Array | null
   onRetryModel: () => void
   loading: boolean
   error: string | null
@@ -880,6 +883,7 @@ function BlueprintDetailPane({
           model={model}
           preparing={modelPreparing}
           requestKey={modelRequestKey}
+          readBytes={readModelBytes}
           fallbackImageDataUrl={imageDataUrl}
           onRetry={onRetryModel}
         />

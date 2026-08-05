@@ -8,6 +8,10 @@ import {
   Vector3
 } from 'three'
 
+import type { BlueprintModelResult } from '../../../shared/contracts'
+
+export type BlueprintModelMetadata = Omit<BlueprintModelResult, 'bytes'>
+
 export interface ModelFraming {
   center: Vector3
   distance: number
@@ -30,6 +34,17 @@ interface ShaderPrecisionContext {
 }
 
 const INITIAL_VIEW_DIRECTION = new Vector3(1.25, -1.6, 1.05).normalize()
+
+export function getBlueprintModelMetadata(
+  result: BlueprintModelResult
+): BlueprintModelMetadata {
+  return {
+    status: result.status,
+    stats: result.stats,
+    cache: result.cache,
+    message: result.message
+  }
+}
 
 export function getSupportedShaderPrecision(
   context: ShaderPrecisionContext

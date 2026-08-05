@@ -13,10 +13,29 @@ import {
 
 import {
   disposeModel,
+  getBlueprintModelMetadata,
   getModelFraming,
   getSupportedShaderPrecision,
   resetModelCamera
 } from './model-viewer'
+
+test('keeps transferred model bytes out of React-visible metadata', () => {
+  const metadata = getBlueprintModelMetadata({
+    status: 'ready',
+    bytes: new Uint8Array([1, 2, 3]),
+    stats: { byteLength: 3, triangleCount: 1 },
+    cache: 'disk',
+    message: 'Ready.'
+  })
+
+  assert.equal('bytes' in metadata, false)
+  assert.deepEqual(metadata, {
+    status: 'ready',
+    stats: { byteLength: 3, triangleCount: 1 },
+    cache: 'disk',
+    message: 'Ready.'
+  })
+})
 
 function shaderContext(
   precisions: Partial<Record<number, number | null>>

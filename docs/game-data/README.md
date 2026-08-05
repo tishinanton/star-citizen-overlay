@@ -209,6 +209,11 @@ blueprints.
 Output entities reference 27 distinct browser-convertible loadout icons used by
 853 entries.
 
+The deeper investigation of crafting quality, gameplay-property modifiers,
+runtime discrepancies, GUID reverse references, and the M7A/Lightstrike/Demeco
+case studies is documented in
+[`crafting-blueprint-findings.md`](crafting-blueprint-findings.md).
+
 Faction reputation extraction follows a third DataForge path:
 
 ```text

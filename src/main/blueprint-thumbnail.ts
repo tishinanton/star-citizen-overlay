@@ -373,7 +373,8 @@ export class BlueprintThumbnailService {
   }
 
   #ensureConverterAvailable(): Promise<void> {
-    this.#converterAvailability ??= execFileAsync(this.#options.converterPath, ['-usage'], {
+    if (this.#converterAvailability) return this.#converterAvailability
+    const availability = execFileAsync(this.#options.converterPath, ['-usage'], {
       encoding: 'utf8',
       maxBuffer: 1024 * 1024,
       timeout: 15_000,
@@ -396,7 +397,13 @@ export class BlueprintThumbnailService {
           { cause: error }
         )
       })
-    return this.#converterAvailability
+    this.#converterAvailability = availability
+    void availability.catch(() => {
+      if (this.#converterAvailability === availability) {
+        this.#converterAvailability = null
+      }
+    })
+    return availability
   }
 
   #enqueueGeneration(

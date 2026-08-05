@@ -96,7 +96,7 @@ export default function BlueprintModelPreview({
 
       <div className={`blueprint-model__stage blueprint-model__stage--${status}`}>
         <PreviewFallback imageDataUrl={fallbackImageDataUrl} hidden={viewerReady} />
-        {readyModel && (
+        {readyModel && !currentError && (
           <InteractiveModelCanvas
             readBytes={readBytes}
             resetVersion={resetVersion}
@@ -331,7 +331,8 @@ function InteractiveModelCanvas({
         disposeModel(modelRoot)
       }
       renderer?.dispose()
-      renderer?.forceContextLoss()
+      // Strict Mode replays effects on the same canvas; only destroy the context after real removal.
+      if (!canvas.isConnected) renderer?.forceContextLoss()
     }
   }, [onError, onReady, readBytes])
 

@@ -1,12 +1,16 @@
 import assert from 'node:assert/strict'
-import { mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { mkdtemp, readdir, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import test from 'node:test'
 
 import type { BlueprintDetail } from '../shared/contracts'
-import { BlueprintThumbnailService } from './blueprint-thumbnail'
-import { renderGlbThumbnail } from './glb-thumbnail-renderer'
+import { BlueprintThumbnailService, validateBlueprintRequestId } from './blueprint-thumbnail'
+import {
+  MAX_BLUEPRINT_GLB_BYTES,
+  renderGlbThumbnail,
+  validateGlbModel
+} from './glb-thumbnail-renderer'
 
 test('renders deterministic transparent PNG data from GLB geometry', async () => {
   const first = await renderGlbThumbnail(triangleGlb())
@@ -30,7 +34,6 @@ test('deduplicates generation and invalidates cache by archive fingerprint', asy
   await writeFile(archivePath, 'archive')
   let fingerprint = 'archive-a'
   let generationCount = 0
-  const png = await renderGlbThumbnail(triangleGlb())
   const service = new BlueprintThumbnailService({
     cacheDirectory: join(directory, 'cache'),
     temporaryDirectory: join(directory, 'temporary'),
@@ -41,12 +44,15 @@ test('deduplicates generation and invalidates cache by archive fingerprint', asy
     generate: async () => {
       generationCount += 1
       await new Promise((resolve) => setTimeout(resolve, 20))
-      return png
+      return triangleGlb()
     },
     logError: () => undefined
   })
 
-  const [first, concurrent] = await Promise.all([service.get(blueprint()), service.get(blueprint())])
+  const [first, concurrent] = await Promise.all([
+    service.get(blueprint()),
+    service.get(blueprint())
+  ])
   assert.equal(first.status, 'ready')
   assert.equal(concurrent.dataUrl, first.dataUrl)
   assert.equal(generationCount, 1)
@@ -100,7 +106,6 @@ test('keeps only the latest queued generation and preflights a missing converter
   context.after(() => rm(directory, { recursive: true, force: true }))
   const archive = { path: join(directory, 'Data.p4k'), channel: 'LIVE' }
   await writeFile(archive.path, 'archive')
-  const png = await renderGlbThumbnail(triangleGlb())
   let active = 0
   let maximumActive = 0
   let generationCount = 0
@@ -129,7 +134,7 @@ test('keeps only the latest queued generation and preflights a missing converter
       }
       await new Promise((resolve) => setTimeout(resolve, 20))
       active -= 1
-      return png
+      return triangleGlb()
     },
     logError: () => undefined
   })
@@ -177,7 +182,6 @@ test('does not let an older cache probe supersede a newer selection', async (con
   context.after(() => rm(directory, { recursive: true, force: true }))
   const archive = { path: join(directory, 'Data.p4k'), channel: 'LIVE' }
   await writeFile(archive.path, 'archive')
-  const png = await renderGlbThumbnail(triangleGlb())
   let fingerprintCalls = 0
   let signalFirstProbe!: () => void
   let releaseFirstProbe!: () => void
@@ -204,7 +208,7 @@ test('does not let an older cache probe supersede a newer selection', async (con
     },
     generate: async ({ blueprint: selected }) => {
       generated.push(selected.outputClass)
-      return png
+      return triangleGlb()
     },
     logError: () => undefined
   })
@@ -234,7 +238,6 @@ test('drops queued work when a newer unsupported selection arrives', async (cont
   context.after(() => rm(directory, { recursive: true, force: true }))
   const archive = { path: join(directory, 'Data.p4k'), channel: 'LIVE' }
   await writeFile(archive.path, 'archive')
-  const png = await renderGlbThumbnail(triangleGlb())
   let generationCount = 0
   let signalStarted!: () => void
   let releaseActive!: () => void
@@ -257,7 +260,7 @@ test('drops queued work when a newer unsupported selection arrives', async (cont
         signalStarted()
         await activeRelease
       }
-      return png
+      return triangleGlb()
     },
     logError: () => undefined
   })
@@ -288,6 +291,170 @@ test('drops queued work when a newer unsupported selection arrives', async (cont
   assert.equal(generationCount, 1)
 })
 
+test('shares one cached GLB across model and thumbnail requests', async (context) => {
+  const directory = await mkdtemp(join(tmpdir(), 'rockfall-model-shared-'))
+  context.after(() => rm(directory, { recursive: true, force: true }))
+  const archive = { path: join(directory, 'Data.p4k'), channel: 'LIVE' }
+  await writeFile(archive.path, 'archive')
+  let generationCount = 0
+  const service = new BlueprintThumbnailService({
+    cacheDirectory: join(directory, 'cache'),
+    temporaryDirectory: join(directory, 'temporary'),
+    extractorPath: 'extractor.exe',
+    converterPath: 'converter.exe',
+    getGameDataArchive: () => archive,
+    fingerprint: async () => 'archive',
+    generate: async () => {
+      generationCount += 1
+      await new Promise((resolve) => setTimeout(resolve, 10))
+      return triangleGlb(2)
+    },
+    logError: () => undefined
+  })
+
+  const [first, duplicate] = await Promise.all([
+    service.getModel(blueprint()),
+    service.getModel(blueprint())
+  ])
+  assert.equal(first.status, 'ready')
+  assert.equal(duplicate.status, 'ready')
+  assert.equal(first.stats?.byteLength, first.bytes?.byteLength)
+  assert.equal(first.stats?.triangleCount, 2)
+  assert.equal(generationCount, 1)
+
+  const thumbnail = await service.get(blueprint())
+  assert.equal(thumbnail.status, 'ready')
+  assert.equal(generationCount, 1)
+  const cached = await service.getModel(blueprint())
+  assert.equal(cached.status, 'ready')
+  assert.equal(cached.cache, 'disk')
+  assert.equal(generationCount, 1)
+})
+
+test('invalidates the model cache by schema version', async (context) => {
+  const directory = await mkdtemp(join(tmpdir(), 'rockfall-model-schema-'))
+  context.after(() => rm(directory, { recursive: true, force: true }))
+  const archive = { path: join(directory, 'Data.p4k'), channel: 'LIVE' }
+  await writeFile(archive.path, 'archive')
+  let generationCount = 0
+  const options = {
+    cacheDirectory: join(directory, 'cache'),
+    temporaryDirectory: join(directory, 'temporary'),
+    extractorPath: 'extractor.exe',
+    converterPath: 'converter.exe',
+    getGameDataArchive: () => archive,
+    fingerprint: async () => 'archive',
+    generate: async () => {
+      generationCount += 1
+      return triangleGlb()
+    },
+    logError: () => undefined
+  }
+
+  assert.equal(
+    (await new BlueprintThumbnailService({ ...options, schemaVersion: 10 }).getModel(blueprint()))
+      .status,
+    'ready'
+  )
+  assert.equal(
+    (await new BlueprintThumbnailService({ ...options, schemaVersion: 11 }).getModel(blueprint()))
+      .status,
+    'ready'
+  )
+  assert.equal(generationCount, 2)
+})
+
+test('revalidates cached GLB bytes before returning them', async (context) => {
+  const directory = await mkdtemp(join(tmpdir(), 'rockfall-model-revalidate-'))
+  context.after(() => rm(directory, { recursive: true, force: true }))
+  const archive = { path: join(directory, 'Data.p4k'), channel: 'LIVE' }
+  const cacheDirectory = join(directory, 'cache')
+  await writeFile(archive.path, 'archive')
+  let generationCount = 0
+  const service = new BlueprintThumbnailService({
+    cacheDirectory,
+    temporaryDirectory: join(directory, 'temporary'),
+    extractorPath: 'extractor.exe',
+    converterPath: 'converter.exe',
+    getGameDataArchive: () => archive,
+    fingerprint: async () => 'archive',
+    generate: async () => {
+      generationCount += 1
+      return triangleGlb()
+    },
+    logError: () => undefined
+  })
+
+  const generated = await service.getModel(blueprint())
+  assert.equal(generated.status, 'ready')
+  assert.equal('cachePath' in generated, false)
+  const [cachedGlb] = await findFiles(cacheDirectory, '.glb')
+  assert.ok(cachedGlb)
+  await writeFile(cachedGlb, 'not a model')
+
+  const regenerated = await service.getModel(blueprint())
+  assert.equal(regenerated.status, 'ready')
+  assert.equal(regenerated.cache, 'generated')
+  assert.equal(generationCount, 2)
+})
+
+test('validates model size, triangle count, and blueprint request IDs', async () => {
+  const stats = validateGlbModel(triangleGlb(3))
+  assert.equal(stats.triangleCount, 3)
+  assert.equal(stats.byteLength, triangleGlb(3).length)
+  assert.throws(() => validateGlbModel(triangleGlb(250_001)), /triangle limit/)
+  assert.throws(
+    () =>
+      validateGlbModel(
+        triangleGlb(130_000, {
+          nodes: [{ mesh: 0 }, { mesh: 0 }],
+          scenes: [{ nodes: [0, 1] }]
+        })
+      ),
+    /triangle limit/
+  )
+  assert.throws(
+    () =>
+      validateGlbModel(
+        triangleGlb(1, {
+          meshes: [{ primitives: [{ attributes: { POSITION: 0 }, mode: 5 }] }]
+        })
+      ),
+    /primitive mode/
+  )
+  assert.throws(
+    () => validateGlbModel(triangleGlb(1, { images: [{ uri: 'file:///private.dds' }] })),
+    /unsupported textures/
+  )
+  assert.throws(() => validateGlbModel(Buffer.alloc(MAX_BLUEPRINT_GLB_BYTES + 1)), /at most 64 MiB/)
+
+  assert.equal(validateBlueprintRequestId('arbor-mh1:grade_1'), 'arbor-mh1:grade_1')
+  for (const invalid of [
+    '',
+    '../arbor',
+    'arbor..mh1',
+    'folder/arbor',
+    'folder\\arbor',
+    '.\\arbor',
+    ' arbor',
+    'arbor mh1',
+    42,
+    null
+  ]) {
+    assert.throws(() => validateBlueprintRequestId(invalid), /valid blueprint/)
+  }
+})
+
+async function findFiles(directory: string, suffix: string): Promise<string[]> {
+  const output: string[] = []
+  for (const entry of await readdir(directory, { withFileTypes: true })) {
+    const path = join(directory, entry.name)
+    if (entry.isDirectory()) output.push(...(await findFiles(path, suffix)))
+    else if (entry.isFile() && entry.name.endsWith(suffix)) output.push(path)
+  }
+  return output
+}
+
 function blueprint(): BlueprintDetail {
   return {
     id: 'arbor-mh1',
@@ -315,15 +482,13 @@ function blueprint(): BlueprintDetail {
   }
 }
 
-function triangleGlb(triangleCount = 1): Buffer {
+function triangleGlb(triangleCount = 1, documentExtras: Record<string, unknown> = {}): Buffer {
   const positions = Buffer.alloc(9 * 4)
   ;[-1, -1, 0, 1, -1, 0, 0, 1, 0].forEach((value, index) =>
     positions.writeFloatLE(value, index * 4)
   )
   const normals = Buffer.alloc(9 * 4)
-  ;[0, 0, 1, 0, 0, 1, 0, 0, 1].forEach((value, index) =>
-    normals.writeFloatLE(value, index * 4)
-  )
+  ;[0, 0, 1, 0, 0, 1, 0, 0, 1].forEach((value, index) => normals.writeFloatLE(value, index * 4))
   const indexBytes = triangleCount * 3 * 2
   const indices = Buffer.alloc(indexBytes + ((4 - (indexBytes % 4)) % 4))
   for (let index = 0; index < triangleCount; index += 1) {
@@ -352,7 +517,8 @@ function triangleGlb(triangleCount = 1): Buffer {
     meshes: [{ primitives: [{ attributes: { POSITION: 0, NORMAL: 1 }, indices: 2 }] }],
     nodes: [{ mesh: 0 }],
     scenes: [{ nodes: [0] }],
-    scene: 0
+    scene: 0,
+    ...documentExtras
   }
   const jsonData = Buffer.from(JSON.stringify(document), 'utf8')
   const jsonPadding = Buffer.alloc((4 - (jsonData.length % 4)) % 4, 0x20)

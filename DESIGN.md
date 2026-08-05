@@ -307,11 +307,16 @@ where those states apply.
   Default and uniquely matched local log receipts are marked owned
   automatically; ambiguous receipts remain explicit for manual review. The
   detail header contains the reversible manual ownership action and identifies
-  default, log, or manual provenance.
+  default, log, or manual provenance. Eligible rigid outputs expose a bounded
+  local interactive model without delaying catalog or detail loading; their
+  static icon or software thumbnail remains visible until the viewer is ready.
+  Orbit, zoom, keyboard navigation, and deterministic reset use familiar
+  controls, while unsupported or failed models preserve the static fallback.
 - **Surface:** Flat split panes with aligned table rows, full one-pixel
-  boundaries, tabular quantities, and no ornamental blueprint cards. A packaged
-  64×64 loadout icon appears when the output entity provides one; the equipment
-  glyph remains the explicit fallback.
+  boundaries, tabular quantities, and no ornamental blueprint cards. The model
+  viewport is a bounded instrument field inside the detail hierarchy, not a
+  modal. A packaged 64×64 loadout icon appears when the output entity provides
+  one; the software thumbnail or equipment glyph remains the explicit fallback.
 
 ### Faction Directory
 

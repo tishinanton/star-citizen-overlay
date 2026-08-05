@@ -3,6 +3,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import type {
   BlueprintCatalogResult,
   BlueprintDetailResult,
+  BlueprintModelResult,
   BlueprintOwnershipSnapshot,
   BlueprintThumbnailResult
 } from '../../../shared/contracts'
@@ -25,6 +26,13 @@ interface BlueprintDetailState {
 
 interface BlueprintThumbnailState {
   result: BlueprintThumbnailResult | null
+}
+
+interface BlueprintModelState {
+  result: BlueprintModelResult | null
+  preparing: boolean
+  requestKey: string
+  retry: () => void
 }
 
 interface BlueprintOwnershipState {
@@ -133,7 +141,6 @@ export function useBlueprintDetail(
         setError({ requestKey, message: getErrorMessage(reason) })
       }
     }
-
   }, [blueprintId, requestKey])
 
   useEffect(() => {
@@ -206,8 +213,65 @@ export function useBlueprintThumbnail(
   }, [blueprintId, packagedImageDataUrl, requestKey])
 
   return {
-    result:
-      !packagedImageDataUrl && success?.requestKey === requestKey ? success.result : null
+    result: !packagedImageDataUrl && success?.requestKey === requestKey ? success.result : null
+  }
+}
+
+export function useBlueprintModel(
+  blueprintId: string | null,
+  catalogUpdatedAt: string | null
+): BlueprintModelState {
+  const [success, setSuccess] = useState<{
+    requestKey: string
+    result: BlueprintModelResult
+  } | null>(null)
+  const [retryVersion, setRetryVersion] = useState(0)
+  const generation = useRef(0)
+  const requestKey = blueprintId
+    ? `${blueprintId}:${catalogUpdatedAt ?? 'loading'}:${retryVersion}`
+    : ''
+
+  useEffect(() => {
+    const requestGeneration = ++generation.current
+    if (!blueprintId) return
+
+    const timer = window.setTimeout(() => {
+      window.rockfall
+        .getBlueprintModel(blueprintId)
+        .then((nextResult) => {
+          if (generation.current === requestGeneration) {
+            setSuccess({ requestKey, result: nextResult })
+          }
+        })
+        .catch((reason: unknown) => {
+          if (generation.current === requestGeneration) {
+            setSuccess({
+              requestKey,
+              result: {
+                status: 'error',
+                bytes: null,
+                stats: null,
+                cache: null,
+                message: getErrorMessage(reason)
+              }
+            })
+          }
+        })
+    }, DETAIL_SELECTION_DELAY_MS)
+
+    return () => {
+      window.clearTimeout(timer)
+      generation.current += 1
+    }
+  }, [blueprintId, requestKey])
+
+  const currentResult = success?.requestKey === requestKey ? success.result : null
+  return {
+    result: currentResult,
+    preparing:
+      blueprintId !== null && (currentResult === null || currentResult.status === 'superseded'),
+    requestKey,
+    retry: () => setRetryVersion((current) => current + 1)
   }
 }
 

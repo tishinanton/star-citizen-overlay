@@ -27,6 +27,7 @@ import {
   type BestMiningLocationState,
   type BlueprintCatalogResult,
   type BlueprintDetailResult,
+  type BlueprintModelResult,
   type BlueprintOwnershipSnapshot,
   type BlueprintThumbnailResult,
   type CloudSyncState,
@@ -65,7 +66,7 @@ import {
 import { AppUpdaterController, createUpdaterClient } from './app-updater'
 import { prepareBlueprintDataLoad, type BlueprintDataResult } from './blueprint-data'
 import { BlueprintOwnershipService } from './blueprint-ownership'
-import { BlueprintThumbnailService } from './blueprint-thumbnail'
+import { BlueprintThumbnailService, validateBlueprintRequestId } from './blueprint-thumbnail'
 import { CloudSyncController } from './cloud-sync'
 import { loadFactionData } from './faction-data'
 import {
@@ -1564,13 +1565,11 @@ async function setBlueprintOwned(
 }
 
 async function getBlueprintDetail(blueprintId: unknown): Promise<BlueprintDetailResult> {
-  if (typeof blueprintId !== 'string' || blueprintId.length === 0 || blueprintId.length > 200) {
-    throw new TypeError('A valid blueprint is required.')
-  }
+  const validatedBlueprintId = validateBlueprintRequestId(blueprintId)
 
   if (!blueprintDataResult) await getBlueprintCatalog()
   const data = blueprintDataResult
-  const blueprint = data?.details[blueprintId]
+  const blueprint = data?.details[validatedBlueprintId]
   if (!blueprint) {
     throw new Error('That blueprint is no longer available.')
   }
@@ -1583,12 +1582,10 @@ async function getBlueprintDetail(blueprintId: unknown): Promise<BlueprintDetail
 }
 
 async function getBlueprintThumbnail(blueprintId: unknown): Promise<BlueprintThumbnailResult> {
-  if (typeof blueprintId !== 'string' || blueprintId.length === 0 || blueprintId.length > 200) {
-    throw new TypeError('A valid blueprint is required.')
-  }
+  const validatedBlueprintId = validateBlueprintRequestId(blueprintId)
   if (!blueprintDataResult) await getBlueprintCatalog()
   const data = blueprintDataResult
-  const blueprint = data?.details[blueprintId]
+  const blueprint = data?.details[validatedBlueprintId]
   if (!data || !blueprint) {
     throw new Error('That blueprint is no longer available.')
   }
@@ -1609,6 +1606,23 @@ async function getBlueprintThumbnail(blueprintId: unknown): Promise<BlueprintThu
     }
   }
   return blueprintThumbnailService.get(blueprint)
+}
+
+async function getBlueprintModel(blueprintId: unknown): Promise<BlueprintModelResult> {
+  const validatedBlueprintId = validateBlueprintRequestId(blueprintId)
+  if (!blueprintDataResult) await getBlueprintCatalog()
+  const blueprint = blueprintDataResult?.details[validatedBlueprintId]
+  if (!blueprint) throw new Error('That blueprint is no longer available.')
+  if (!blueprintThumbnailService) {
+    return {
+      status: 'unavailable',
+      bytes: null,
+      stats: null,
+      cache: null,
+      message: 'Local 3D model generation is not initialized.'
+    }
+  }
+  return blueprintThumbnailService.getModel(blueprint)
 }
 
 function loadRenderer(window: BrowserWindow, view: 'control' | 'overlay' | 'drag-handle'): void {
@@ -1915,6 +1929,10 @@ function registerIpcHandlers(): void {
     assertControlWindowSender(event)
     return getBlueprintThumbnail(blueprintId)
   })
+  ipcMain.handle(IPC_CHANNELS.getBlueprintModel, (event, blueprintId: unknown) => {
+    assertControlWindowSender(event)
+    return getBlueprintModel(blueprintId)
+  })
   ipcMain.handle(IPC_CHANNELS.getFactionCatalog, (event, refresh: unknown) => {
     assertControlWindowSender(event)
     return getFactionCatalog(refresh)
@@ -2092,8 +2110,7 @@ if (!hasSingleInstanceLock) {
       cacheDirectory: blueprintThumbnailCachePath,
       temporaryDirectory: blueprintThumbnailTemporaryPath,
       extractorPath,
-      converterPath:
-        process.env.ROCKFALL_CGF_CONVERTER ?? 'cgf-converter.exe',
+      converterPath: process.env.ROCKFALL_CGF_CONVERTER ?? 'cgf-converter.exe',
       getGameDataArchive: () => gameDataArchive
     })
     const [loaded, gameDataPreference, loadedLocalization] = await Promise.all([

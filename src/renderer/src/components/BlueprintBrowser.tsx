@@ -24,11 +24,14 @@ import type {
   BlueprintOwnershipSnapshot,
   BlueprintRequirementGroup,
   BlueprintSummary,
-  BlueprintUnlockMission
+  BlueprintUnlockMission,
+  BlueprintModelResult
 } from '../../../shared/contracts'
+import BlueprintModelPreview from './BlueprintModelPreview'
 import {
   useBlueprintCatalog,
   useBlueprintDetail,
+  useBlueprintModel,
   useBlueprintOwnership,
   useBlueprintThumbnail
 } from '../hooks/useBlueprints'
@@ -179,6 +182,7 @@ export default function BlueprintBrowser({
     packagedImageDataUrl,
     catalog.result?.updatedAt ?? null
   )
+  const model = useBlueprintModel(selectedBlueprint?.id ?? null, catalog.result?.updatedAt ?? null)
   const totalCount = catalog.result?.blueprints.length ?? 0
   const ownedCount =
     ownership.result?.ownedCount ??
@@ -592,6 +596,10 @@ export default function BlueprintBrowser({
                     ? thumbnail.result.message
                     : null
               }
+              model={model.result}
+              modelPreparing={model.preparing}
+              modelRequestKey={model.requestKey}
+              onRetryModel={model.retry}
               loading={detail.loading}
               error={detail.error}
               onRetry={retryDetail}
@@ -708,6 +716,10 @@ function BlueprintDetailPane({
   detailMessage,
   imageDataUrl,
   imageTitle,
+  model,
+  modelPreparing,
+  modelRequestKey,
+  onRetryModel,
   loading,
   error,
   onRetry,
@@ -721,6 +733,10 @@ function BlueprintDetailPane({
   detailMessage: string | null
   imageDataUrl: string | null
   imageTitle: string | null
+  model: BlueprintModelResult | null
+  modelPreparing: boolean
+  modelRequestKey: string
+  onRetryModel: () => void
   loading: boolean
   error: string | null
   onRetry: () => void
@@ -795,6 +811,14 @@ function BlueprintDetailPane({
       </header>
 
       <div className="blueprint-detail__body">
+        <BlueprintModelPreview
+          model={model}
+          preparing={modelPreparing}
+          requestKey={modelRequestKey}
+          fallbackImageDataUrl={imageDataUrl}
+          onRetry={onRetryModel}
+        />
+
         <section
           className="blueprint-output-profile"
           aria-labelledby="blueprint-output-profile-title"

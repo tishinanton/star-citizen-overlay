@@ -73,8 +73,11 @@ are cached against the selected archive fingerprint for faster subsequent
 loads. When an output entity references a packaged loadout icon, Rockfall
 extracts its 64×64 DDS asset and converts it to a local PNG preview. This build
 exposes 27 distinct icons across 853 blueprint outputs; most ship components do
-not ship with a pre-rendered item image, so those outputs retain the standard
-equipment glyph.
+not ship with a pre-rendered item image. For rigid `.cgf` and `.cga` outputs,
+Rockfall can instead prepare an untextured interactive model from the configured
+local archive. The fast icon or generated software thumbnail remains visible
+while that model prepares; unsupported skeletal and material-heavy outputs keep
+the static or standard equipment fallback.
 
 Blueprint ownership is tracked separately from the static catalog. Rockfall
 scans the selected channel's `Game.log` and retained `logbackups\*.log` files
@@ -139,7 +142,11 @@ alongside independent Collection and Access filters. **Owned** shows default,
 log-confirmed, and manually marked blueprints; **Obtainable** shows unowned
 mission-mapped blueprints. **Logs** performs a full history rescan. The detail
 pane identifies the ownership source and exposes **Mark owned** or **Clear
-manual mark** when a manual correction is applicable.
+manual mark** when a manual correction is applicable. Eligible detail panes
+also expose a local 3D model: drag or touch-drag to orbit, use the mouse wheel
+or pinch to zoom, and choose **Reset view** to recenter. With keyboard focus on
+the preview, arrow keys rotate, plus/minus zoom, and Home resets; Tab continues
+to the next control normally.
 
 Faction controls search names, profile text, reputation tracks, and rank names,
 with lawful and unlawful roster filters. Arrow keys move through the faction
@@ -316,6 +323,16 @@ The local Android overlay-control contract is defined in the
 - Blueprint log monitoring records receipts present on this Windows
   installation; deleted, rotated-away, or other-machine logs cannot reconstruct
   a complete historical account snapshot.
+- Interactive blueprint models require a separately installed
+  [Cryengine Converter 2.0](https://github.com/Markemp/Cryengine-Converter) or
+  `ROCKFALL_CGF_CONVERTER`. Preview support is limited to bounded rigid
+  `.cgf`/`.cga` geometry (64 MiB and 250,000 triangles); textures, materials,
+  `.skin`, `.chr`, skeletal animation, and external model resources are not
+  loaded.
+- Extracted source geometry remains temporary. Validated untextured GLB and PNG
+  derivatives stay only under Electron `userData`, keyed by archive
+  fingerprint, renderer schema, output class, and asset path. They are never
+  included in static publication or transmitted.
 - Signature accuracy follows the selected installed Star Citizen channel.
 - Rockfall does not read game memory, inject code, automate input, or interact
   with Star Citizen's process.

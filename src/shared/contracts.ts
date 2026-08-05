@@ -234,11 +234,27 @@ export interface BlueprintDetailResult {
   updatedAt: string
 }
 
-export type BlueprintThumbnailStatus = 'ready' | 'unsupported' | 'unavailable' | 'error'
+export type BlueprintThumbnailStatus =
+  'ready' | 'unsupported' | 'unavailable' | 'superseded' | 'error'
 
 export interface BlueprintThumbnailResult {
   status: BlueprintThumbnailStatus
   dataUrl: string | null
+  message: string
+}
+
+export type BlueprintModelStatus = 'ready' | 'unsupported' | 'unavailable' | 'superseded' | 'error'
+
+export interface BlueprintModelStats {
+  byteLength: number
+  triangleCount: number
+}
+
+export interface BlueprintModelResult {
+  status: BlueprintModelStatus
+  bytes: Uint8Array | null
+  stats: BlueprintModelStats | null
+  cache: 'generated' | 'disk' | null
   message: string
 }
 
@@ -546,6 +562,7 @@ export interface RockfallApi {
   getBlueprintCatalog: (refresh?: boolean) => Promise<BlueprintCatalogResult>
   getBlueprintDetail: (blueprintId: string) => Promise<BlueprintDetailResult>
   getBlueprintThumbnail: (blueprintId: string) => Promise<BlueprintThumbnailResult>
+  getBlueprintModel: (blueprintId: string) => Promise<BlueprintModelResult>
   getBlueprintOwnership: () => Promise<BlueprintOwnershipSnapshot>
   rescanBlueprintOwnership: () => Promise<BlueprintOwnershipSnapshot>
   setBlueprintOwned: (blueprintId: string, owned: boolean) => Promise<BlueprintOwnershipSnapshot>
@@ -588,6 +605,7 @@ export const IPC_CHANNELS = {
   blueprintCatalogChanged: 'rockfall:blueprints:changed',
   getBlueprintDetail: 'rockfall:blueprints:detail',
   getBlueprintThumbnail: 'rockfall:blueprints:thumbnail',
+  getBlueprintModel: 'rockfall:blueprints:model',
   getBlueprintOwnership: 'rockfall:blueprints:ownership:get',
   rescanBlueprintOwnership: 'rockfall:blueprints:ownership:rescan',
   setBlueprintOwned: 'rockfall:blueprints:ownership:set',

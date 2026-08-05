@@ -6374,6 +6374,245 @@ a.mission-row:hover {
   }
 }
 
+.blueprint-model {
+  margin-bottom: 14px;
+  overflow: hidden;
+  border: 1px solid color-mix(in oklch, var(--edge-strong) 56%, var(--edge));
+  border-radius: 11px;
+  background: rgb(3 18 24 / 78%);
+}
+
+.blueprint-model__heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 44px;
+  padding: 0 10px 0 13px;
+  gap: 12px;
+  border-bottom: 1px solid color-mix(in oklch, var(--edge-strong) 44%, transparent);
+  background: rgb(17 43 54 / 76%);
+}
+
+.blueprint-model__heading > div,
+.blueprint-model__heading button {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.blueprint-model__heading > div {
+  color: var(--accent-bright);
+}
+
+.blueprint-model__heading h3 {
+  margin: 0;
+  color: var(--ink);
+  font-family: 'Bahnschrift SemiCondensed', Bahnschrift, 'Arial Narrow', sans-serif;
+  font-size: 1.08rem;
+  font-weight: 600;
+  letter-spacing: 0.045em;
+  text-transform: uppercase;
+}
+
+.blueprint-model__heading button,
+.blueprint-model__state button {
+  min-height: 30px;
+  padding: 0 9px;
+  border: 1px solid color-mix(in oklch, var(--edge-strong) 52%, var(--edge));
+  border-radius: 7px;
+  background: rgb(5 25 34 / 82%);
+  color: var(--ink-soft);
+  font-size: 0.92rem;
+  transition:
+    border-color var(--duration-fast) var(--ease-out),
+    background-color var(--duration-fast) var(--ease-out),
+    color var(--duration-fast) var(--ease-out);
+}
+
+.blueprint-model__heading button:hover:not(:disabled),
+.blueprint-model__state button:hover {
+  border-color: var(--edge-strong);
+  background: var(--surface-high);
+  color: var(--ink);
+}
+
+.blueprint-model__heading button:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+.blueprint-model__stage {
+  position: relative;
+  height: clamp(260px, 34vh, 380px);
+  min-height: 0;
+  overflow: hidden;
+  background:
+    linear-gradient(rgb(3 15 20 / 86%), rgb(2 11 16 / 94%)),
+    repeating-linear-gradient(
+      0deg,
+      transparent 0,
+      transparent 31px,
+      color-mix(in oklch, var(--edge) 22%, transparent) 32px
+    ),
+    repeating-linear-gradient(
+      90deg,
+      transparent 0,
+      transparent 31px,
+      color-mix(in oklch, var(--edge) 18%, transparent) 32px
+    );
+}
+
+.blueprint-model__stage::before {
+  position: absolute;
+  z-index: 1;
+  inset: 0;
+  border: 1px solid rgb(147 224 245 / 6%);
+  content: '';
+  pointer-events: none;
+}
+
+.blueprint-model__fallback,
+.blueprint-model__canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.blueprint-model__fallback {
+  display: grid;
+  z-index: 0;
+  place-items: center;
+  color: color-mix(in oklch, var(--accent-bright) 62%, var(--muted));
+  opacity: 0.72;
+  transition: opacity var(--duration-fast) var(--ease-out);
+}
+
+.blueprint-model__fallback.is-hidden {
+  opacity: 0;
+}
+
+.blueprint-model__fallback img {
+  width: min(46%, 190px);
+  height: min(66%, 190px);
+  object-fit: contain;
+  image-rendering: auto;
+}
+
+.blueprint-model__canvas {
+  z-index: 2;
+  display: block;
+  cursor: grab;
+  touch-action: none;
+}
+
+.blueprint-model__canvas:active {
+  cursor: grabbing;
+}
+
+.blueprint-model__canvas:focus-visible {
+  box-shadow:
+    inset 0 0 0 2px var(--bg),
+    inset 0 0 0 4px var(--focus);
+}
+
+.blueprint-model__state {
+  position: absolute;
+  z-index: 3;
+  right: 12px;
+  bottom: 12px;
+  left: 12px;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  min-height: 58px;
+  padding: 9px 10px;
+  gap: 10px;
+  border: 1px solid color-mix(in oklch, var(--edge-strong) 54%, var(--edge));
+  border-radius: 8px;
+  background: rgb(5 23 31 / 94%);
+  color: var(--accent-bright);
+}
+
+.blueprint-model__stage--error .blueprint-model__state {
+  border-color: color-mix(in oklch, var(--danger) 64%, var(--edge));
+  color: var(--danger-ink);
+}
+
+.blueprint-model__stage--unsupported .blueprint-model__state,
+.blueprint-model__stage--unavailable .blueprint-model__state {
+  color: var(--warning);
+}
+
+.blueprint-model__state > div {
+  min-width: 0;
+}
+
+.blueprint-model__state strong,
+.blueprint-model__state span {
+  display: block;
+}
+
+.blueprint-model__state strong {
+  color: var(--ink);
+  font-size: 0.98rem;
+  font-weight: 600;
+}
+
+.blueprint-model__state span {
+  margin-top: 2px;
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 0.9rem;
+  line-height: 1.3;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.blueprint-model__telemetry {
+  position: absolute;
+  z-index: 3;
+  right: 10px;
+  bottom: 9px;
+  display: flex;
+  align-items: center;
+  padding: 5px 8px;
+  gap: 7px;
+  border: 1px solid color-mix(in oklch, var(--edge-strong) 46%, transparent);
+  border-radius: 6px;
+  background: rgb(2 15 21 / 86%);
+  color: var(--ink-soft);
+  font-size: 0.86rem;
+  font-variant-numeric: tabular-nums;
+  pointer-events: none;
+}
+
+.blueprint-model__telemetry span + span::before {
+  margin-right: 7px;
+  color: var(--edge-strong);
+  content: '·';
+}
+
+.blueprint-model__controls {
+  margin: 0;
+  padding: 7px 12px 8px;
+  border-top: 1px solid color-mix(in oklch, var(--edge) 48%, transparent);
+  color: var(--muted);
+  font-size: 0.88rem;
+  line-height: 1.35;
+  text-align: center;
+}
+
+@media (max-width: 1180px) {
+  .blueprint-model__stage {
+    height: clamp(240px, 30vh, 330px);
+  }
+
+  .blueprint-model__state span {
+    white-space: normal;
+  }
+}
+
 /* Reference-led command console */
 
 .app-shell {

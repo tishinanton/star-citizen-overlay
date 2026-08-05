@@ -46,6 +46,8 @@ const rockfallApi: RockfallApi = {
     ipcRenderer.invoke(IPC_CHANNELS.getBlueprintDetail, blueprintId),
   getBlueprintThumbnail: (blueprintId: string) =>
     ipcRenderer.invoke(IPC_CHANNELS.getBlueprintThumbnail, blueprintId),
+  getBlueprintModel: (blueprintId: string) =>
+    ipcRenderer.invoke(IPC_CHANNELS.getBlueprintModel, blueprintId),
   getBlueprintOwnership: () => ipcRenderer.invoke(IPC_CHANNELS.getBlueprintOwnership),
   rescanBlueprintOwnership: () => ipcRenderer.invoke(IPC_CHANNELS.rescanBlueprintOwnership),
   setBlueprintOwned: (blueprintId: string, owned: boolean) =>

@@ -26,6 +26,9 @@ internal sealed record GameBlueprintRecord(
     string OutputType,
     string OutputTypeLabel,
     string? OutputGrade,
+    string? OutputDescription,
+    string? OutputManufacturer,
+    IReadOnlyList<GameBlueprintStat> OutputStats,
     int CraftTimeSeconds,
     string CraftTimeLabel,
     bool AvailableByDefault,
@@ -37,6 +40,11 @@ internal sealed record GameBlueprintRecord(
     string GameVersion,
     string? ImageKey,
     string? WebUrl);
+
+internal sealed record GameBlueprintStat(
+    string Key,
+    string Label,
+    string Value);
 
 internal sealed record GameBlueprintIngredient(
     string Name,

@@ -1,11 +1,16 @@
 import assert from 'node:assert/strict'
-import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import test from 'node:test'
 
 import type { BlueprintDetail, LocalizationSource } from '../shared/contracts'
-import { loadBlueprintData, parseGameBlueprint, parseGameBlueprintPayload } from './blueprint-data'
+import {
+  loadBlueprintData,
+  parseGameBlueprint,
+  parseGameBlueprintPayload,
+  prepareBlueprintDataLoad
+} from './blueprint-data'
 
 const GAME_VERSION = '4.9.187.47267-LIVE'
 const ICON_KEY = 'ui/textures/ea/loadouticons/heavy_armour_64.tif'
@@ -25,6 +30,12 @@ test('parses installed blueprint requirements, missions, and icons', () => {
   assert.equal(blueprint.unlockingMissions[0].minimumReputation, 'Senior Security Contractor')
   assert.equal(blueprint.unlockingMissions[0].reputationVaries, false)
   assert.deepEqual(blueprint.unlockingMissions[0].starSystems, ['Stanton'])
+  assert.equal(blueprint.outputDescription, 'Heavy armor for field reconnaissance.')
+  assert.equal(blueprint.outputManufacturer, 'Clark Defense Systems')
+  assert.deepEqual(blueprint.outputStats, [
+    { key: 'physical-protection', label: 'Physical protection', value: '40%' },
+    { key: 'storage', label: 'Storage', value: '10,500 µSCU' }
+  ])
   assert.equal(blueprint.imageKey, ICON_KEY)
   assert.equal(extraction.icons[ICON_KEY], ICON_DATA)
 })
@@ -45,6 +56,10 @@ test('rejects malformed and duplicate installed blueprint records', () => {
     starSystems: ['Stanton', 'Stanton']
   })
   assert.throws(() => parseGameBlueprintPayload(invalidMission), /invalid blueprint record/)
+
+  const duplicateStats = extractorPayload()
+  duplicateStats.blueprints[0].outputStats.push(duplicateStats.blueprints[0].outputStats[0])
+  assert.throws(() => parseGameBlueprintPayload(duplicateStats), /invalid blueprint record/)
 })
 
 test('caches installed blueprints by archive fingerprint', async () => {
@@ -100,6 +115,132 @@ test('caches installed blueprints by archive fingerprint', async () => {
     })
     assert.equal(offline.catalog.state, 'cached')
     assert.match(offline.catalog.message, /Game files/)
+  } finally {
+    await rm(directory, { recursive: true, force: true })
+  }
+})
+
+test('returns cached blueprints while a stale archive refreshes in the background', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'rockfall-game-blueprint-revalidate-'))
+  const archivePath = join(directory, 'Data.p4k')
+  const cachePath = join(directory, 'blueprints.json')
+  await writeFile(archivePath, 'archive')
+
+  try {
+    await loadBlueprintData(
+      {
+        cachePath,
+        extractorPath: 'extractor.exe',
+        gameDataArchive: { path: archivePath, channel: 'LIVE' }
+      },
+      async () => parsedExtraction()
+    )
+    await writeFile(archivePath, 'changed archive')
+
+    let releaseExtraction: () => void = () => undefined
+    const extractionGate = new Promise<void>((resolve) => {
+      releaseExtraction = resolve
+    })
+    let markExtractionStarted: () => void = () => undefined
+    const extractionStarted = new Promise<void>((resolve) => {
+      markExtractionStarted = resolve
+    })
+    let refreshSettled = false
+    const load = await prepareBlueprintDataLoad(
+      {
+        cachePath,
+        extractorPath: 'extractor.exe',
+        gameDataArchive: { path: archivePath, channel: 'LIVE' }
+      },
+      async () => {
+        markExtractionStarted()
+        await extractionGate
+        return parsedExtraction()
+      }
+    )
+    void load.refreshed.then(
+      () => {
+        refreshSettled = true
+      },
+      () => {
+        refreshSettled = true
+      }
+    )
+
+    assert.equal(load.cached?.catalog.state, 'cached')
+    assert.match(load.cached?.catalog.message ?? '', /checking for updates/i)
+    await extractionStarted
+    assert.equal(refreshSettled, false)
+
+    releaseExtraction()
+    const refreshed = await load.refreshed
+    assert.equal(refreshed.catalog.state, 'game')
+  } finally {
+    await rm(directory, { recursive: true, force: true })
+  }
+})
+
+test('returns a legacy cache while its schema migrates in the background', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'rockfall-game-blueprint-migration-'))
+  const archivePath = join(directory, 'Data.p4k')
+  const cachePath = join(directory, 'blueprints.json')
+  await writeFile(archivePath, 'archive')
+
+  try {
+    await loadBlueprintData(
+      {
+        cachePath,
+        extractorPath: 'extractor.exe',
+        gameDataArchive: { path: archivePath, channel: 'LIVE' }
+      },
+      async () => parsedExtraction()
+    )
+    const legacyCache = JSON.parse(await readFile(cachePath, 'utf8')) as {
+      schemaVersion: number
+      details: Array<Record<string, unknown>>
+    }
+    legacyCache.schemaVersion = 4
+    for (const detail of legacyCache.details) {
+      delete detail.outputDescription
+      delete detail.outputManufacturer
+      delete detail.outputStats
+    }
+    await writeFile(cachePath, JSON.stringify(legacyCache))
+
+    let releaseExtraction: () => void = () => undefined
+    const extractionGate = new Promise<void>((resolve) => {
+      releaseExtraction = resolve
+    })
+    let markExtractionStarted: () => void = () => undefined
+    const extractionStarted = new Promise<void>((resolve) => {
+      markExtractionStarted = resolve
+    })
+    const load = await prepareBlueprintDataLoad(
+      {
+        cachePath,
+        extractorPath: 'extractor.exe',
+        gameDataArchive: { path: archivePath, channel: 'LIVE' }
+      },
+      async () => {
+        markExtractionStarted()
+        await extractionGate
+        return parsedExtraction()
+      }
+    )
+
+    assert.equal(load.cached?.catalog.state, 'cached')
+    const cachedDetail = load.cached?.details[load.cached.catalog.blueprints[0].id]
+    assert.equal(cachedDetail?.outputDescription, null)
+    assert.deepEqual(cachedDetail?.outputStats, [])
+    await extractionStarted
+
+    releaseExtraction()
+    const refreshed = await load.refreshed
+    assert.equal(refreshed.catalog.state, 'game')
+    assert.equal(
+      refreshed.details[refreshed.catalog.blueprints[0].id].outputDescription,
+      'Heavy armor for field reconnaissance.'
+    )
   } finally {
     await rm(directory, { recursive: true, force: true })
   }
@@ -258,7 +399,7 @@ function extractorPayload(): {
   warnings: string[]
 } {
   return {
-    schemaVersion: 3,
+    schemaVersion: 9,
     gameVersion: GAME_VERSION,
     blueprints: Array.from({ length: 1_500 }, (_, index) => blueprint(index)),
     icons: { [ICON_KEY]: ICON_DATA },
@@ -276,6 +417,12 @@ function blueprint(index: number): BlueprintDetail {
     outputType: 'Char_Armor_Arms',
     outputTypeLabel: 'Arms (Armor)',
     outputGrade: '1',
+    outputDescription: 'Heavy armor for field reconnaissance.',
+    outputManufacturer: 'Clark Defense Systems',
+    outputStats: [
+      { key: 'physical-protection', label: 'Physical protection', value: '40%' },
+      { key: 'storage', label: 'Storage', value: '10,500 µSCU' }
+    ],
     craftTimeSeconds: 120,
     craftTimeLabel: '2 minutes',
     availableByDefault: index < 8,

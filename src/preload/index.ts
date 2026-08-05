@@ -3,6 +3,7 @@ import { contextBridge, ipcRenderer } from 'electron'
 import {
   IPC_CHANNELS,
   type AppSnapshot,
+  type BlueprintCatalogResult,
   type BlueprintOwnershipSnapshot,
   type OverlayContentMetrics,
   type OverlaySettingsPatch,
@@ -76,6 +77,13 @@ const rockfallApi: RockfallApi = {
     }
     ipcRenderer.on(IPC_CHANNELS.snapshotChanged, handler)
     return () => ipcRenderer.removeListener(IPC_CHANNELS.snapshotChanged, handler)
+  },
+  onBlueprintCatalog: (listener: (catalog: BlueprintCatalogResult) => void) => {
+    const handler = (_event: Electron.IpcRendererEvent, catalog: BlueprintCatalogResult): void => {
+      listener(catalog)
+    }
+    ipcRenderer.on(IPC_CHANNELS.blueprintCatalogChanged, handler)
+    return () => ipcRenderer.removeListener(IPC_CHANNELS.blueprintCatalogChanged, handler)
   },
   onBlueprintOwnership: (listener: (snapshot: BlueprintOwnershipSnapshot) => void) => {
     const handler = (

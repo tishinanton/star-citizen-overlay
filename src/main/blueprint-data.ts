@@ -9,6 +9,7 @@ import type {
   BlueprintDetail,
   BlueprintIngredient,
   BlueprintIngredientKind,
+  BlueprintOutputStat,
   BlueprintRequirementGroup,
   BlueprintRequirementIngredient,
   BlueprintSummary,
@@ -18,8 +19,9 @@ import type {
 import { getLocalizedGameArchiveFingerprint, type GameDataArchive } from './game-data'
 
 const execFileAsync = promisify(execFile)
-const EXTRACTOR_SCHEMA_VERSION = 3
-const BLUEPRINT_CACHE_VERSION = 4
+const EXTRACTOR_SCHEMA_VERSION = 9
+const BLUEPRINT_CACHE_VERSION = 10
+const MIN_SUPPORTED_BLUEPRINT_CACHE_VERSION = 4
 const MIN_BLUEPRINT_COUNT = 1_500
 const MAX_BLUEPRINT_COUNT = 2_500
 const MAX_ICON_COUNT = 200
@@ -54,6 +56,11 @@ export interface BlueprintDataResult {
   details: Record<string, BlueprintDetail>
   gameVersion: string
   warnings: string[]
+}
+
+export interface BlueprintDataLoad {
+  cached: BlueprintDataResult | null
+  refreshed: Promise<BlueprintDataResult>
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -160,6 +167,24 @@ function parseRequirementGroup(value: unknown, index: number): BlueprintRequirem
   }
 }
 
+function parseOutputStat(value: unknown): BlueprintOutputStat | null {
+  if (!isRecord(value)) return null
+  const key = readString(value, 'key')
+  const label = readString(value, 'label')
+  const statValue = readString(value, 'value')
+  if (
+    !key ||
+    key.length > 80 ||
+    !label ||
+    label.length > 80 ||
+    !statValue ||
+    statValue.length > 100
+  ) {
+    return null
+  }
+  return { key, label, value: statValue }
+}
+
 function parseMission(value: unknown): BlueprintUnlockMission | null {
   if (!isRecord(value)) return null
   const id = readString(value, 'id')
@@ -209,6 +234,8 @@ export function parseGameBlueprint(value: unknown): BlueprintDetail | null {
     unlockingMissionCount === null ||
     !gameVersion ||
     !Array.isArray(value.ingredients) ||
+    !Array.isArray(value.outputStats) ||
+    value.outputStats.length > 16 ||
     !Array.isArray(value.requirementGroups) ||
     !Array.isArray(value.unlockingMissions)
   ) {
@@ -216,10 +243,13 @@ export function parseGameBlueprint(value: unknown): BlueprintDetail | null {
   }
 
   const ingredients = value.ingredients.map(parseIngredient)
+  const outputStats = value.outputStats.map(parseOutputStat)
   const requirementGroups = value.requirementGroups.map(parseRequirementGroup)
   const unlockingMissions = value.unlockingMissions.map(parseMission)
   if (
     ingredients.some((ingredient) => ingredient === null) ||
+    outputStats.some((stat) => stat === null) ||
+    new Set(outputStats.map((stat) => stat?.key)).size !== outputStats.length ||
     requirementGroups.some((group) => group === null) ||
     unlockingMissions.some((mission) => mission === null) ||
     unlockingMissions.length !== unlockingMissionCount
@@ -242,6 +272,9 @@ export function parseGameBlueprint(value: unknown): BlueprintDetail | null {
     ingredientCount,
     unlockingMissionCount,
     ingredients: ingredients as BlueprintIngredient[],
+    outputDescription: readString(value, 'outputDescription'),
+    outputManufacturer: readString(value, 'outputManufacturer'),
+    outputStats: outputStats as BlueprintOutputStat[],
     requirementGroups: requirementGroups as BlueprintRequirementGroup[],
     unlockingMissions: unlockingMissions as BlueprintUnlockMission[],
     gameVersion,
@@ -345,9 +378,12 @@ async function extractGameBlueprints(
 }
 
 function parseCache(value: unknown): BlueprintCache {
+  const schemaVersion = isRecord(value) ? readNonNegativeInteger(value, 'schemaVersion') : null
   if (
     !isRecord(value) ||
-    value.schemaVersion !== BLUEPRINT_CACHE_VERSION ||
+    schemaVersion === null ||
+    schemaVersion < MIN_SUPPORTED_BLUEPRINT_CACHE_VERSION ||
+    schemaVersion > BLUEPRINT_CACHE_VERSION ||
     typeof value.savedAt !== 'string' ||
     (value.archiveFingerprint !== null && typeof value.archiveFingerprint !== 'string') ||
     (value.channel !== null && typeof value.channel !== 'string')
@@ -358,17 +394,31 @@ function parseCache(value: unknown): BlueprintCache {
   const extraction = parseGameBlueprintPayload({
     schemaVersion: EXTRACTOR_SCHEMA_VERSION,
     gameVersion: value.gameVersion,
-    blueprints: value.details,
+    blueprints: Array.isArray(value.details)
+      ? value.details.map(normalizeCachedBlueprint)
+      : value.details,
     icons: value.icons,
     warnings: value.warnings
   })
   return {
     ...extraction,
-    schemaVersion: BLUEPRINT_CACHE_VERSION,
+    schemaVersion,
     savedAt: value.savedAt,
     archiveFingerprint: value.archiveFingerprint,
     channel: value.channel,
     localizationSource: value.localizationSource === 'global-ini' ? 'global-ini' : 'game'
+  }
+
+  function normalizeCachedBlueprint(value: unknown): unknown {
+    if (!isRecord(value)) return value
+    return {
+      ...value,
+      outputDescription:
+        typeof value.outputDescription === 'string' ? value.outputDescription : null,
+      outputManufacturer:
+        typeof value.outputManufacturer === 'string' ? value.outputManufacturer : null,
+      outputStats: Array.isArray(value.outputStats) ? value.outputStats : []
+    }
   }
 }
 
@@ -412,7 +462,17 @@ async function writeCache(
 }
 
 function toSummary(detail: BlueprintDetail): BlueprintSummary {
-  const { requirementGroups, unlockingMissions, ...summary } = detail
+  const {
+    outputDescription,
+    outputManufacturer,
+    outputStats,
+    requirementGroups,
+    unlockingMissions,
+    ...summary
+  } = detail
+  void outputDescription
+  void outputManufacturer
+  void outputStats
   void requirementGroups
   void unlockingMissions
   return summary
@@ -442,20 +502,20 @@ function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error)
 }
 
-export async function loadBlueprintData(
+async function resolveBlueprintData(
   options: BlueprintDataOptions,
+  cache: BlueprintCache | null,
+  cacheError: string | null,
   extract: (
     extractorPath: string,
     archivePath: string,
     localizationSource?: LocalizationSource
   ) => Promise<BlueprintExtraction> = extractGameBlueprints
 ): Promise<BlueprintDataResult> {
-  let cache: BlueprintCache | null = null
-  let cacheError: string | null = null
-  try {
-    cache = await readCache(options.cachePath)
-  } catch (error) {
-    cacheError = errorMessage(error)
+  const selectedLocalizationSource = options.localizationSource ?? 'game'
+
+  if (cache?.localizationSource !== selectedLocalizationSource) {
+    cache = null
   }
 
   if (options.gameDataArchive) {
@@ -463,10 +523,10 @@ export async function loadBlueprintData(
     try {
       archiveFingerprint = await getLocalizedGameArchiveFingerprint(
         options.gameDataArchive.path,
-        options.localizationSource ?? 'game'
+        selectedLocalizationSource
       )
     } catch (error) {
-      if (cache?.localizationSource === (options.localizationSource ?? 'game')) {
+      if (cache) {
         return toResult(
           cache,
           'cached',
@@ -485,9 +545,9 @@ export async function loadBlueprintData(
     }
     if (
       !options.forceRefresh &&
+      cache?.schemaVersion === BLUEPRINT_CACHE_VERSION &&
       cache?.archiveFingerprint === archiveFingerprint &&
-      cache.channel === options.gameDataArchive.channel &&
-      cache.localizationSource === (options.localizationSource ?? 'game')
+      cache.channel === options.gameDataArchive.channel
     ) {
       return toResult(
         cache,
@@ -501,7 +561,7 @@ export async function loadBlueprintData(
       const extraction = await extract(
         options.extractorPath,
         options.gameDataArchive.path,
-        options.localizationSource ?? 'game'
+        selectedLocalizationSource
       )
       let updatedAt = new Date().toISOString()
       let cacheWarning: string | null = null
@@ -512,7 +572,7 @@ export async function loadBlueprintData(
             extraction,
             archiveFingerprint,
             options.gameDataArchive.channel,
-            options.localizationSource ?? 'game',
+            selectedLocalizationSource,
             options.shouldWriteCache ?? (() => true)
           )) ?? updatedAt
       } catch (error) {
@@ -529,7 +589,7 @@ export async function loadBlueprintData(
         .join('. ')
       return toResult(extraction, 'game', message, updatedAt)
     } catch (error) {
-      if (cache?.localizationSource === (options.localizationSource ?? 'game')) {
+      if (cache) {
         return toResult(
           cache,
           'cached',
@@ -559,4 +619,47 @@ export async function loadBlueprintData(
     throw new Error(`Choose Star Citizen Game files to load blueprints. Cache error: ${cacheError}`)
   }
   throw new Error('Choose Star Citizen Game files to load blueprints.')
+}
+
+export async function prepareBlueprintDataLoad(
+  options: BlueprintDataOptions,
+  extract: (
+    extractorPath: string,
+    archivePath: string,
+    localizationSource?: LocalizationSource
+  ) => Promise<BlueprintExtraction> = extractGameBlueprints
+): Promise<BlueprintDataLoad> {
+  let cache: BlueprintCache | null = null
+  let cacheError: string | null = null
+  try {
+    cache = await readCache(options.cachePath)
+  } catch (error) {
+    cacheError = errorMessage(error)
+  }
+
+  const selectedCache =
+    cache?.localizationSource === (options.localizationSource ?? 'game') ? cache : null
+  return {
+    cached:
+      selectedCache && !options.forceRefresh
+        ? toResult(
+            selectedCache,
+            'cached',
+            'Using cached installed-game blueprints while checking for updates.',
+            selectedCache.savedAt
+          )
+        : null,
+    refreshed: resolveBlueprintData(options, cache, cacheError, extract)
+  }
+}
+
+export async function loadBlueprintData(
+  options: BlueprintDataOptions,
+  extract: (
+    extractorPath: string,
+    archivePath: string,
+    localizationSource?: LocalizationSource
+  ) => Promise<BlueprintExtraction> = extractGameBlueprints
+): Promise<BlueprintDataResult> {
+  return (await prepareBlueprintDataLoad(options, extract)).refreshed
 }

@@ -66,20 +66,103 @@ internal static partial class BlueprintExtractor
                 $"Only {blueprints.Count} complete blueprint records were found in Game2.dcb.");
         }
 
-        var iconResult = GameIconExtractor.Extract(archivePath, imagePaths);
+        var sharedIconBlueprints = ApplySharedBlueprintIcons(blueprints);
+        var fallbackIcons = sharedIconBlueprints
+            .Where(blueprint => blueprint.ImageKey is null)
+            .Select(blueprint => (
+                Blueprint: blueprint,
+                ImageKey: ResolveFallbackImageKey(blueprint)))
+            .Where(entry => entry.ImageKey is not null)
+            .ToDictionary(
+                entry => entry.Blueprint.Id,
+                entry => entry.ImageKey!,
+                StringComparer.OrdinalIgnoreCase);
+        imagePaths.UnionWith(sharedIconBlueprints
+            .Select(blueprint => blueprint.ImageKey)
+            .OfType<string>());
+        var iconResult = GameIconExtractor.Extract(
+            archivePath,
+            imagePaths,
+            fallbackIcons.Values);
         warnings.AddRange(iconResult.Warnings);
-        var sortedBlueprints = blueprints
+        var sortedBlueprints = sharedIconBlueprints
+            .Select(blueprint =>
+                blueprint.ImageKey is null
+                && fallbackIcons.TryGetValue(blueprint.Id, out var fallbackImageKey)
+                && iconResult.Icons.ContainsKey(fallbackImageKey)
+                    ? blueprint with { ImageKey = fallbackImageKey }
+                    : blueprint)
             .OrderBy(blueprint => blueprint.OutputName, StringComparer.OrdinalIgnoreCase)
             .ThenBy(blueprint => blueprint.OutputTypeLabel, StringComparer.OrdinalIgnoreCase)
             .ThenBy(blueprint => blueprint.Id, StringComparer.OrdinalIgnoreCase)
             .ToArray();
 
         return new BlueprintExtractorPayload(
-            3,
+            9,
             gameVersion,
             sortedBlueprints,
             iconResult.Icons,
             warnings);
+    }
+
+    private static IReadOnlyList<GameBlueprintRecord> ApplySharedBlueprintIcons(
+        IReadOnlyList<GameBlueprintRecord> blueprints)
+    {
+        var imageKeyByClass = blueprints
+            .Where(blueprint => blueprint.ImageKey is not null)
+            .GroupBy(blueprint => blueprint.OutputClass, StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(
+                group => group.Key,
+                group => group.First().ImageKey!,
+                StringComparer.OrdinalIgnoreCase);
+        return blueprints
+            .Select(blueprint =>
+            {
+                if (blueprint.ImageKey is not null)
+                {
+                    return blueprint;
+                }
+                var baseClass = blueprint.OutputType switch
+                {
+                    "WeaponPersonal" => CosmeticClassSuffix().Replace(
+                        blueprint.OutputClass,
+                        string.Empty),
+                    "WeaponAttachment" => MagazineClassSuffix().Replace(
+                        blueprint.OutputClass,
+                        string.Empty),
+                    _ => blueprint.OutputClass
+                };
+                return imageKeyByClass.TryGetValue(baseClass, out var imageKey)
+                    ? blueprint with { ImageKey = imageKey }
+                    : blueprint;
+            })
+            .ToArray();
+    }
+
+    private static string? ResolveFallbackImageKey(GameBlueprintRecord blueprint) =>
+        blueprint.OutputType switch
+        {
+            "WeaponGun" =>
+                $"ui/mobiglas/assets/tif/dumpersdepot_items/{blueprint.OutputClass}.tif",
+            "WeaponPersonal" =>
+                $"ui/mobiglas/assets/tif/cubbyblast_items/{blueprint.OutputClass}.tif",
+            "TractorBeam" or "SalvageHead" =>
+                "ui/mobiglas/assets/tif/dumpersdepot_items/greycat_industrial_suregrip_tractor.tif",
+            _ => null
+        };
+
+    private static string? ResolveArmorIconKey(
+        string type,
+        string? subtype)
+    {
+        if (type != "Char_Armor_Helmet") return null;
+        return subtype?.ToLowerInvariant() switch
+        {
+            "light" => "ui/textures/ea/loadouticons/light_armour_64.tif",
+            "medium" => "ui/textures/ea/loadouticons/medium_armour_64.tif",
+            "heavy" => "ui/textures/ea/loadouticons/heavy_armour_64.tif",
+            _ => null
+        };
     }
 
     private static HashSet<Guid> ReadDefaultBlueprints(DataForge dataForge)
@@ -339,6 +422,9 @@ internal static partial class BlueprintExtractor
             output.Type,
             output.TypeLabel,
             output.Grade,
+            output.Description,
+            output.Manufacturer,
+            output.Stats,
             craftTimeSeconds,
             FormatDuration(craftTimeSeconds),
             defaults.Contains(blueprintId),
@@ -491,6 +577,11 @@ internal static partial class BlueprintExtractor
             || icon.Equals("Default.bmp", StringComparison.OrdinalIgnoreCase)
             ? null
             : GameIconExtractor.NormalizeKey(icon);
+        imageKey ??= ResolveArmorIconKey(type, attach?.GetAttribute("SubType"));
+        var description = localization.Resolve(attachLocalization?.GetAttribute("Description"))
+            ?? localization.Resolve(display?.GetAttribute("displayDescription"));
+        var manufacturer = ResolveManufacturer(attach, dataForge, localization);
+        var stats = BuildOutputStats(root, attach, dataForge);
 
         return new ItemMetadata(
             name,
@@ -498,8 +589,516 @@ internal static partial class BlueprintExtractor
             type,
             typeLabel,
             NullIfEmpty(attach?.GetAttribute("Grade")),
-            imageKey);
+            imageKey,
+            description,
+            manufacturer,
+            stats);
     }
+
+    private static string? ResolveManufacturer(
+        XmlElement? attach,
+        DataForge dataForge,
+        LocalizationCatalog localization)
+    {
+        if (attach is null
+            || !Guid.TryParse(attach.GetAttribute("Manufacturer"), out var manufacturerId))
+        {
+            return null;
+        }
+
+        var manufacturer = ReadReference(manufacturerId, dataForge);
+        var manufacturerLocalization = manufacturer?
+            .GetElementsByTagName("Localization")
+            .OfType<XmlElement>()
+            .FirstOrDefault();
+        return localization.Resolve(manufacturerLocalization?.GetAttribute("Name"))
+            ?? NullIfEmpty(manufacturer?.GetAttribute("Code"));
+    }
+
+    private static IReadOnlyList<GameBlueprintStat> BuildOutputStats(
+        XmlElement root,
+        XmlElement? attach,
+        DataForge dataForge)
+    {
+        var stats = new List<GameBlueprintStat>();
+        var type = attach?.GetAttribute("Type") ?? "Unknown";
+        var size = ParseDouble(attach?.GetAttribute("Size") ?? string.Empty);
+        var mass = ReadElementAttribute(root, "SEntityRigidPhysicsControllerParams", "Mass");
+        var health = ReadElementAttribute(root, "SHealthComponentParams", "Health");
+        var powerUnits = ReadElementAttribute(root, "SPowerSegmentResourceUnit", "units");
+        AddSizeStat(stats, size);
+
+        switch (type)
+        {
+            case "Char_Armor_Arms":
+            case "Char_Armor_Torso":
+            case "Char_Armor_Legs":
+            case "Char_Armor_Helmet":
+            case "Char_Armor_Undersuit":
+            case "Char_Clothing_Torso_0":
+            case "Char_Clothing_Torso_1":
+            case "Char_Clothing_Legs":
+            case "Char_Clothing_Feet":
+                AddArmorStats(stats, root, dataForge);
+                AddStorageStat(stats, root, dataForge);
+                AddMassStat(stats, mass);
+                break;
+            case "Char_Armor_Backpack":
+                AddStorageStat(stats, root, dataForge);
+                AddMassStat(stats, mass);
+                break;
+            case "WeaponPersonal":
+            case "WeaponGun":
+            case "WeaponAttachment":
+                AddWeaponStats(stats, root, type, dataForge);
+                AddMassStat(stats, mass);
+                break;
+            case "Shield":
+                AddStat(
+                    stats,
+                    "shield-capacity",
+                    "Shield capacity",
+                    FormatWithUnit(
+                        ReadElementAttribute(root, "SCItemShieldGeneratorParams", "MaxShieldHealth"),
+                        "HP"));
+                AddStat(
+                    stats,
+                    "shield-regeneration",
+                    "Regeneration",
+                    FormatWithUnit(
+                        ReadElementAttribute(root, "SCItemShieldGeneratorParams", "MaxShieldRegen"),
+                        "HP/s"));
+                AddStat(
+                    stats,
+                    "damaged-delay",
+                    "Damaged delay",
+                    FormatWithUnit(
+                        ReadElementAttribute(root, "SCItemShieldGeneratorParams", "DamagedRegenDelay"),
+                        "s"));
+                AddPowerStat(stats, powerUnits, "Power demand");
+                AddMassStat(stats, mass);
+                break;
+            case "Cooler":
+                AddStat(
+                    stats,
+                    "cooling-rate",
+                    "Cooling rate",
+                    FormatWithUnit(
+                        ReadElementAttribute(
+                            root,
+                            "CoolingEqualizationRateAtTemperatureDifference",
+                            "coolingEqualizationRate"),
+                        "units/s"));
+                AddPowerStat(stats, powerUnits, "Power demand");
+                AddHealthStat(stats, health);
+                AddMassStat(stats, mass);
+                break;
+            case "PowerPlant":
+                AddPowerStat(stats, powerUnits, "Power output");
+                AddStat(
+                    stats,
+                    "overheat-temperature",
+                    "Overheat temperature",
+                    FormatWithUnit(
+                        ReadElementAttribute(root, "itemResourceParams", "overheatTemperature"),
+                        "K"));
+                AddHealthStat(stats, health);
+                AddMassStat(stats, mass);
+                break;
+            case "QuantumDrive":
+                AddStat(
+                    stats,
+                    "quantum-speed",
+                    "Quantum speed",
+                    FormatSpeed(
+                        ReadElementAttribute(root, "splineJumpParams", "driveSpeed")));
+                AddStat(
+                    stats,
+                    "spool-time",
+                    "Spool time",
+                    FormatWithUnit(
+                        ReadElementAttribute(root, "splineJumpParams", "spoolUpTime"),
+                        "s"));
+                AddStat(
+                    stats,
+                    "cooldown",
+                    "Cooldown",
+                    FormatWithUnit(
+                        ReadElementAttribute(root, "splineJumpParams", "cooldownTime"),
+                        "s"));
+                AddMassStat(stats, mass);
+                break;
+            case "Radar":
+                AddStat(
+                    stats,
+                    "sensitivity",
+                    "Sensitivity",
+                    FormatPercent(
+                        ReadElementAttribute(root, "SCItemRadarSignatureDetection", "sensitivity")));
+                AddStat(
+                    stats,
+                    "piercing",
+                    "Signal piercing",
+                    FormatPercent(
+                        ReadElementAttribute(root, "SCItemRadarSignatureDetection", "piercing")));
+                AddPowerStat(stats, powerUnits, "Power demand");
+                AddMassStat(stats, mass);
+                break;
+            case "WeaponMining":
+                AddStat(
+                    stats,
+                    "effective-range",
+                    "Effective range",
+                    FormatWithUnit(
+                        ReadElementAttribute(root, "SWeaponActionFireBeamParams", "fullDamageRange"),
+                        "m"));
+                AddStat(
+                    stats,
+                    "maximum-range",
+                    "Maximum range",
+                    FormatWithUnit(
+                        ReadElementAttribute(root, "SWeaponActionFireBeamParams", "zeroDamageRange"),
+                        "m"));
+                var miningPower = ReadBeamPower(root, "ElectricArc");
+                var minimumThrottle = ReadElementAttribute(
+                    root,
+                    "SEntityComponentMiningLaserParams",
+                    "throttleMinimum");
+                AddStat(
+                    stats,
+                    "mining-laser-power",
+                    "Mining laser power",
+                    miningPower is null
+                        ? null
+                        : $"{FormatNumber(miningPower * (minimumThrottle ?? 1))} - {FormatNumber(miningPower)}");
+                AddStat(
+                    stats,
+                    "extraction-laser-power",
+                    "Extraction laser power",
+                    FormatNumber(ReadBeamPower(root, "Extraction")));
+                var moduleSlots = root
+                    .GetElementsByTagName("SItemPortDef")
+                    .OfType<XmlElement>()
+                    .Count(element => element
+                        .GetAttribute("PortTags")
+                        .Split(' ', StringSplitOptions.RemoveEmptyEntries)
+                        .Contains("miningConsumable", StringComparer.OrdinalIgnoreCase));
+                AddStat(
+                    stats,
+                    "module-slots",
+                    "Module slots",
+                    moduleSlots > 0 ? moduleSlots.ToString(CultureInfo.InvariantCulture) : null);
+                AddHealthStat(stats, health);
+                AddMassStat(stats, mass);
+                break;
+            case "TractorBeam":
+            case "SalvageHead":
+                AddTractorStats(stats, root);
+                AddMassStat(stats, mass);
+                break;
+            case "SalvageModifier":
+                AddStat(
+                    stats,
+                    "salvage-speed",
+                    "Speed multiplier",
+                    FormatMultiplier(
+                        ReadElementAttribute(root, "salvageModifier", "salvageSpeedMultiplier")));
+                AddStat(
+                    stats,
+                    "radius-multiplier",
+                    "Radius multiplier",
+                    FormatMultiplier(
+                        ReadElementAttribute(root, "salvageModifier", "radiusMultiplier")));
+                AddStat(
+                    stats,
+                    "extraction-efficiency",
+                    "Extraction efficiency",
+                    FormatPercent(
+                        ReadElementAttribute(root, "salvageModifier", "extractionEfficiency")));
+                AddMassStat(stats, mass);
+                break;
+            case "DockingCollar":
+                AddStat(
+                    stats,
+                    "capture-radius",
+                    "Capture radius",
+                    FormatWithUnit(
+                        ReadElementAttribute(root, "SCItemDockingTubeParams", "CaptureRadius"),
+                        "m"));
+                AddHealthStat(stats, health);
+                AddMassStat(stats, mass);
+                break;
+            default:
+                AddStorageStat(stats, root, dataForge);
+                AddHealthStat(stats, health);
+                AddMassStat(stats, mass);
+                break;
+        }
+
+        return stats.Take(16).ToArray();
+    }
+
+    private static double? ReadBeamPower(
+        XmlElement root,
+        string hitType)
+    {
+        var action = root
+            .GetElementsByTagName("SWeaponActionFireBeamParams")
+            .OfType<XmlElement>()
+            .FirstOrDefault(element => element
+                .GetAttribute("hitType")
+                .Equals(hitType, StringComparison.OrdinalIgnoreCase));
+        var damage = action?
+            .SelectSingleNode("./damagePerSecond/DamageInfo") as XmlElement;
+        if (damage is null) return null;
+
+        return new[]
+        {
+            "DamagePhysical",
+            "DamageEnergy",
+            "DamageDistortion",
+            "DamageThermal",
+            "DamageBiochemical",
+            "DamageStun"
+        }.Sum(attribute => ParseDouble(damage.GetAttribute(attribute)) ?? 0);
+    }
+
+    private static void AddArmorStats(
+        ICollection<GameBlueprintStat> stats,
+        XmlElement root,
+        DataForge dataForge)
+    {
+        var resistance = ReadReferencedRecord(root, "damageResistance", dataForge);
+        var physicalMultiplier = resistance is null
+            ? null
+            : ReadElementAttribute(resistance, "PhysicalResistance", "Multiplier");
+        AddStat(
+            stats,
+            "physical-protection",
+            "Physical protection",
+            physicalMultiplier is null ? null : FormatPercent(1 - physicalMultiplier));
+
+        var temperature = root
+            .GetElementsByTagName("TemperatureResistance")
+            .OfType<XmlElement>()
+            .FirstOrDefault();
+        var minimumTemperature = ParseDouble(temperature?.GetAttribute("MinResistance") ?? string.Empty);
+        var maximumTemperature = ParseDouble(temperature?.GetAttribute("MaxResistance") ?? string.Empty);
+        AddStat(
+            stats,
+            "temperature-range",
+            "Temperature range",
+            minimumTemperature is null || maximumTemperature is null
+                ? null
+                : $"{FormatNumber(minimumTemperature.Value)} to {FormatNumber(maximumTemperature.Value)} °C");
+
+        AddStat(
+            stats,
+            "radiation-capacity",
+            "Radiation capacity",
+            FormatNumber(
+                ReadElementAttribute(root, "RadiationResistance", "MaximumRadiationCapacity")));
+    }
+
+    private static void AddWeaponStats(
+        ICollection<GameBlueprintStat> stats,
+        XmlElement root,
+        string type,
+        DataForge dataForge)
+    {
+        var ammoContainer = type == "WeaponPersonal"
+            ? ReadReferencedRecord(root, "ammoContainerRecord", dataForge)
+            : null;
+        var ammo = ReadReferencedRecord(ammoContainer ?? root, "ammoParamsRecord", dataForge)
+            ?? ReadReferencedRecord(root, "ammoParamsRecord", dataForge);
+        var damage = ammo?
+            .SelectSingleNode(".//damage/DamageInfo") as XmlElement;
+        if (damage is not null)
+        {
+            var damageTypes = new[]
+            {
+                ("DamagePhysical", "physical"),
+                ("DamageEnergy", "energy"),
+                ("DamageDistortion", "distortion"),
+                ("DamageThermal", "thermal"),
+                ("DamageBiochemical", "biochemical"),
+                ("DamageStun", "stun")
+            };
+            var values = damageTypes
+                .Select(entry => (
+                    entry.Item2,
+                    Value: ParseDouble(damage.GetAttribute(entry.Item1)) ?? 0))
+                .Where(entry => entry.Value > 0)
+                .ToArray();
+            var damageValue = values.Length switch
+            {
+                0 => null,
+                1 => $"{FormatNumber(values[0].Value)} {values[0].Item1}",
+                _ => $"{FormatNumber(values.Sum(entry => entry.Value))} total"
+            };
+            AddStat(stats, "damage-per-shot", "Damage / shot", damageValue);
+        }
+
+        var fireRate = root
+            .SelectNodes("//*[@fireRate]")!
+            .OfType<XmlElement>()
+            .Select(element => ParseDouble(element.GetAttribute("fireRate")))
+            .Where(value => value is > 0)
+            .Max();
+        AddStat(stats, "fire-rate", "Fire rate", FormatWithUnit(fireRate, "rpm"));
+        AddStat(
+            stats,
+            "projectile-speed",
+            "Projectile speed",
+            FormatWithUnit(ParseDouble(ammo?.GetAttribute("speed") ?? string.Empty), "m/s"));
+
+        var capacity = ReadElementAttribute(ammoContainer ?? root, "SAmmoContainerComponentParams", "maxAmmoCount");
+        if (capacity is null or <= 0)
+        {
+            capacity = ReadElementAttribute(root, "SWeaponRegenConsumerParams", "maxAmmoLoad");
+        }
+        var capacityLabel = type switch
+        {
+            "WeaponAttachment" => "Capacity",
+            "WeaponGun" => "Ammo pool",
+            _ => "Magazine"
+        };
+        AddStat(stats, "capacity", capacityLabel, FormatNumber(capacity));
+    }
+
+    private static void AddTractorStats(
+        ICollection<GameBlueprintStat> stats,
+        XmlElement root)
+    {
+        AddStat(
+            stats,
+            "maximum-force",
+            "Maximum force",
+            FormatWithUnit(
+                ReadElementAttribute(root, "SWeaponActionFireTractorBeamParams", "maxForce"),
+                "N"));
+        AddStat(
+            stats,
+            "maximum-angle",
+            "Maximum angle",
+            FormatAngle(
+                ReadElementAttribute(root, "SWeaponActionFireTractorBeamParams", "maxAngle")));
+        AddStat(
+            stats,
+            "maximum-range",
+            "Maximum range",
+            FormatWithUnit(
+                ReadElementAttribute(root, "SWeaponActionFireTractorBeamParams", "maxDistance"),
+                "m"));
+        AddStat(
+            stats,
+            "full-strength-range",
+            "Full-strength range",
+            FormatWithUnit(
+                ReadElementAttribute(root, "SWeaponActionFireTractorBeamParams", "fullStrengthDistance"),
+                "m"));
+    }
+
+    private static void AddStorageStat(
+        ICollection<GameBlueprintStat> stats,
+        XmlElement root,
+        DataForge dataForge)
+    {
+        var storage = ReadElementAttribute(root, "SMicroCargoUnit", "microSCU");
+        if (storage is null or <= 1)
+        {
+            var container = ReadReferencedRecord(root, "containerParams", dataForge);
+            storage = container is null
+                ? storage
+                : ReadElementAttribute(container, "SMicroCargoUnit", "microSCU");
+        }
+        AddStat(stats, "storage", "Storage", FormatWithUnit(storage, "µSCU"));
+    }
+
+    private static void AddSizeStat(
+        ICollection<GameBlueprintStat> stats,
+        double? size) =>
+        AddStat(stats, "size", "Size", size is null ? null : $"S{FormatNumber(size)}");
+
+    private static void AddMassStat(
+        ICollection<GameBlueprintStat> stats,
+        double? mass) =>
+        AddStat(stats, "mass", "Mass", FormatWithUnit(mass, "kg"));
+
+    private static void AddHealthStat(
+        ICollection<GameBlueprintStat> stats,
+        double? health) =>
+        AddStat(stats, "health", "Durability", FormatWithUnit(health, "HP"));
+
+    private static void AddPowerStat(
+        ICollection<GameBlueprintStat> stats,
+        double? power,
+        string label) =>
+        AddStat(stats, "power", label, FormatWithUnit(power, "units"));
+
+    private static void AddStat(
+        ICollection<GameBlueprintStat> stats,
+        string key,
+        string label,
+        string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value)
+            || stats.Any(stat => stat.Key.Equals(key, StringComparison.OrdinalIgnoreCase)))
+        {
+            return;
+        }
+        stats.Add(new GameBlueprintStat(key, label, value));
+    }
+
+    private static XmlElement? ReadReferencedRecord(
+        XmlElement root,
+        string attributeName,
+        DataForge dataForge)
+    {
+        var source = root
+            .SelectNodes($"//*[@{attributeName}]")!
+            .OfType<XmlElement>()
+            .FirstOrDefault(element =>
+                Guid.TryParse(element.GetAttribute(attributeName), out _));
+        return source is not null
+            && Guid.TryParse(source.GetAttribute(attributeName), out var referenceId)
+                ? ReadReference(referenceId, dataForge)
+                : null;
+    }
+
+    private static double? ReadElementAttribute(
+        XmlElement root,
+        string elementName,
+        string attributeName) =>
+        root
+            .GetElementsByTagName(elementName)
+            .OfType<XmlElement>()
+            .Select(element => ParseDouble(element.GetAttribute(attributeName)))
+            .FirstOrDefault(value => value is not null);
+
+    private static string? FormatNumber(double? value) =>
+        value is null
+            ? null
+            : value.Value.ToString("#,##0.##", CultureInfo.InvariantCulture);
+
+    private static string? FormatWithUnit(double? value, string unit) =>
+        value is null ? null : $"{FormatNumber(value)} {unit}";
+
+    private static string? FormatPercent(double? ratio) =>
+        ratio is null ? null : $"{FormatNumber(ratio.Value * 100)}%";
+
+    private static string? FormatMultiplier(double? multiplier) =>
+        multiplier is null ? null : $"{FormatNumber(multiplier)}×";
+
+    private static string? FormatAngle(double? angle) =>
+        angle is null ? null : $"{FormatNumber(angle)}°";
+
+    private static string? FormatSpeed(double? metersPerSecond) =>
+        metersPerSecond is null
+            ? null
+            : metersPerSecond >= 1000
+                ? $"{FormatNumber(metersPerSecond.Value / 1000)} km/s"
+                : $"{FormatNumber(metersPerSecond)} m/s";
 
     private static XmlElement? ReadReference(Guid id, DataForge dataForge)
     {
@@ -783,6 +1382,16 @@ internal static partial class BlueprintExtractor
     [GeneratedRegex(@"([a-z0-9])([A-Z])")]
     private static partial Regex CamelCaseBoundary();
 
+    [GeneratedRegex(
+        @"_(?:black|white|tan|gold|green|red|blue|imp|cen|collector)\d+$",
+        RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
+    private static partial Regex CosmeticClassSuffix();
+
+    [GeneratedRegex(
+        @"_mag(?:azine)?(?:_[a-z0-9]+)?$",
+        RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
+    private static partial Regex MagazineClassSuffix();
+
     private sealed record BlueprintPool(
         string Name,
         IReadOnlyList<BlueprintPoolReward> Rewards);
@@ -795,5 +1404,9 @@ internal static partial class BlueprintExtractor
         string Type,
         string TypeLabel,
         string? Grade,
-        string? ImageKey);
+        string? ImageKey,
+        string? Description,
+        string? Manufacturer,
+        IReadOnlyList<GameBlueprintStat> Stats);
+
 }

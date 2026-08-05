@@ -372,13 +372,21 @@ function replacePngChunkData(
   type: string,
   transform: (data: Buffer) => Buffer
 ): Buffer {
-  return replacePngChunk(bytes, type, createPngChunk(type, transform(readPngChunkData(bytes, type))))
+  return replacePngChunk(
+    bytes,
+    type,
+    createPngChunk(type, transform(readPngChunkData(bytes, type)))
+  )
 }
 
 function replacePngChunk(bytes: Buffer, type: string, replacement: Buffer): Buffer {
   const offset = findPngChunk(bytes, type)
   const length = bytes.readUInt32BE(offset)
-  return Buffer.concat([bytes.subarray(0, offset), replacement, bytes.subarray(offset + 12 + length)])
+  return Buffer.concat([
+    bytes.subarray(0, offset),
+    replacement,
+    bytes.subarray(offset + 12 + length)
+  ])
 }
 
 function findPngChunk(bytes: Buffer, expectedType: string): number {
@@ -423,6 +431,9 @@ function blueprint(id: string, imageKey: string | null): BlueprintDetail {
     outputType: 'Synthetic',
     outputTypeLabel: 'Synthetic item',
     outputGrade: null,
+    outputDescription: 'Synthetic blueprint output.',
+    outputManufacturer: 'Synthetic manufacturer',
+    outputStats: [{ key: 'mass', label: 'Mass', value: '10 kg' }],
     craftTimeSeconds: 60,
     craftTimeLabel: '1 minute',
     availableByDefault: false,

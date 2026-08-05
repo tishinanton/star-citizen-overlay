@@ -50,6 +50,7 @@ const COLLECTION_FILTERS: Array<{ value: BlueprintCollectionFilter; label: strin
   { value: 'owned', label: 'Owned' },
   { value: 'obtainable', label: 'Obtainable' }
 ]
+const BLUEPRINT_RENDER_BATCH_SIZE = 80
 
 const quantityFormatter = new Intl.NumberFormat('en-US', {
   maximumFractionDigits: 3
@@ -77,6 +78,10 @@ export default function BlueprintBrowser({
   const [accessFilter, setAccessFilter] = useState<BlueprintAccessFilter>('all')
   const [collectionFilter, setCollectionFilter] = useState<BlueprintCollectionFilter>('all')
   const [requestedBlueprintId, setRequestedBlueprintId] = useState<string | null>(null)
+  const [renderWindow, setRenderWindow] = useState({
+    scope: '',
+    count: BLUEPRINT_RENDER_BATCH_SIZE
+  })
   const categoryOptions = useMemo(
     () => getBlueprintCategoryOptions(catalog.result?.blueprints ?? []),
     [catalog.result]
@@ -141,6 +146,24 @@ export default function BlueprintBrowser({
     visibleBlueprints.find((blueprint) => blueprint.id === requestedBlueprintId) ??
     visibleBlueprints[0] ??
     null
+  const renderScope = [
+    query,
+    activeCategoryFilter,
+    activeSubcategoryFilter,
+    accessFilter,
+    collectionFilter,
+    catalog.result?.updatedAt ?? ''
+  ].join('\u001f')
+  const renderedBlueprintCount =
+    renderWindow.scope === renderScope ? renderWindow.count : BLUEPRINT_RENDER_BATCH_SIZE
+  const selectedBlueprintIndex = selectedBlueprint
+    ? visibleBlueprints.findIndex((blueprint) => blueprint.id === selectedBlueprint.id)
+    : -1
+  const effectiveRenderedBlueprintCount = Math.max(
+    renderedBlueprintCount,
+    selectedBlueprintIndex + 1
+  )
+  const renderedBlueprints = visibleBlueprints.slice(0, effectiveRenderedBlueprintCount)
   const detail = useBlueprintDetail(
     selectedBlueprint?.id ?? null,
     catalog.result?.updatedAt ?? null,
@@ -174,6 +197,12 @@ export default function BlueprintBrowser({
 
     event.preventDefault()
     const nextBlueprint = visibleBlueprints[nextIndex]
+    if (nextIndex >= effectiveRenderedBlueprintCount) {
+      setRenderWindow({
+        scope: renderScope,
+        count: Math.min(visibleBlueprints.length, nextIndex + BLUEPRINT_RENDER_BATCH_SIZE)
+      })
+    }
     setRequestedBlueprintId(nextBlueprint.id)
     requestAnimationFrame(() =>
       document.getElementById(`blueprint-option-${nextBlueprint.id}`)?.focus()
@@ -188,6 +217,24 @@ export default function BlueprintBrowser({
   const retryDetail = (): void => {
     document.getElementById('blueprint-detail-title')?.focus()
     void detail.reload()
+  }
+
+  const handleBlueprintListScroll = (event: React.UIEvent<HTMLDivElement>): void => {
+    const list = event.currentTarget
+    if (
+      renderedBlueprintCount >= visibleBlueprints.length ||
+      list.scrollTop + list.clientHeight < list.scrollHeight - 600
+    ) {
+      return
+    }
+    setRenderWindow((current) => ({
+      scope: renderScope,
+      count: Math.min(
+        visibleBlueprints.length,
+        (current.scope === renderScope ? current.count : BLUEPRINT_RENDER_BATCH_SIZE) +
+          BLUEPRINT_RENDER_BATCH_SIZE
+      )
+    }))
   }
 
   return (
@@ -442,11 +489,14 @@ export default function BlueprintBrowser({
         <div className="blueprint-list" aria-busy={catalog.loading && !catalog.result}>
           <div className="blueprint-list__header" aria-hidden="true">
             <span>Blueprint output</span>
-            <span>Category</span>
-            <span>Craft</span>
             <span>Collection</span>
           </div>
-          <div className="blueprint-list__body" role="listbox" aria-label="Blueprints">
+          <div
+            className="blueprint-list__body"
+            role="listbox"
+            aria-label="Blueprints"
+            onScroll={handleBlueprintListScroll}
+          >
             {!catalog.result && catalog.loading && <BlueprintListSkeleton />}
 
             {!catalog.result && catalog.error && (
@@ -461,7 +511,7 @@ export default function BlueprintBrowser({
             )}
 
             {catalog.result &&
-              visibleBlueprints.map((blueprint, index) => {
+              renderedBlueprints.map((blueprint, index) => {
                 const selected = blueprint.id === selectedBlueprint?.id
                 const rowOwnership = getOwnershipRecord(blueprint, ownership.result)
                 return (
@@ -471,6 +521,8 @@ export default function BlueprintBrowser({
                     type="button"
                     role="option"
                     aria-selected={selected}
+                    aria-posinset={index + 1}
+                    aria-setsize={visibleBlueprints.length}
                     tabIndex={selected ? 0 : -1}
                     key={blueprint.id}
                     onClick={() => setRequestedBlueprintId(blueprint.id)}
@@ -478,10 +530,12 @@ export default function BlueprintBrowser({
                   >
                     <span className="blueprint-row__identity">
                       <strong>{blueprint.outputName}</strong>
-                      <small>{blueprint.key}</small>
+                      <small className="blueprint-row__meta">
+                        <span>{blueprint.outputTypeLabel}</span>
+                        <span aria-hidden="true">·</span>
+                        <span className="blueprint-row__time">{blueprint.craftTimeLabel}</span>
+                      </small>
                     </span>
-                    <span className="blueprint-row__type">{blueprint.outputTypeLabel}</span>
-                    <span className="blueprint-row__time">{blueprint.craftTimeLabel}</span>
                     <BlueprintCollectionStatus
                       blueprint={blueprint}
                       record={rowOwnership}
@@ -726,6 +780,34 @@ function BlueprintDetailPane({
       </header>
 
       <div className="blueprint-detail__body">
+        <section
+          className="blueprint-output-profile"
+          aria-labelledby="blueprint-output-profile-title"
+        >
+          <div className="blueprint-output-profile__heading">
+            <h3 id="blueprint-output-profile-title">
+              <PackageOpen size={15} />
+              Crafted item
+            </h3>
+            {detail?.outputManufacturer && <span>{detail.outputManufacturer}</span>}
+          </div>
+          <p className={!detail ? 'is-loading' : undefined}>
+            {detail
+              ? (detail.outputDescription ?? 'No in-game description is available for this item.')
+              : 'Resolving item description and default stats…'}
+          </p>
+          {detail && detail.outputStats.length > 0 && (
+            <dl className="blueprint-output-stats">
+              {detail.outputStats.map((stat) => (
+                <div key={stat.key}>
+                  <dt>{stat.label}</dt>
+                  <dd>{stat.value}</dd>
+                </div>
+              ))}
+            </dl>
+          )}
+        </section>
+
         <dl className="blueprint-facts">
           <div>
             <dt>

@@ -3056,9 +3056,9 @@
 .blueprint-list__header,
 .blueprint-row {
   display: grid;
-  grid-template-columns: minmax(110px, 1fr) 70px 58px 68px;
+  grid-template-columns: minmax(0, 1fr) max-content;
   align-items: center;
-  gap: 6px;
+  gap: 10px;
 }
 
 .blueprint-list__header {
@@ -3101,15 +3101,13 @@
 
 .blueprint-row__identity,
 .blueprint-row__identity > strong,
-.blueprint-row__identity > small {
+.blueprint-row__meta {
   display: block;
   min-width: 0;
 }
 
 .blueprint-row__identity > strong,
-.blueprint-row__identity > small,
-.blueprint-row__type,
-.blueprint-row__time {
+.blueprint-row__meta > span:first-child {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -3121,16 +3119,21 @@
   font-weight: 600;
 }
 
-.blueprint-row__identity > small {
+.blueprint-row__meta {
+  display: flex;
+  align-items: baseline;
+  gap: 5px;
   margin-top: 3px;
   color: var(--muted);
   font-size: 1rem;
 }
 
-.blueprint-row__type,
-.blueprint-row__time {
-  color: var(--muted);
-  font-size: 1rem;
+.blueprint-row__meta > span:first-child {
+  min-width: 0;
+}
+
+.blueprint-row__meta > span:not(:first-child) {
+  flex: 0 0 auto;
 }
 
 .blueprint-row__time {
@@ -3154,6 +3157,12 @@
   font-size: 1rem;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.blueprint-row > .blueprint-collection.is-compact {
+  justify-self: end;
+  overflow: visible;
+  text-overflow: clip;
 }
 
 .blueprint-access > svg,
@@ -3354,6 +3363,88 @@ button.blueprint-ownership-action--confirmed:hover {
 
 .blueprint-detail__body {
   padding: 0 24px 30px;
+}
+
+.blueprint-output-profile {
+  margin-bottom: 14px;
+  padding: 14px;
+  border: 1px solid var(--edge);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+}
+
+.blueprint-output-profile__heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.blueprint-output-profile__heading h3 {
+  display: flex;
+  align-items: center;
+  margin: 0;
+  gap: 7px;
+  color: var(--ink);
+  font-size: 1rem;
+  font-weight: 650;
+}
+
+.blueprint-output-profile__heading h3 > svg {
+  color: var(--accent-bright);
+}
+
+.blueprint-output-profile__heading > span {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 1rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.blueprint-output-profile > p {
+  max-width: 74ch;
+  margin: 9px 0 0;
+  color: var(--ink-soft);
+  font-size: 1rem;
+  line-height: 1.45;
+  text-wrap: pretty;
+}
+
+.blueprint-output-profile > p.is-loading {
+  color: var(--muted);
+}
+
+.blueprint-output-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(112px, 1fr));
+  margin: 13px 0 0;
+  border-top: 1px solid var(--edge);
+}
+
+.blueprint-output-stats > div {
+  min-width: 0;
+  padding: 11px 12px 0 0;
+}
+
+.blueprint-output-stats dt {
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 1rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.blueprint-output-stats dd {
+  margin: 4px 0 0;
+  overflow: hidden;
+  color: var(--ink);
+  font-size: 1rem;
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .blueprint-facts {
@@ -5625,8 +5716,8 @@ a.mission-row:hover {
 
 .app-shell--large-type .blueprint-list__header,
 .app-shell--large-type .blueprint-row {
-  grid-template-columns: minmax(170px, 1fr) 80px 74px 110px;
-  gap: 6px;
+  grid-template-columns: minmax(0, 1fr) max-content;
+  gap: 10px;
 }
 
 .app-shell--large-type .faction-workspace {
@@ -6245,8 +6336,8 @@ a.mission-row:hover {
 
   .blueprint-list__header,
   .blueprint-row {
-    grid-template-columns: minmax(105px, 1fr) 64px 56px 64px;
-    gap: 5px;
+    grid-template-columns: minmax(0, 1fr) max-content;
+    gap: 10px;
   }
 
   .faction-workspace {
@@ -7955,6 +8046,15 @@ body {
   background: rgb(16 39 49 / 68%);
 }
 
+.blueprint-output-profile {
+  border-color: color-mix(in oklch, var(--edge) 58%, transparent);
+  background: rgb(16 39 49 / 68%);
+}
+
+.blueprint-output-stats {
+  border-top-color: color-mix(in oklch, var(--edge-strong) 38%, transparent);
+}
+
 .blueprint-facts {
   margin: 0;
 }
@@ -8245,12 +8345,7 @@ body {
 
   .blueprint-list__header,
   .blueprint-row {
-    grid-template-columns: minmax(120px, 1fr) 68px 62px;
-  }
-
-  .blueprint-list__header > :last-child,
-  .blueprint-row > :last-child {
-    display: none;
+    grid-template-columns: minmax(0, 1fr) max-content;
   }
 
   .faction-list__header,

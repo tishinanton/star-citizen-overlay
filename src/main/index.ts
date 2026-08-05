@@ -62,7 +62,7 @@ import {
   type OverlayLayout
 } from '../shared/overlay-layout'
 import { AppUpdaterController, createUpdaterClient } from './app-updater'
-import { loadBlueprintData, type BlueprintDataResult } from './blueprint-data'
+import { prepareBlueprintDataLoad, type BlueprintDataResult } from './blueprint-data'
 import { BlueprintOwnershipService } from './blueprint-ownership'
 import { CloudSyncController } from './cloud-sync'
 import { loadFactionData } from './faction-data'
@@ -262,6 +262,7 @@ let blueprintDataResult: BlueprintDataResult | null = null
 let blueprintDataGeneration = 0
 let pendingBlueprintData: {
   generation: number
+  visible: Promise<BlueprintDataResult>
   request: Promise<BlueprintDataResult>
 } | null = null
 let factionDataResult: FactionCatalogResult | null = null
@@ -330,6 +331,11 @@ function broadcastBlueprintOwnership(): void {
       )
     )
   }
+}
+
+function broadcastBlueprintCatalog(): void {
+  if (!blueprintDataResult || !controlWindow || controlWindow.isDestroyed()) return
+  controlWindow.webContents.send(IPC_CHANNELS.blueprintCatalogChanged, blueprintDataResult.catalog)
 }
 
 function handleBlueprintOwnershipChange(): void {
@@ -1100,6 +1106,7 @@ function applyPreparedStaticData(prepared: PreparedStaticData): void {
   factionDataGeneration += 1
   pendingFactionData = null
   factionDataResult = prepared.factions
+  broadcastBlueprintCatalog()
   broadcastBlueprintOwnership()
   broadcastSnapshot()
   synchronizeLanState()
@@ -1398,12 +1405,12 @@ async function getBlueprintCatalog(refresh: unknown = false): Promise<BlueprintC
     throw new Error('Blueprint data cannot be refreshed during static-data publication.')
   }
   const generation = blueprintDataGeneration
-  if (pendingBlueprintData?.generation === generation) {
-    return (await pendingBlueprintData.request).catalog
-  }
   if (!refresh && blueprintDataResult) return blueprintDataResult.catalog
+  if (pendingBlueprintData?.generation === generation) {
+    return (await (refresh ? pendingBlueprintData.request : pendingBlueprintData.visible)).catalog
+  }
 
-  const request = loadBlueprintData({
+  const preparation = prepareBlueprintDataLoad({
     cachePath: blueprintCatalogCachePath,
     extractorPath,
     gameDataArchive,
@@ -1411,24 +1418,39 @@ async function getBlueprintCatalog(refresh: unknown = false): Promise<BlueprintC
     forceRefresh: refresh,
     shouldWriteCache: () => generation === blueprintDataGeneration
   })
-  const pending = { generation, request }
-  pendingBlueprintData = pending
-  try {
-    const result = await request
-    if (generation === blueprintDataGeneration) {
-      blueprintDataResult = result
-      broadcastBlueprintOwnership()
-      if (cloudSyncController) {
-        runInBackground(
-          'Local blueprint ownership could not be queued for cloud sync',
-          cloudSyncController.captureLocalChanges()
-        )
+  const request = preparation
+    .then(({ refreshed }) => refreshed)
+    .then((result) => {
+      if (generation === blueprintDataGeneration) {
+        blueprintDataResult = result
+        broadcastBlueprintCatalog()
+        broadcastBlueprintOwnership()
+        if (cloudSyncController) {
+          runInBackground(
+            'Local blueprint ownership could not be queued for cloud sync',
+            cloudSyncController.captureLocalChanges()
+          )
+        }
       }
+      return result
+    })
+  const visible = preparation.then(async ({ cached }) => {
+    if (!refresh && cached) {
+      if (generation === blueprintDataGeneration) {
+        blueprintDataResult = cached
+        broadcastBlueprintOwnership()
+      }
+      return cached
     }
-    return result.catalog
-  } finally {
+    return request
+  })
+  const pending = { generation, visible, request }
+  pendingBlueprintData = pending
+  const clearPending = (): void => {
     if (pendingBlueprintData === pending) pendingBlueprintData = null
   }
+  void request.then(clearPending, clearPending)
+  return (await visible).catalog
 }
 
 async function getFactionCatalog(refresh: unknown = false): Promise<FactionCatalogResult> {
@@ -2175,6 +2197,9 @@ if (!hasSingleInstanceLock) {
     broadcastSnapshot()
     appUpdater.start()
     runInBackground('Mining signatures could not be refreshed', refreshMaterials())
+    if (gameDataArchive) {
+      runInBackground('Blueprint catalog could not be prepared', getBlueprintCatalog())
+    }
     runInBackground(
       'Blueprint logs could not be monitored',
       blueprintOwnershipService.configure(gameDataArchive)

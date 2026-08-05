@@ -185,6 +185,12 @@ export interface BlueprintRequirementGroup {
   ingredients: BlueprintRequirementIngredient[]
 }
 
+export interface BlueprintOutputStat {
+  key: string
+  label: string
+  value: string
+}
+
 export interface BlueprintUnlockMission {
   id: string
   title: string
@@ -199,6 +205,9 @@ export interface BlueprintUnlockMission {
 }
 
 export interface BlueprintDetail extends BlueprintSummary {
+  outputDescription: string | null
+  outputManufacturer: string | null
+  outputStats: BlueprintOutputStat[]
   requirementGroups: BlueprintRequirementGroup[]
   unlockingMissions: BlueprintUnlockMission[]
 }
@@ -543,6 +552,7 @@ export interface RockfallApi {
   revokeLanClient: (clientId: string) => Promise<AppSnapshot>
   resetLanIdentity: () => Promise<AppSnapshot>
   onSnapshot: (listener: (snapshot: AppSnapshot) => void) => () => void
+  onBlueprintCatalog: (listener: (catalog: BlueprintCatalogResult) => void) => () => void
   onBlueprintOwnership: (listener: (snapshot: BlueprintOwnershipSnapshot) => void) => () => void
 }
 
@@ -559,6 +569,7 @@ export const IPC_CHANNELS = {
   chooseGameData: 'rockfall:game-data:choose',
   getMiningLocations: 'rockfall:mining-locations:get',
   getBlueprintCatalog: 'rockfall:blueprints:get',
+  blueprintCatalogChanged: 'rockfall:blueprints:changed',
   getBlueprintDetail: 'rockfall:blueprints:detail',
   getBlueprintOwnership: 'rockfall:blueprints:ownership:get',
   rescanBlueprintOwnership: 'rockfall:blueprints:ownership:rescan',

@@ -70,6 +70,12 @@ export function useBlueprintCatalog(gameDataRevision = 0): BlueprintCatalogState
 
   useEffect(() => {
     const requestGeneration = ++generation.current
+    const unsubscribe = window.rockfall.onBlueprintCatalog((nextResult) => {
+      generation.current += 1
+      setResult(nextResult)
+      setError(null)
+      setLoading(false)
+    })
     window.rockfall
       .getBlueprintCatalog()
       .then((nextResult) => {
@@ -87,6 +93,7 @@ export function useBlueprintCatalog(gameDataRevision = 0): BlueprintCatalogState
 
     return () => {
       generation.current += 1
+      unsubscribe()
     }
   }, [gameDataRevision])
 

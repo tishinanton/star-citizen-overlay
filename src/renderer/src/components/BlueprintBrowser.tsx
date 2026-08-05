@@ -88,6 +88,7 @@ export default function BlueprintBrowser({
   const [accessFilter, setAccessFilter] = useState<BlueprintAccessFilter>('all')
   const [collectionFilter, setCollectionFilter] = useState<BlueprintCollectionFilter>('all')
   const [requestedBlueprintId, setRequestedBlueprintId] = useState<string | null>(null)
+  const [previewBlueprintId, setPreviewBlueprintId] = useState<string | null>(null)
   const [renderWindow, setRenderWindow] = useState({
     scope: '',
     count: BLUEPRINT_RENDER_BATCH_SIZE
@@ -183,12 +184,14 @@ export default function BlueprintBrowser({
     selectedBlueprint?.imageKey && catalog.result
       ? (catalog.result.icons[selectedBlueprint.imageKey] ?? null)
       : null
+  const previewActive = selectedBlueprint !== null && previewBlueprintId === selectedBlueprint.id
+  const previewRequestId = previewActive ? selectedBlueprint.id : null
   const thumbnail = useBlueprintThumbnail(
-    selectedBlueprint?.id ?? null,
+    previewRequestId,
     packagedImageDataUrl,
     catalog.result?.updatedAt ?? null
   )
-  const model = useBlueprintModel(selectedBlueprint?.id ?? null, catalog.result?.updatedAt ?? null)
+  const model = useBlueprintModel(previewRequestId, catalog.result?.updatedAt ?? null)
   const totalCount = catalog.result?.blueprints.length ?? 0
   const ownedCount =
     ownership.result?.ownedCount ??
@@ -200,6 +203,7 @@ export default function BlueprintBrowser({
     : null
 
   const selectBlueprint = useCallback((blueprintId: string): void => {
+    setPreviewBlueprintId(null)
     setRequestedBlueprintId(blueprintId)
   }, [])
   const handleBlueprintKeyDown = useCallback(
@@ -224,13 +228,16 @@ export default function BlueprintBrowser({
           count: Math.min(visibleBlueprints.length, nextIndex + BLUEPRINT_RENDER_BATCH_SIZE)
         })
       }
-      setRequestedBlueprintId(nextBlueprint.id)
+      selectBlueprint(nextBlueprint.id)
       requestAnimationFrame(() =>
         document.getElementById(`blueprint-option-${nextBlueprint.id}`)?.focus()
       )
     },
-    [effectiveRenderedBlueprintCount, renderScope, visibleBlueprints]
+    [effectiveRenderedBlueprintCount, renderScope, selectBlueprint, visibleBlueprints]
   )
+  const startPreview = useCallback((): void => {
+    if (selectedBlueprint) setPreviewBlueprintId(selectedBlueprint.id)
+  }, [selectedBlueprint])
 
   const retryCatalog = (refresh = false): void => {
     document.getElementById('blueprint-catalog-title')?.focus()
@@ -573,18 +580,23 @@ export default function BlueprintBrowser({
               detail={detail.result?.blueprint ?? null}
               detailState={detail.result?.state ?? null}
               detailMessage={detail.result?.message ?? null}
-              imageDataUrl={packagedImageDataUrl ?? thumbnail.result?.dataUrl ?? null}
+              imageDataUrl={
+                packagedImageDataUrl ?? (previewActive ? (thumbnail.result?.dataUrl ?? null) : null)
+              }
               imageTitle={
                 packagedImageDataUrl
                   ? 'Icon extracted from installed game files'
-                  : thumbnail.result?.status === 'ready'
+                  : previewActive && thumbnail.result?.status === 'ready'
                     ? thumbnail.result.message
                     : null
               }
+              modelActive={previewActive}
+              modelAvailable={selectedBlueprint.renderAsset !== null}
               model={model.result}
               modelPreparing={model.preparing}
               modelRequestKey={model.requestKey}
               readModelBytes={model.readBytes}
+              onStartModel={startPreview}
               onRetryModel={model.retry}
               loading={detail.loading}
               error={detail.error}
@@ -782,10 +794,13 @@ function BlueprintDetailPane({
   detailMessage,
   imageDataUrl,
   imageTitle,
+  modelActive,
+  modelAvailable,
   model,
   modelPreparing,
   modelRequestKey,
   readModelBytes,
+  onStartModel,
   onRetryModel,
   loading,
   error,
@@ -800,10 +815,13 @@ function BlueprintDetailPane({
   detailMessage: string | null
   imageDataUrl: string | null
   imageTitle: string | null
+  modelActive: boolean
+  modelAvailable: boolean
   model: BlueprintModelMetadata | null
   modelPreparing: boolean
   modelRequestKey: string
   readModelBytes: () => Uint8Array | null
+  onStartModel: () => void
   onRetryModel: () => void
   loading: boolean
   error: string | null
@@ -879,15 +897,6 @@ function BlueprintDetailPane({
       </header>
 
       <div className="blueprint-detail__body">
-        <BlueprintModelPreview
-          model={model}
-          preparing={modelPreparing}
-          requestKey={modelRequestKey}
-          readBytes={readModelBytes}
-          fallbackImageDataUrl={imageDataUrl}
-          onRetry={onRetryModel}
-        />
-
         <section
           className="blueprint-output-profile"
           aria-labelledby="blueprint-output-profile-title"
@@ -1010,6 +1019,18 @@ function BlueprintDetailPane({
             </div>
           )}
         </section>
+
+        <BlueprintModelPreview
+          active={modelActive}
+          available={modelAvailable}
+          model={model}
+          preparing={modelPreparing}
+          requestKey={modelRequestKey}
+          readBytes={readModelBytes}
+          fallbackImageDataUrl={imageDataUrl}
+          onStart={onStartModel}
+          onRetry={onRetryModel}
+        />
 
         <section className="blueprint-detail__section" aria-labelledby="unlock-missions-title">
           <div className="blueprint-detail__section-heading">

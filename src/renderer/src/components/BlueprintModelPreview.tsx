@@ -5,7 +5,7 @@ import {
   useState,
   type KeyboardEvent as ReactKeyboardEvent
 } from 'react'
-import { Box, LoaderCircle, Maximize2, RotateCcw, TriangleAlert } from 'lucide-react'
+import { Box, LoaderCircle, Maximize2, Play, RotateCcw, TriangleAlert } from 'lucide-react'
 import {
   AmbientLight,
   Color,
@@ -35,20 +35,26 @@ import {
 } from '../lib/model-viewer'
 
 interface BlueprintModelPreviewProps {
+  active: boolean
+  available: boolean
   model: BlueprintModelMetadata | null
   preparing: boolean
   requestKey: string
   readBytes: () => Uint8Array | null
   fallbackImageDataUrl: string | null
+  onStart: () => void
   onRetry: () => void
 }
 
 export default function BlueprintModelPreview({
+  active,
+  available,
   model,
   preparing,
   requestKey,
   readBytes,
   fallbackImageDataUrl,
+  onStart,
   onRetry
 }: BlueprintModelPreviewProps): React.JSX.Element {
   const [resetVersion, setResetVersion] = useState(0)
@@ -75,6 +81,26 @@ export default function BlueprintModelPreview({
     },
     [requestKey]
   )
+
+  if (!active) {
+    return (
+      <section
+        className="blueprint-model blueprint-model--idle"
+        aria-labelledby="blueprint-model-title"
+      >
+        <div className="blueprint-model__heading">
+          <div>
+            <Maximize2 size={15} />
+            <h3 id="blueprint-model-title">Interactive model</h3>
+          </div>
+          <button type="button" onClick={onStart} disabled={!available}>
+            <Play size={14} fill="currentColor" />
+            {available ? 'Preview model' : 'Model unavailable'}
+          </button>
+        </div>
+      </section>
+    )
+  }
 
   return (
     <section className="blueprint-model" aria-labelledby="blueprint-model-title">

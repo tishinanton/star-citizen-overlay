@@ -6377,11 +6377,15 @@ a.mission-row:hover {
 }
 
 .blueprint-model {
-  margin-bottom: 14px;
+  margin-top: 22px;
   overflow: hidden;
   border: 1px solid color-mix(in oklch, var(--edge-strong) 56%, var(--edge));
-  border-radius: 11px;
+  border-radius: var(--radius-md);
   background: rgb(3 18 24 / 78%);
+}
+
+.blueprint-model--idle {
+  background: rgb(7 24 32 / 54%);
 }
 
 .blueprint-model__heading {
@@ -6410,7 +6414,7 @@ a.mission-row:hover {
   margin: 0;
   color: var(--ink);
   font-family: 'Bahnschrift SemiCondensed', Bahnschrift, 'Arial Narrow', sans-serif;
-  font-size: 1.08rem;
+  font-size: 1rem;
   font-weight: 600;
   letter-spacing: 0.045em;
   text-transform: uppercase;
@@ -6421,10 +6425,10 @@ a.mission-row:hover {
   min-height: 30px;
   padding: 0 9px;
   border: 1px solid color-mix(in oklch, var(--edge-strong) 52%, var(--edge));
-  border-radius: 7px;
+  border-radius: var(--radius-sm);
   background: rgb(5 25 34 / 82%);
   color: var(--ink-soft);
-  font-size: 0.92rem;
+  font-size: 1rem;
   transition:
     border-color var(--duration-fast) var(--ease-out),
     background-color var(--duration-fast) var(--ease-out),
@@ -6531,7 +6535,7 @@ a.mission-row:hover {
   padding: 9px 10px;
   gap: 10px;
   border: 1px solid color-mix(in oklch, var(--edge-strong) 54%, var(--edge));
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   background: rgb(5 23 31 / 94%);
   color: var(--accent-bright);
 }

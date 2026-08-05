@@ -22,9 +22,13 @@ internal static partial class MiningExtractor
     private const int MinimumProviderCount = 30;
     private const int MaximumCatalogRecordCount = 5000;
 
-    internal static MiningExtractorPayload Extract(string archivePath, DataForge dataForge)
+    internal static MiningExtractorPayload Extract(
+        string archivePath,
+        DataForge dataForge,
+        string localizationSource)
     {
-        var localization = new LocalizationCatalog(GameArchive.ReadEnglishLocalization(archivePath));
+        var localization = new LocalizationCatalog(
+            GameArchive.ReadEnglishLocalization(archivePath, localizationSource));
         var gameVersion = GameArchive.ReadGameVersion(archivePath);
         var warnings = new List<string>();
         var structIndexByName = BuildStructIndex(dataForge);

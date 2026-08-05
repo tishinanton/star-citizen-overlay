@@ -9,10 +9,13 @@ internal static partial class FactionExtractor
         "libs/foundry/records/factions/factionreputation/";
     private const int MinimumFactionCount = 30;
 
-    internal static FactionExtractorPayload Extract(string archivePath, DataForge dataForge)
+    internal static FactionExtractorPayload Extract(
+        string archivePath,
+        DataForge dataForge,
+        string localizationSource)
     {
         var localization = new LocalizationCatalog(
-            GameArchive.ReadEnglishLocalization(archivePath));
+            GameArchive.ReadEnglishLocalization(archivePath, localizationSource));
         var warnings = new List<string>();
         var factions = new List<GameFactionRecord>();
 

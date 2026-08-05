@@ -463,6 +463,8 @@ export type StarStringsSyncStatus =
   | 'installed'
   | 'error'
 
+export type LocalizationSource = 'game' | 'global-ini'
+
 export interface StarStringsReleaseSummary {
   version: string
   name: string
@@ -480,6 +482,7 @@ export interface StarStringsSyncState {
   progress: number | null
   installedRelease: StarStringsInstallationSummary | null
   availableRelease: StarStringsReleaseSummary | null
+  localizationSource: LocalizationSource
 }
 
 export interface AppSnapshot {
@@ -531,6 +534,7 @@ export interface RockfallApi {
   logoutCloud: () => Promise<CloudSyncState>
   publishStaticData: () => Promise<StaticDataSyncState>
   syncStarStrings: () => Promise<StarStringsSyncState>
+  setLocalizationSource: (source: LocalizationSource) => Promise<AppSnapshot>
   checkForUpdates: () => Promise<AppSnapshot>
   restartToUpdate: () => Promise<void>
   configureLanControl: (config: LanControlConfig) => Promise<AppSnapshot>
@@ -570,6 +574,7 @@ export const IPC_CHANNELS = {
   logoutCloud: 'rockfall:cloud:logout',
   publishStaticData: 'rockfall:static-data:publish',
   syncStarStrings: 'rockfall:starstrings:sync',
+  setLocalizationSource: 'rockfall:localization:source:set',
   checkForUpdates: 'rockfall:updates:check',
   restartToUpdate: 'rockfall:updates:restart',
   configureLanControl: 'rockfall:lan:configure',

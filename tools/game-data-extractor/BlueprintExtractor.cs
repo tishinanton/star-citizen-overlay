@@ -17,10 +17,13 @@ internal static partial class BlueprintExtractor
         "libs/foundry/records/crafting/globalparams/craftingglobalparams.xml";
     private const int MinimumBlueprintCount = 1500;
 
-    internal static BlueprintExtractorPayload Extract(string archivePath, DataForge dataForge)
+    internal static BlueprintExtractorPayload Extract(
+        string archivePath,
+        DataForge dataForge,
+        string localizationSource)
     {
         var localization = new LocalizationCatalog(
-            GameArchive.ReadEnglishLocalization(archivePath));
+            GameArchive.ReadEnglishLocalization(archivePath, localizationSource));
         var gameVersion = GameArchive.ReadGameVersion(archivePath);
         var warnings = new List<string>();
         var defaults = ReadDefaultBlueprints(dataForge);

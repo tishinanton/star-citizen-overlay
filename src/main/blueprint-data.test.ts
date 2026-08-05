@@ -1,10 +1,10 @@
 import assert from 'node:assert/strict'
-import { mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import test from 'node:test'
 
-import type { BlueprintDetail } from '../shared/contracts'
+import type { BlueprintDetail, LocalizationSource } from '../shared/contracts'
 import { loadBlueprintData, parseGameBlueprint, parseGameBlueprintPayload } from './blueprint-data'
 
 const GAME_VERSION = '4.9.187.47267-LIVE'
@@ -137,6 +137,74 @@ test('falls back to cached game data when refreshed extraction fails', async () 
   } finally {
     await rm(directory, { recursive: true, force: true })
   }
+})
+
+test('re-extracts blueprints when localization switches to global.ini', async (context) => {
+  const directory = await mkdtemp(join(tmpdir(), 'rockfall-blueprint-localization-'))
+  context.after(() => rm(directory, { recursive: true, force: true }))
+  const archivePath = join(directory, 'Data.p4k')
+  const cachePath = join(directory, 'blueprints.json')
+  const globalIniPath = join(directory, 'Data', 'Localization', 'english', 'global.ini')
+  await writeFile(archivePath, 'archive')
+  await mkdir(join(directory, 'Data', 'Localization', 'english'), { recursive: true })
+  await writeFile(globalIniPath, 'blueprint_name=Localized blueprint\n')
+  const sources: string[] = []
+
+  const extract = async (
+    _extractorPath: string,
+    _archivePath: string,
+    localizationSource: LocalizationSource = 'game'
+  ): Promise<ReturnType<typeof parsedExtraction>> => {
+    sources.push(localizationSource)
+    return parsedExtraction()
+  }
+
+  await loadBlueprintData(
+    {
+      cachePath,
+      extractorPath: 'extractor.exe',
+      gameDataArchive: { path: archivePath, channel: 'LIVE' }
+    },
+    extract
+  )
+  await loadBlueprintData(
+    {
+      cachePath,
+      extractorPath: 'extractor.exe',
+      gameDataArchive: { path: archivePath, channel: 'LIVE' },
+      localizationSource: 'global-ini'
+    },
+    extract
+  )
+
+  assert.deepEqual(sources, ['game', 'global-ini'])
+})
+
+test('does not use packaged-localization cache when global.ini is unavailable', async (context) => {
+  const directory = await mkdtemp(join(tmpdir(), 'rockfall-blueprint-missing-localization-'))
+  context.after(() => rm(directory, { recursive: true, force: true }))
+  const archivePath = join(directory, 'Data.p4k')
+  const cachePath = join(directory, 'blueprints.json')
+  await writeFile(archivePath, 'archive')
+
+  await loadBlueprintData(
+    {
+      cachePath,
+      extractorPath: 'extractor.exe',
+      gameDataArchive: { path: archivePath, channel: 'LIVE' }
+    },
+    async () => parsedExtraction()
+  )
+
+  await assert.rejects(
+    loadBlueprintData({
+      cachePath,
+      extractorPath: 'extractor.exe',
+      gameDataArchive: { path: archivePath, channel: 'LIVE' },
+      localizationSource: 'global-ini'
+    }),
+    /no local cache exists/i
+  )
 })
 
 test('keeps extracted data available when its cache cannot be written', async () => {

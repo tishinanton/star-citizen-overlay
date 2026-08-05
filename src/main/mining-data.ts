@@ -1,9 +1,14 @@
 import { promises as fs } from 'node:fs'
 import { dirname } from 'node:path'
 
-import type { MiningDataStatus, MiningMaterial, MiningMethod } from '../shared/contracts'
+import type {
+  LocalizationSource,
+  MiningDataStatus,
+  MiningMaterial,
+  MiningMethod
+} from '../shared/contracts'
 import {
-  getGameArchiveFingerprint,
+  getLocalizedGameArchiveFingerprint,
   inferCanonicalRecord,
   methodSlug,
   GAME_COMMODITY_IDS,
@@ -55,6 +60,7 @@ export interface MiningDataOptions {
   miningCatalogCachePath: string
   extractorPath: string
   gameDataArchive: GameDataArchive | null
+  localizationSource?: LocalizationSource
   forceRefresh?: boolean
 }
 
@@ -484,7 +490,11 @@ export async function loadMiningData(options: MiningDataOptions): Promise<Mining
 
   if (options.gameDataArchive) {
     try {
-      const archiveFingerprint = await getGameArchiveFingerprint(options.gameDataArchive.path)
+      const localizationSource = options.localizationSource ?? 'game'
+      const archiveFingerprint = await getLocalizedGameArchiveFingerprint(
+        options.gameDataArchive.path,
+        localizationSource
+      )
 
       // Always resolve through the local catalog (which has its own fingerprint/channel cache and
       // is normally near-instant on a hit) rather than short-circuiting on the older
@@ -497,6 +507,7 @@ export async function loadMiningData(options: MiningDataOptions): Promise<Mining
         archivePath: options.gameDataArchive.path,
         archiveFingerprint,
         channel: options.gameDataArchive.channel,
+        localizationSource,
         forceRefresh: options.forceRefresh
       })
 

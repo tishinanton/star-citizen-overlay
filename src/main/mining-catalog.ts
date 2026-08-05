@@ -9,6 +9,8 @@ import { promises as fs } from 'node:fs'
 import { dirname } from 'node:path'
 import { promisify } from 'node:util'
 
+import type { LocalizationSource } from '../shared/contracts'
+
 const execFileAsync = promisify(execFile)
 
 const EXTRACTOR_SCHEMA_VERSION = 1
@@ -764,15 +766,20 @@ export function parseMiningExtractorPayload(value: unknown): MiningCatalog {
  */
 export async function extractMiningCatalog(
   extractorPath: string,
-  archivePath: string
+  archivePath: string,
+  localizationSource: LocalizationSource = 'game'
 ): Promise<MiningCatalog> {
   try {
-    const { stdout } = await execFileAsync(extractorPath, [archivePath, 'mining'], {
-      encoding: 'utf8',
-      maxBuffer: 64 * 1024 * 1024,
-      timeout: 300_000,
-      windowsHide: true
-    })
+    const { stdout } = await execFileAsync(
+      extractorPath,
+      [archivePath, 'mining', localizationSource],
+      {
+        encoding: 'utf8',
+        maxBuffer: 64 * 1024 * 1024,
+        timeout: 300_000,
+        windowsHide: true
+      }
+    )
     return parseMiningExtractorPayload(JSON.parse(stdout) as unknown)
   } catch (error) {
     if (isMissingFileError(error)) {
@@ -811,6 +818,7 @@ export interface LoadMiningCatalogOptions {
   archivePath: string
   archiveFingerprint: string
   channel: string
+  localizationSource?: LocalizationSource
   forceRefresh?: boolean
 }
 
@@ -924,7 +932,11 @@ export async function loadMiningCatalog(
     return { catalog: cache.catalog, fromCache: true, updatedAt: cache.savedAt, cacheWarning }
   }
 
-  const catalog = await extractMiningCatalog(options.extractorPath, options.archivePath)
+  const catalog = await extractMiningCatalog(
+    options.extractorPath,
+    options.archivePath,
+    options.localizationSource ?? 'game'
+  )
   const updatedAt = await writeMiningCatalogCache(
     options.cachePath,
     { archiveFingerprint: options.archiveFingerprint, channel: options.channel },

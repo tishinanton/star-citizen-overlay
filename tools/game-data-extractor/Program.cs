@@ -3,15 +3,17 @@ using System.Xml;
 using ICSharpCode.SharpZipLib.Zip;
 using unforge;
 
-if (args.Length is < 1 or > 2)
+if (args.Length is < 1 or > 3)
 {
     Console.Error.WriteLine(
-        "Usage: Rockfall.GameDataExtractor <Data.p4k|Game2.dcb> [signatures|blueprints|factions|mining]");
+        "Usage: Rockfall.GameDataExtractor <Data.p4k|Game2.dcb> " +
+        "[signatures|blueprints|factions|mining] [game|global-ini]");
     return 2;
 }
 
 var inputPath = Path.GetFullPath(args[0]);
-var mode = args.Length == 2 ? args[1].ToLowerInvariant() : "signatures";
+var mode = args.Length >= 2 ? args[1].ToLowerInvariant() : "signatures";
+var localizationSource = args.Length == 3 ? args[2].ToLowerInvariant() : "game";
 if (!File.Exists(inputPath))
 {
     Console.Error.WriteLine($"Game data file does not exist: {inputPath}");
@@ -20,6 +22,11 @@ if (!File.Exists(inputPath))
 if (mode is not ("signatures" or "blueprints" or "factions" or "mining"))
 {
     Console.Error.WriteLine($"Unsupported extraction mode: {mode}");
+    return 2;
+}
+if (localizationSource is not ("game" or "global-ini"))
+{
+    Console.Error.WriteLine($"Unsupported localization source: {localizationSource}");
     return 2;
 }
 if (mode is "blueprints" or "factions" or "mining"
@@ -44,19 +51,19 @@ try
     using var dataForge = new DataForge(stream);
     if (mode == "mining")
     {
-        var payload = MiningExtractor.Extract(inputPath, dataForge);
+        var payload = MiningExtractor.Extract(inputPath, dataForge, localizationSource);
         Console.WriteLine(
             JsonSerializer.Serialize(payload, ExtractorJsonContext.Default.MiningExtractorPayload));
     }
     else if (mode == "factions")
     {
-        var payload = FactionExtractor.Extract(inputPath, dataForge);
+        var payload = FactionExtractor.Extract(inputPath, dataForge, localizationSource);
         Console.WriteLine(
             JsonSerializer.Serialize(payload, ExtractorJsonContext.Default.FactionExtractorPayload));
     }
     else if (mode == "blueprints")
     {
-        var payload = BlueprintExtractor.Extract(inputPath, dataForge);
+        var payload = BlueprintExtractor.Extract(inputPath, dataForge, localizationSource);
         Console.WriteLine(
             JsonSerializer.Serialize(payload, ExtractorJsonContext.Default.BlueprintExtractorPayload));
     }

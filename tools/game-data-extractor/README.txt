@@ -13,11 +13,12 @@ presets (see below).
 
 Usage:
 
-Rockfall.GameDataExtractor <Data.p4k|Game2.dcb> [signatures|blueprints|factions|mining]
+Rockfall.GameDataExtractor <Data.p4k|Game2.dcb> [signatures|blueprints|factions|mining] [game|global-ini]
 
-Blueprint, faction, and mining modes require Data.p4k. They read the adjacent
-English localization pack when available and otherwise read that allowlisted
-file from the archive. The helper does not read game memory, modify game
+Blueprint, faction, and mining modes require Data.p4k. They read the English
+localization packaged in the archive by default. Pass `global-ini` explicitly
+to use the adjacent Data/Localization/english/global.ini override instead.
+The helper does not read game memory, modify game
 files, connect to the running game, or redistribute extracted assets.
 
 Mining mode (MiningExtractor.cs)

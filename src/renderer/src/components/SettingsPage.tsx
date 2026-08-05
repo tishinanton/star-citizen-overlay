@@ -27,6 +27,7 @@ import {
   MIN_APP_FONT_SIZE,
   type AppSnapshot,
   type CloudSyncState,
+  type LocalizationSource,
   type OverlaySettingsPatch,
   type StarStringsSyncState,
   type StaticDataSyncState
@@ -69,6 +70,7 @@ interface SettingsPageProps {
   onLogoutCloud: () => void
   onPublishStaticData: () => void
   onSyncStarStrings: () => void
+  onSetLocalizationSource: (source: LocalizationSource) => void
   onChooseGameData: () => void
 }
 
@@ -100,6 +102,7 @@ export default function SettingsPage({
   onLogoutCloud,
   onPublishStaticData,
   onSyncStarStrings,
+  onSetLocalizationSource,
   onChooseGameData
 }: SettingsPageProps): React.JSX.Element {
   const scalePercentage = Math.round((fontSize / DEFAULT_APP_FONT_SIZE) * 100)
@@ -560,15 +563,47 @@ export default function SettingsPage({
               <div className="settings-section__heading">
                 <Languages size={18} aria-hidden="true" />
                 <div>
-                  <h2 id="starstrings-title">StarStrings</h2>
-                  <p>Keep the community English strings in your LIVE game install up to date.</p>
+                  <h2 id="starstrings-title">Localization</h2>
+                  <p>Choose which English strings Rockfall uses for game data.</p>
                 </div>
               </div>
 
               <div className="starstrings-settings">
+                <fieldset className="localization-source" disabled={gameDataInteractionBusy}>
+                  <legend>App localization source</legend>
+                  <label>
+                    <input
+                      type="radio"
+                      name="localization-source"
+                      value="game"
+                      checked={starStrings.localizationSource === 'game'}
+                      onChange={() => onSetLocalizationSource('game')}
+                    />
+                    <span>
+                      <strong>Game archive</strong>
+                      <small>Default · English strings packaged in Data.p4k</small>
+                    </span>
+                  </label>
+                  <label>
+                    <input
+                      type="radio"
+                      name="localization-source"
+                      value="global-ini"
+                      checked={starStrings.localizationSource === 'global-ini'}
+                      onChange={() => onSetLocalizationSource('global-ini')}
+                    />
+                    <span>
+                      <strong>Installed global.ini</strong>
+                      <small>
+                        Use Data\Localization\english\global.ini from the selected channel
+                      </small>
+                    </span>
+                  </label>
+                </fieldset>
+
                 <div className="cloud-connection__header">
                   <div>
-                    <span className="setting-label">Community localization</span>
+                    <span className="setting-label">StarStrings community package</span>
                     <span className="setting-help" role="status" aria-live="polite">
                       {starStrings.message}
                     </span>
@@ -656,8 +691,8 @@ export default function SettingsPage({
                     {starStrings.status === 'current' ? 'Check again' : 'Sync latest release'}
                   </button>
                   <span>
-                    Preserves existing <code>USER.cfg</code> entries and enables English
-                    localization.
+                    Preserves <code>USER.cfg</code>. Select Installed global.ini above to use the
+                    synced strings in Rockfall.
                   </span>
                 </div>
               </div>

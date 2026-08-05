@@ -60,6 +60,7 @@ const rockfallApi: RockfallApi = {
   logoutCloud: () => ipcRenderer.invoke(IPC_CHANNELS.logoutCloud),
   publishStaticData: () => ipcRenderer.invoke(IPC_CHANNELS.publishStaticData),
   syncStarStrings: () => ipcRenderer.invoke(IPC_CHANNELS.syncStarStrings),
+  setLocalizationSource: (source) => ipcRenderer.invoke(IPC_CHANNELS.setLocalizationSource, source),
   checkForUpdates: () => ipcRenderer.invoke(IPC_CHANNELS.checkForUpdates),
   restartToUpdate: () => ipcRenderer.invoke(IPC_CHANNELS.restartToUpdate),
   configureLanControl: (config: LanControlConfig) =>

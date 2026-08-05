@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto'
 import { promises as fs } from 'node:fs'
 import { dirname, join } from 'node:path'
 
+import type { LocalizationSource } from '../shared/contracts'
 import type { MiningDataResult } from './mining-data'
 import { loadBlueprintData, type BlueprintDataResult } from './blueprint-data'
 import { loadFactionData, type FactionDataResult } from './faction-data'
@@ -31,6 +32,7 @@ export interface PrepareStaticDataOptions {
   blueprintCachePath: string
   factionCachePath: string
   desktopVersion: string
+  localizationSource?: LocalizationSource
   onProgress?: (progress: StaticDataPreparationProgress) => void
 }
 
@@ -58,6 +60,7 @@ export async function prepareStaticData(
     miningCatalogCachePath: options.miningCatalogCachePath,
     extractorPath: options.extractorPath,
     gameDataArchive: options.gameDataArchive,
+    localizationSource: options.localizationSource ?? 'game',
     forceRefresh: true
   })
   if (mining.status.state !== 'game') {
@@ -71,6 +74,7 @@ export async function prepareStaticData(
     cachePath: options.blueprintCachePath,
     extractorPath: options.extractorPath,
     gameDataArchive: options.gameDataArchive,
+    localizationSource: options.localizationSource ?? 'game',
     forceRefresh: true
   })
   if (blueprints.catalog.state !== 'game') {
@@ -84,6 +88,7 @@ export async function prepareStaticData(
     cachePath: options.factionCachePath,
     extractorPath: options.extractorPath,
     gameDataArchive: options.gameDataArchive,
+    localizationSource: options.localizationSource ?? 'game',
     forceRefresh: true
   })
   if (factions.state !== 'game') {

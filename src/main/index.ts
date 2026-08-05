@@ -34,6 +34,7 @@ import {
   type MiningDataStatus,
   type MiningLocationResult,
   type MiningMaterial,
+  type LocalizationSource,
   type OverlayContentMetrics,
   type OverlayPosition,
   type OverlayPlacement,
@@ -75,6 +76,11 @@ import {
 import type { MiningCatalog } from './mining-catalog'
 import { loadMiningData } from './mining-data'
 import { loadMiningLocations, resolvePreferredMiningLocation } from './mining-locations'
+import {
+  loadLocalizationSource,
+  saveLocalizationSource,
+  validateLocalizationSource
+} from './localization-source'
 import {
   LanControlServer,
   type LanCommandExecutionContext,
@@ -203,7 +209,8 @@ let starStrings: StarStringsSyncState = {
   message: 'No Star Citizen LIVE installation was detected.',
   progress: null,
   installedRelease: null,
-  availableRelease: null
+  availableRelease: null,
+  localizationSource: 'game'
 }
 let lanControlState: LanControlState = {
   status: 'disabled',
@@ -231,8 +238,10 @@ let blueprintOwnershipPath = ''
 let cloudStatePath = ''
 let gameDataPreferencePath = ''
 let starStringsRecordPath = ''
+let localizationSourcePath = ''
 let lanControlPath = ''
 let gameDataArchive: GameDataArchive | null = null
+let localizationSource: LocalizationSource = 'game'
 let extractorPath = ''
 let miningCatalog: MiningCatalog | null = null
 let miningCatalogMaterialIdByMaterialId: ReadonlyMap<string, string> = new Map()
@@ -782,7 +791,8 @@ async function refreshStarStringsState(): Promise<StarStringsSyncState> {
           'No LIVE installation was detected. Select LIVE/Data.p4k as the game-data source to use a custom install location.',
         progress: null,
         installedRelease: null,
-        availableRelease: null
+        availableRelease: null,
+        localizationSource
       }
       broadcastSnapshot([controlWindow])
       return starStrings
@@ -802,7 +812,8 @@ async function refreshStarStringsState(): Promise<StarStringsSyncState> {
       message,
       progress: null,
       installedRelease: inspection.installedRelease,
-      availableRelease: null
+      availableRelease: null,
+      localizationSource
     }
   } catch (error) {
     starStrings = {
@@ -839,7 +850,8 @@ async function runStarStringsSync(): Promise<StarStringsSyncState> {
       message: 'Checking the latest StarStrings LIVE release on GitHub…',
       progress: null,
       installedRelease: inspection.installedRelease,
-      availableRelease: null
+      availableRelease: null,
+      localizationSource
     }
     broadcastSnapshot([controlWindow])
 
@@ -892,7 +904,8 @@ async function runStarStringsSync(): Promise<StarStringsSyncState> {
       message: `${installation.name} is installed. Restart Star Citizen to load the updated strings.`,
       progress: null,
       installedRelease: installation,
-      availableRelease: releaseSummary
+      availableRelease: releaseSummary,
+      localizationSource
     }
   } catch (error) {
     starStrings = {
@@ -905,6 +918,30 @@ async function runStarStringsSync(): Promise<StarStringsSyncState> {
   }
   broadcastSnapshot([controlWindow])
   return starStrings
+}
+
+async function setLocalizationSource(source: unknown): Promise<AppSnapshot> {
+  if (source !== 'game' && source !== 'global-ini') {
+    throw new TypeError('Localization source must be game or global-ini.')
+  }
+  if (staticDataPublication) {
+    throw new Error('Localization cannot be changed during static-data publication.')
+  }
+  if (starStringsOperation) {
+    throw new Error('Localization cannot be changed during StarStrings sync.')
+  }
+  if (source === localizationSource) return getSnapshot()
+
+  await validateLocalizationSource(source, gameDataArchive)
+  await saveLocalizationSource(localizationSourcePath, source)
+  localizationSource = source
+  starStrings = { ...starStrings, localizationSource }
+  blueprintDataGeneration += 1
+  blueprintDataResult = null
+  factionDataGeneration += 1
+  factionDataResult = null
+  await refreshStarStringsState()
+  return refreshMaterials()
 }
 
 async function runStaticDataPublication(): Promise<StaticDataSyncState> {
@@ -944,6 +981,7 @@ async function runStaticDataPublication(): Promise<StaticDataSyncState> {
       factionCachePath: factionCatalogCachePath,
       extractorPath,
       desktopVersion: app.getVersion(),
+      localizationSource,
       onProgress: setStaticDataProgress
     })
     await enqueueSettingsMutation(async () => {
@@ -1137,7 +1175,8 @@ async function refreshMaterials(): Promise<AppSnapshot> {
     cachePath,
     miningCatalogCachePath,
     extractorPath,
-    gameDataArchive: archive
+    gameDataArchive: archive,
+    localizationSource
   })
 
   return enqueueSettingsMutation(async () => {
@@ -1188,6 +1227,7 @@ async function chooseGameData(): Promise<GameDataSelectionResult> {
     }
 
     const archive = await validateGameDataArchive(result.filePaths[0])
+    await validateLocalizationSource(localizationSource, archive)
     await saveGameDataPreference(gameDataPreferencePath, archive.path)
     gameDataArchive = archive
     blueprintDataGeneration += 1
@@ -1367,6 +1407,7 @@ async function getBlueprintCatalog(refresh: unknown = false): Promise<BlueprintC
     cachePath: blueprintCatalogCachePath,
     extractorPath,
     gameDataArchive,
+    localizationSource,
     forceRefresh: refresh,
     shouldWriteCache: () => generation === blueprintDataGeneration
   })
@@ -1407,6 +1448,7 @@ async function getFactionCatalog(refresh: unknown = false): Promise<FactionCatal
     cachePath: factionCatalogCachePath,
     extractorPath,
     gameDataArchive,
+    localizationSource,
     forceRefresh: refresh,
     shouldWriteCache: () => generation === factionDataGeneration
   })
@@ -1895,6 +1937,10 @@ function registerIpcHandlers(): void {
     assertControlWindowSender(event)
     return syncStarStrings()
   })
+  ipcMain.handle(IPC_CHANNELS.setLocalizationSource, (event, source: unknown) => {
+    assertControlWindowSender(event)
+    return setLocalizationSource(source)
+  })
   ipcMain.handle(IPC_CHANNELS.checkForUpdates, async (event) => {
     assertControlWindowSender(event)
     if (!appUpdater) throw new Error('The application updater is not initialized.')
@@ -1960,6 +2006,7 @@ if (!hasSingleInstanceLock) {
     cloudStatePath = join(app.getPath('userData'), 'cloud-state.json')
     gameDataPreferencePath = join(app.getPath('userData'), 'game-data.json')
     starStringsRecordPath = join(app.getPath('userData'), 'starstrings.json')
+    localizationSourcePath = join(app.getPath('userData'), 'localization.json')
     lanControlPath = join(app.getPath('userData'), 'lan-control.json')
     extractorPath = app.isPackaged
       ? join(process.resourcesPath, 'game-data-extractor', 'Rockfall.GameDataExtractor.exe')
@@ -1979,9 +2026,10 @@ if (!hasSingleInstanceLock) {
       storePath: blueprintOwnershipPath,
       onChange: handleBlueprintOwnershipChange
     })
-    const [loaded, gameDataPreference] = await Promise.all([
+    const [loaded, gameDataPreference, loadedLocalization] = await Promise.all([
       loadSettings(settingsPath),
       loadGameDataPreference(gameDataPreferencePath),
+      loadLocalizationSource(localizationSourcePath),
       blueprintOwnershipService.initialize()
     ])
     let gameDataResolutionWarning: string | null = null
@@ -1992,13 +2040,20 @@ if (!hasSingleInstanceLock) {
       gameDataResolutionWarning = `The configured game data location is unavailable: ${message}`
     }
     settings = loaded.settings
+    localizationSource = loadedLocalization.source
+    starStrings = { ...starStrings, localizationSource }
     lanControlState = {
       ...lanControlState,
       enabled: settings.lanControl.enabled,
       port: settings.lanControl.port
     }
     warning =
-      [loaded.warning, gameDataPreference.warning, gameDataResolutionWarning]
+      [
+        loaded.warning,
+        gameDataPreference.warning,
+        loadedLocalization.warning,
+        gameDataResolutionWarning
+      ]
         .filter(Boolean)
         .join(' ') || null
     const lanControlStore = new LanControlStore({

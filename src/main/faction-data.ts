@@ -9,9 +9,10 @@ import type {
   FactionCatalogResult,
   FactionReputation,
   FactionReputationScope,
-  FactionReputationStanding
+  FactionReputationStanding,
+  LocalizationSource
 } from '../shared/contracts'
-import { getGameArchiveFingerprint, type GameDataArchive } from './game-data'
+import { getLocalizedGameArchiveFingerprint, type GameDataArchive } from './game-data'
 
 const execFileAsync = promisify(execFile)
 const EXTRACTOR_SCHEMA_VERSION = 1
@@ -36,12 +37,14 @@ interface FactionCache extends FactionExtraction {
   savedAt: string
   archiveFingerprint: string | null
   channel: string | null
+  localizationSource: LocalizationSource
 }
 
 export interface FactionDataOptions {
   cachePath: string
   extractorPath: string
   gameDataArchive: GameDataArchive | null
+  localizationSource?: LocalizationSource
   forceRefresh?: boolean
   shouldWriteCache?: () => boolean
 }
@@ -247,15 +250,20 @@ export function parseGameFactionPayload(value: unknown): FactionExtraction {
 
 async function extractGameFactions(
   extractorPath: string,
-  archivePath: string
+  archivePath: string,
+  localizationSource: LocalizationSource = 'game'
 ): Promise<FactionExtraction> {
   try {
-    const { stdout } = await execFileAsync(extractorPath, [archivePath, 'factions'], {
-      encoding: 'utf8',
-      maxBuffer: 8 * 1024 * 1024,
-      timeout: 180_000,
-      windowsHide: true
-    })
+    const { stdout } = await execFileAsync(
+      extractorPath,
+      [archivePath, 'factions', localizationSource],
+      {
+        encoding: 'utf8',
+        maxBuffer: 8 * 1024 * 1024,
+        timeout: 180_000,
+        windowsHide: true
+      }
+    )
     return parseGameFactionPayload(JSON.parse(stdout) as unknown)
   } catch (error) {
     const stderr = isRecord(error) && typeof error.stderr === 'string' ? error.stderr.trim() : ''
@@ -288,7 +296,8 @@ function parseCache(value: unknown): FactionCache {
     schemaVersion: FACTION_CACHE_VERSION,
     savedAt: value.savedAt,
     archiveFingerprint: value.archiveFingerprint,
-    channel: value.channel
+    channel: value.channel,
+    localizationSource: value.localizationSource === 'global-ini' ? 'global-ini' : 'game'
   }
 }
 
@@ -306,6 +315,7 @@ async function writeCache(
   extraction: FactionExtraction,
   archiveFingerprint: string,
   channel: string,
+  localizationSource: LocalizationSource,
   shouldWrite: () => boolean
 ): Promise<string | null> {
   if (!shouldWrite()) return null
@@ -315,7 +325,8 @@ async function writeCache(
     schemaVersion: FACTION_CACHE_VERSION,
     savedAt,
     archiveFingerprint,
-    channel
+    channel,
+    localizationSource
   }
   await fs.mkdir(dirname(cachePath), { recursive: true })
   const temporaryPath = `${cachePath}.${randomUUID()}.tmp`
@@ -353,7 +364,8 @@ export async function loadFactionData(
   options: FactionDataOptions,
   extract: (
     extractorPath: string,
-    archivePath: string
+    archivePath: string,
+    localizationSource?: LocalizationSource
   ) => Promise<FactionExtraction> = extractGameFactions
 ): Promise<FactionDataResult> {
   let cache: FactionCache | null = null
@@ -367,9 +379,12 @@ export async function loadFactionData(
   if (options.gameDataArchive) {
     let archiveFingerprint: string
     try {
-      archiveFingerprint = await getGameArchiveFingerprint(options.gameDataArchive.path)
+      archiveFingerprint = await getLocalizedGameArchiveFingerprint(
+        options.gameDataArchive.path,
+        options.localizationSource ?? 'game'
+      )
     } catch (error) {
-      if (cache) {
+      if (cache?.localizationSource === (options.localizationSource ?? 'game')) {
         return toResult(
           cache,
           'cached',
@@ -386,7 +401,8 @@ export async function loadFactionData(
     if (
       !options.forceRefresh &&
       cache?.archiveFingerprint === archiveFingerprint &&
-      cache.channel === options.gameDataArchive.channel
+      cache.channel === options.gameDataArchive.channel &&
+      cache.localizationSource === (options.localizationSource ?? 'game')
     ) {
       return toResult(
         cache,
@@ -397,7 +413,11 @@ export async function loadFactionData(
     }
 
     try {
-      const extraction = await extract(options.extractorPath, options.gameDataArchive.path)
+      const extraction = await extract(
+        options.extractorPath,
+        options.gameDataArchive.path,
+        options.localizationSource ?? 'game'
+      )
       let updatedAt = new Date().toISOString()
       let cacheWarning: string | null = null
       try {
@@ -407,6 +427,7 @@ export async function loadFactionData(
             extraction,
             archiveFingerprint,
             options.gameDataArchive.channel,
+            options.localizationSource ?? 'game',
             options.shouldWriteCache ?? (() => true)
           )) ?? updatedAt
       } catch (error) {
@@ -424,7 +445,7 @@ export async function loadFactionData(
         .join('. ')
       return toResult(extraction, 'game', message, updatedAt)
     } catch (error) {
-      if (cache) {
+      if (cache?.localizationSource === (options.localizationSource ?? 'game')) {
         return toResult(
           cache,
           'cached',

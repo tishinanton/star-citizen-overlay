@@ -3,7 +3,7 @@ import { promises as fs } from 'node:fs'
 import { basename, dirname, extname, join } from 'node:path'
 import { promisify } from 'node:util'
 
-import type { MiningMaterial, MiningMethod } from '../shared/contracts'
+import type { LocalizationSource, MiningMaterial, MiningMethod } from '../shared/contracts'
 
 const execFileAsync = promisify(execFile)
 const EXTRACTOR_SCHEMA_VERSION = 1
@@ -446,4 +446,25 @@ export async function resolveGameDataArchive(
 export async function getGameArchiveFingerprint(archivePath: string): Promise<string> {
   const stats = await fs.stat(archivePath)
   return `${stats.size}:${Math.trunc(stats.mtimeMs)}`
+}
+
+export async function getLocalizedGameArchiveFingerprint(
+  archivePath: string,
+  localizationSource: LocalizationSource
+): Promise<string> {
+  const archiveFingerprint = await getGameArchiveFingerprint(archivePath)
+  if (localizationSource === 'game') return `${archiveFingerprint}:game`
+
+  const localizationPath = join(
+    dirname(archivePath),
+    'Data',
+    'Localization',
+    'english',
+    'global.ini'
+  )
+  const stats = await fs.stat(localizationPath)
+  if (!stats.isFile()) {
+    throw new Error(`The selected localization override is not a file: ${localizationPath}`)
+  }
+  return `${archiveFingerprint}:global-ini:${stats.size}:${Math.trunc(stats.mtimeMs)}`
 }

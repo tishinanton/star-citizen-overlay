@@ -55,7 +55,9 @@ records and file formats in any patch.
 | Geometry, textures, audio, animation, UI, and video | All packaged client assets                                                                                   | Raw bytes; BC1/BC2/BC3 DDS loadout icons can be converted to PNG |
 
 The bundled helper uses `Game2.dcb` for structured records, reads the English
-localization pack, and allowlists referenced loadout icons. Rockfall does not
+localization packaged in `Data.p4k` by default, and allowlists referenced
+loadout icons. Users can explicitly select the adjacent
+`Data\Localization\english\global.ini` override in Settings. Rockfall does not
 unpack the whole archive: this build expands to more than 233 GiB.
 
 ## Archive-level data

@@ -62,6 +62,7 @@ export default function ControlApp(): React.JSX.Element {
     logoutCloud,
     publishStaticData,
     syncStarStrings,
+    setLocalizationSource,
     checkForUpdates,
     restartToUpdate,
     configureLanControl,
@@ -191,6 +192,7 @@ export default function ControlApp(): React.JSX.Element {
           onLogoutCloud={() => void logoutCloud()}
           onPublishStaticData={() => void publishStaticData()}
           onSyncStarStrings={() => void syncStarStrings()}
+          onSetLocalizationSource={(source) => void setLocalizationSource(source)}
           onChooseGameData={() => void chooseGameData()}
           onConfigureLanControl={configureLanControl}
           onBeginLanPairing={beginLanPairing}

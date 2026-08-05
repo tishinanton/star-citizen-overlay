@@ -51,8 +51,9 @@ Game files** can select a custom archive. A bundled read-only extractor opens
 output items, resource requirements, reward pools, mission contracts, contract
 providers, mission categories, faction profiles, reputation scopes, standing
 thresholds, drift, gates, and availability systems. It also resolves names
-through `Data\Localization\english\global.ini`. The extractor does not modify
-game files or interact with the running game.
+through the English localization packaged in `Data.p4k`. An adjacent
+`Data\Localization\english\global.ini` can be selected explicitly in Settings.
+The extractor does not modify game files or interact with the running game.
 
 When the extractor can also read the installed mining catalog (materials,
 mineable entities, harvest locations, provider probability groups, quality
@@ -158,7 +159,9 @@ Settings also detects the Star Citizen `LIVE` installation and can download the
 latest unofficial [StarStrings](https://github.com/MrKraken/StarStrings) release
 directly from GitHub. Rockfall validates the release checksum, installs its
 English localization, and preserves existing `USER.cfg` entries while ensuring
-`g_language = english` is enabled.
+`g_language = english` is enabled. Rockfall continues using the localization
+packaged in `Data.p4k` until the installed `global.ini` source is selected in
+Settings.
 
 The **Phone control** section can expose a secure local HTTPS listener for the
 Android companion. It is disabled by default. Rockfall advertises the listener

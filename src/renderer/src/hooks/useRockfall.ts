@@ -4,6 +4,7 @@ import {
   DEFAULT_APP_FONT_SIZE,
   type AppSnapshot,
   type CloudSyncState,
+  type LocalizationSource,
   type MiningLocationResult,
   type OverlaySettingsPatch
 } from '../../../shared/contracts'
@@ -32,6 +33,7 @@ interface RockfallState {
   logoutCloud: () => Promise<void>
   publishStaticData: () => Promise<void>
   syncStarStrings: () => Promise<void>
+  setLocalizationSource: (source: LocalizationSource) => Promise<void>
   checkForUpdates: () => Promise<void>
   restartToUpdate: () => Promise<void>
   configureLanControl: (config: LanControlConfig) => Promise<void>
@@ -214,6 +216,19 @@ export function useRockfall(): RockfallState {
     }
   }, [])
 
+  const setLocalizationSource = useCallback(async (source: LocalizationSource): Promise<void> => {
+    setError(null)
+    setGameDataSyncing(true)
+    try {
+      setSnapshot(await window.rockfall.setLocalizationSource(source))
+      setGameDataRevision((current) => current + 1)
+    } catch (reason) {
+      setError(getErrorMessage(reason))
+    } finally {
+      setGameDataSyncing(false)
+    }
+  }, [])
+
   useEffect(() => {
     const handleOnline = (): void => {
       void syncCloud()
@@ -305,6 +320,7 @@ export function useRockfall(): RockfallState {
     logoutCloud,
     publishStaticData,
     syncStarStrings,
+    setLocalizationSource,
     checkForUpdates,
     restartToUpdate,
     configureLanControl,

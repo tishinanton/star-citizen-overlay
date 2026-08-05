@@ -24,16 +24,22 @@ internal static class GameArchive
         StreamUtils.Copy(input, output, new byte[81920]);
     }
 
-    internal static string ReadEnglishLocalization(string archivePath)
+    internal static string ReadEnglishLocalization(string archivePath, string source)
     {
-        var loosePath = Path.Combine(
-            Path.GetDirectoryName(archivePath) ?? string.Empty,
-            "Data",
-            "Localization",
-            "english",
-            "global.ini");
-        if (File.Exists(loosePath))
+        if (source == "global-ini")
         {
+            var loosePath = Path.Combine(
+                Path.GetDirectoryName(archivePath) ?? string.Empty,
+                "Data",
+                "Localization",
+                "english",
+                "global.ini");
+            if (!File.Exists(loosePath))
+            {
+                throw new InvalidDataException(
+                    $"The selected global.ini localization file was not found: {loosePath}");
+            }
+
             using var stream = new FileStream(
                 loosePath,
                 FileMode.Open,

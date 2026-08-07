@@ -57,7 +57,7 @@ test('rejects missing and unreferenced icon declarations', () => {
   const input = fixture()
   assert.throws(
     () => createStaticDataPublication({ ...input, icons: {} }),
-    /image keys do not match/
+    /image keys do not match \(missing: icons\/test\.tif; extra: none\)/
   )
   assert.throws(
     () =>
@@ -65,7 +65,60 @@ test('rejects missing and unreferenced icon declarations', () => {
         ...input,
         icons: { ...input.icons, 'icons/extra.tif': PNG }
       }),
-    /image keys do not match/
+    /image keys do not match \(missing: none; extra: icons\/extra\.tif\)/
+  )
+})
+
+test('resolves mixed-case image references through assets and serialized resources', () => {
+  const input = fixture()
+  const canonicalBlueprints = input.blueprints.map((entry) => ({
+    ...entry,
+    imageKey: 'icons/test.tif'
+  }))
+  const publication = createStaticDataPublication({
+    ...input,
+    blueprints: canonicalBlueprints.map((entry, index) => ({
+      ...entry,
+      imageKey: index === 0 ? '/Icons\\TEST.TIF' : entry.imageKey
+    }))
+  })
+  const canonicalPublication = createStaticDataPublication({
+    ...input,
+    blueprints: canonicalBlueprints
+  })
+  const asset = publication.manifest.assets[0]
+  const assetBytes = Buffer.from(PNG.slice('data:image/png;base64,'.length), 'base64')
+  const blueprintDataset = readGzipJsonEntry<{
+    blueprints: Array<{ id: string; assetKey: string | null }>
+  }>(publication.archive, STATIC_DATA_PATHS.blueprints)
+  const archivedManifest = JSON.parse(
+    readStoredZipEntry(publication.archive, STATIC_DATA_PATHS.manifest).toString('utf8')
+  ) as { assets: typeof publication.manifest.assets }
+
+  assert.equal(input.blueprints[0].imageKey, null)
+  assert.deepEqual(publication.archive, canonicalPublication.archive)
+  assert.equal(publication.manifest.assets.length, 1)
+  assert.equal(
+    asset.key,
+    `blueprint-icons/${createHash('sha256').update(assetBytes).digest('hex')}.png`
+  )
+  assert.deepEqual(archivedManifest.assets, publication.manifest.assets)
+  assert.deepEqual(
+    blueprintDataset.blueprints.map((entry) => entry.assetKey),
+    [asset.key, asset.key]
+  )
+  assert.deepEqual(readStoredZipEntry(publication.archive, asset.file), assetBytes)
+})
+
+test('rejects case-only source image path collisions', () => {
+  const input = fixture()
+  assert.throws(
+    () =>
+      createStaticDataPublication({
+        ...input,
+        icons: { ...input.icons, 'Icons/Test.TIF': PNG }
+      }),
+    /Blueprint image declarations contain colliding paths: icons\/test\.tif, Icons\/Test\.TIF/
   )
 })
 

@@ -13,6 +13,10 @@ import type {
   MiningMaterial,
   MiningMethod
 } from '../shared/contracts'
+import {
+  canonicalizeStaticDataImagePath,
+  indexStaticDataImagePaths
+} from '../shared/static-data-image-path'
 
 const PUBLICATION_SCHEMA_VERSION = 1
 const DATASET_COMPRESSION_LEVEL = 9
@@ -515,25 +519,38 @@ function adaptBlueprints(
   blueprints: readonly BlueprintDetail[],
   icons: Readonly<Record<string, string>>
 ): { blueprints: PublicationBlueprintV1[]; assets: PublicationAsset[] } {
-  const referencedImageKeys = new Set(
-    blueprints
-      .map((blueprint) => blueprint.imageKey)
-      .filter((imageKey): imageKey is string => imageKey !== null)
+  const referencedImagePaths = new Map<string, string>()
+  for (const imagePath of blueprints
+    .map((blueprint) => blueprint.imageKey)
+    .filter((imageKey): imageKey is string => imageKey !== null)) {
+    const canonicalPath = canonicalizeStaticDataImagePath(imagePath)
+    if (!canonicalPath) throw new TypeError('Blueprint image references contain an empty path.')
+    if (!referencedImagePaths.has(canonicalPath)) {
+      referencedImagePaths.set(canonicalPath, imagePath)
+    }
+  }
+  const suppliedImagePaths = indexStaticDataImagePaths(
+    Object.keys(icons),
+    'Blueprint image declarations'
   )
-  const suppliedImageKeys = new Set(Object.keys(icons))
-  assertEqualSets(referencedImageKeys, suppliedImageKeys, 'blueprint image keys')
+  assertEqualPathSets(referencedImagePaths, suppliedImagePaths, 'blueprint image keys')
 
   const keyByImage = new Map<string, string>()
   const assetsByKey = new Map<string, PublicationAsset>()
-  for (const imageKey of [...referencedImageKeys].sort()) {
-    const bytes = decodePngDataUrl(icons[imageKey], imageKey)
+  for (const canonicalPath of [...referencedImagePaths.keys()].sort()) {
+    const imageKey = referencedImagePaths.get(canonicalPath)
+    const sourceImageKey = suppliedImagePaths.get(canonicalPath)
+    if (imageKey === undefined || sourceImageKey === undefined) {
+      throw new Error('Static-data blueprint image mapping became inconsistent.')
+    }
+    const bytes = decodePngDataUrl(icons[sourceImageKey], imageKey)
     if (bytes.byteLength > MAX_ASSET_BYTES) {
       throw new RangeError(`Blueprint icon ${imageKey} exceeds the API size limit.`)
     }
     const digest = sha256(bytes)
     const key = `blueprint-icons/${digest}.png`
     const file = `assets/${key}`
-    keyByImage.set(imageKey, key)
+    keyByImage.set(canonicalPath, key)
     if (!assetsByKey.has(key)) {
       const dimensions = readPngDimensions(bytes, imageKey)
       assetsByKey.set(key, {
@@ -572,7 +589,10 @@ function toPublicationBlueprint(
   blueprint: BlueprintDetail,
   keyByImage: ReadonlyMap<string, string>
 ): PublicationBlueprintV1 {
-  const assetKey = blueprint.imageKey === null ? null : keyByImage.get(blueprint.imageKey)
+  const assetKey =
+    blueprint.imageKey === null
+      ? null
+      : keyByImage.get(canonicalizeStaticDataImagePath(blueprint.imageKey))
   if (blueprint.imageKey !== null && !assetKey) {
     throw new Error(`Blueprint ${blueprint.id} references an undeclared icon.`)
   }
@@ -861,6 +881,26 @@ function assertEqualSets(
 ): void {
   const missing = [...left].filter((value) => !right.has(value))
   const extra = [...right].filter((value) => !left.has(value))
+  if (missing.length > 0 || extra.length > 0) {
+    throw new Error(
+      `Static-data ${label} do not match (missing: ${missing.join(', ') || 'none'}; extra: ${
+        extra.join(', ') || 'none'
+      }).`
+    )
+  }
+}
+
+function assertEqualPathSets(
+  referenced: ReadonlyMap<string, string>,
+  supplied: ReadonlyMap<string, string>,
+  label: string
+): void {
+  const missing = [...referenced]
+    .filter(([canonicalPath]) => !supplied.has(canonicalPath))
+    .map(([, originalPath]) => originalPath)
+  const extra = [...supplied]
+    .filter(([canonicalPath]) => !referenced.has(canonicalPath))
+    .map(([, originalPath]) => originalPath)
   if (missing.length > 0 || extra.length > 0) {
     throw new Error(
       `Static-data ${label} do not match (missing: ${missing.join(', ') || 'none'}; extra: ${

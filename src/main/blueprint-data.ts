@@ -17,6 +17,7 @@ import type {
   BlueprintUnlockMission,
   LocalizationSource
 } from '../shared/contracts'
+import { indexStaticDataImagePaths } from '../shared/static-data-image-path'
 import { getLocalizedGameArchiveFingerprint, type GameDataArchive } from './game-data'
 
 const execFileAsync = promisify(execFile)
@@ -328,6 +329,7 @@ function parseIcons(value: unknown): Record<string, string> {
     }
     icons[key] = dataUrl
   }
+  indexStaticDataImagePaths(Object.keys(icons), 'Blueprint icons')
   return icons
 }
 

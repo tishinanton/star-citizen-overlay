@@ -66,6 +66,16 @@ test('rejects malformed and duplicate installed blueprint records', () => {
   malformed.icons = { [ICON_KEY]: 'https://example.com/icon.png' }
   assert.throws(() => parseGameBlueprintPayload(malformed), /invalid blueprint icon/)
 
+  const collidingIcons = extractorPayload()
+  collidingIcons.icons = {
+    [ICON_KEY]: ICON_DATA,
+    [ICON_KEY.toUpperCase()]: ICON_DATA
+  }
+  assert.throws(
+    () => parseGameBlueprintPayload(collidingIcons),
+    /Blueprint icons contain colliding paths/
+  )
+
   const invalidMission = extractorPayload()
   Object.assign(invalidMission.blueprints[0].unlockingMissions[0], {
     starSystems: ['Stanton', 'Stanton']

@@ -63,6 +63,7 @@ import {
   getOverlayLayoutKey,
   type OverlayLayout
 } from '../shared/overlay-layout'
+import { findStaticDataImageByPath } from '../shared/static-data-image-path'
 import { AppUpdaterController, createUpdaterClient } from './app-updater'
 import { prepareBlueprintDataLoad, type BlueprintDataResult } from './blueprint-data'
 import { applyBlueprintNewMarkers } from './blueprint-newness'
@@ -1646,7 +1647,9 @@ async function getBlueprintThumbnail(blueprintId: unknown): Promise<BlueprintThu
     throw new Error('That blueprint is no longer available.')
   }
 
-  const packagedIcon = blueprint.imageKey ? data.catalog.icons[blueprint.imageKey] : null
+  const packagedIcon = blueprint.imageKey
+    ? findStaticDataImageByPath(data.catalog.icons, blueprint.imageKey)
+    : null
   if (packagedIcon) {
     return {
       status: 'ready' as const,

@@ -32,6 +32,7 @@ import type {
   BlueprintSummary,
   BlueprintUnlockMission
 } from '../../../shared/contracts'
+import { findStaticDataImageByPath } from '../../../shared/static-data-image-path'
 import BlueprintModelPreview from './BlueprintModelPreview'
 import BlueprintNewBadge from './BlueprintNewBadge'
 import {
@@ -171,7 +172,7 @@ export default function BlueprintBrowser({
   )
   const packagedImageDataUrl =
     selectedBlueprint?.imageKey && catalog.result
-      ? (catalog.result.icons[selectedBlueprint.imageKey] ?? null)
+      ? (findStaticDataImageByPath(catalog.result.icons, selectedBlueprint.imageKey) ?? null)
       : null
   const previewActive = selectedBlueprint !== null && previewBlueprintId === selectedBlueprint.id
   const previewRequestId = previewActive ? selectedBlueprint.id : null

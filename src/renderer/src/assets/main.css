@@ -3102,23 +3102,61 @@
 }
 
 .blueprint-row__identity,
-.blueprint-row__identity > strong,
+.blueprint-row__title,
+.blueprint-row__title > strong,
 .blueprint-row__meta {
   display: block;
   min-width: 0;
 }
 
-.blueprint-row__identity > strong,
+.blueprint-row__title > strong,
 .blueprint-row__meta > span:first-child {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.blueprint-row__identity > strong {
+.blueprint-row__title > strong {
   color: inherit;
   font-size: 1rem;
   font-weight: 600;
+}
+
+.blueprint-row__title {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.blueprint-row__title > strong {
+  min-width: 0;
+}
+
+.blueprint-new-badge {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 3px;
+  min-height: 18px;
+  padding: 1px 6px;
+  border: 1px solid color-mix(in oklch, var(--accent) 58%, var(--edge));
+  border-radius: 999px;
+  background: color-mix(in oklch, var(--accent-soft) 78%, transparent);
+  color: var(--accent-bright);
+  font-size: 0.72rem;
+  font-weight: 650;
+  line-height: 1;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.blueprint-detail__identity > .blueprint-new-badge--detail {
+  margin-left: 7px;
+  color: var(--accent-bright);
+  font-size: 0.72rem;
+  font-weight: 650;
+  letter-spacing: 0.04em;
+  vertical-align: 1px;
 }
 
 .blueprint-row__meta {
@@ -8218,7 +8256,7 @@ body {
     inset 0 0 18px color-mix(in oklch, var(--hud-active) 10%, transparent);
 }
 
-.blueprint-row__identity > strong,
+.blueprint-row__title > strong,
 .faction-row__identity > strong {
   font-family: 'Bahnschrift SemiCondensed', Bahnschrift, 'Arial Narrow', sans-serif;
   font-size: 1.05rem;

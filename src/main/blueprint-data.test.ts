@@ -22,6 +22,7 @@ test('parses installed blueprint requirements, missions, and icons', () => {
   const blueprint = extraction.details[0]
 
   assert.equal(blueprint.outputName, 'Field Recon Suit Arms')
+  assert.equal(blueprint.isNew, false)
   assert.equal(blueprint.requirementGroups[0].ingredients[0].name, 'Iron')
   assert.equal(blueprint.requirementGroups[0].ingredients[0].quantityScu, 0.03)
   assert.equal(blueprint.unlockingMissions[0].title, 'Tactical Strike Group Needed')
@@ -42,6 +43,16 @@ test('parses installed blueprint requirements, missions, and icons', () => {
     blueprint.renderAsset?.path,
     'Objects/Characters/Human/male_v7/armor/field_recon_arms.skin'
   )
+})
+
+test('normalizes new blueprint markers while accepting older payloads', () => {
+  const marked = blueprint(0)
+  marked.isNew = true
+  assert.equal(parseGameBlueprint(marked)?.isNew, true)
+
+  const older = blueprint(1)
+  delete older.isNew
+  assert.equal(parseGameBlueprint(older)?.isNew, false)
 })
 
 test('rejects malformed and duplicate installed blueprint records', () => {

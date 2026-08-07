@@ -33,6 +33,7 @@ import type {
   BlueprintUnlockMission
 } from '../../../shared/contracts'
 import BlueprintModelPreview from './BlueprintModelPreview'
+import BlueprintNewBadge from './BlueprintNewBadge'
 import {
   useBlueprintCatalog,
   useBlueprintDetail,
@@ -43,12 +44,16 @@ import {
 import type { BlueprintModelMetadata } from '../lib/model-viewer'
 import {
   getBlueprintCategoryOptions,
-  getBlueprintSubcategoryOptions,
-  matchesBlueprintCategory
+  getBlueprintSubcategoryOptions
 } from '../lib/blueprint-categories'
-
-type BlueprintAccessFilter = 'all' | 'mission' | 'default'
-type BlueprintCollectionFilter = 'all' | 'owned' | 'obtainable'
+import {
+  DEFAULT_BLUEPRINT_FILTERS,
+  filterBlueprints,
+  getBlueprintEmptyState,
+  type BlueprintAccessFilter,
+  type BlueprintCollectionFilter,
+  type BlueprintRecencyFilter
+} from '../lib/blueprint-filters'
 
 const ACCESS_FILTERS: Array<{ value: BlueprintAccessFilter; label: string }> = [
   { value: 'all', label: 'All' },
@@ -59,6 +64,10 @@ const COLLECTION_FILTERS: Array<{ value: BlueprintCollectionFilter; label: strin
   { value: 'all', label: 'All' },
   { value: 'owned', label: 'Owned' },
   { value: 'obtainable', label: 'Obtainable' }
+]
+const RECENCY_FILTERS: Array<{ value: BlueprintRecencyFilter; label: string }> = [
+  { value: 'all', label: 'All' },
+  { value: 'new', label: 'New' }
 ]
 const BLUEPRINT_RENDER_BATCH_SIZE = 80
 
@@ -87,6 +96,7 @@ export default function BlueprintBrowser({
   const [subcategoryFilter, setSubcategoryFilter] = useState('')
   const [accessFilter, setAccessFilter] = useState<BlueprintAccessFilter>('all')
   const [collectionFilter, setCollectionFilter] = useState<BlueprintCollectionFilter>('all')
+  const [recencyFilter, setRecencyFilter] = useState<BlueprintRecencyFilter>('all')
   const [requestedBlueprintId, setRequestedBlueprintId] = useState<string | null>(null)
   const [previewBlueprintId, setPreviewBlueprintId] = useState<string | null>(null)
   const [renderWindow, setRenderWindow] = useState({
@@ -112,36 +122,13 @@ export default function BlueprintBrowser({
 
   const visibleBlueprints = useMemo(() => {
     if (!catalog.result) return []
-    const normalizedQuery = query.trim().toLowerCase()
-
-    return catalog.result.blueprints.filter((blueprint) => {
-      const ownershipRecord = getOwnershipRecord(blueprint, ownership.result)
-      const matchesQuery =
-        !normalizedQuery ||
-        blueprint.outputName.toLowerCase().includes(normalizedQuery) ||
-        blueprint.outputTypeLabel.toLowerCase().includes(normalizedQuery) ||
-        blueprint.key.toLowerCase().includes(normalizedQuery) ||
-        blueprint.ingredients.some((ingredient) =>
-          ingredient.name.toLowerCase().includes(normalizedQuery)
-        )
-      const matchesAccess =
-        accessFilter === 'all' ||
-        (accessFilter === 'default' && blueprint.availableByDefault) ||
-        (accessFilter === 'mission' &&
-          !blueprint.availableByDefault &&
-          blueprint.unlockingMissionCount > 0)
-      const matchesCollection =
-        collectionFilter === 'all' ||
-        (collectionFilter === 'owned' && ownershipRecord !== null) ||
-        (collectionFilter === 'obtainable' &&
-          ownershipRecord === null &&
-          blueprint.unlockingMissionCount > 0)
-      return (
-        matchesQuery &&
-        matchesBlueprintCategory(blueprint, activeCategoryFilter, activeSubcategoryFilter) &&
-        matchesAccess &&
-        matchesCollection
-      )
+    return filterBlueprints(catalog.result.blueprints, ownership.result, {
+      query,
+      category: activeCategoryFilter,
+      subcategory: activeSubcategoryFilter,
+      access: accessFilter,
+      collection: collectionFilter,
+      recency: recencyFilter
     })
   }, [
     accessFilter,
@@ -150,7 +137,8 @@ export default function BlueprintBrowser({
     activeSubcategoryFilter,
     collectionFilter,
     ownership.result,
-    query
+    query,
+    recencyFilter
   ])
 
   const selectedBlueprint =
@@ -163,6 +151,7 @@ export default function BlueprintBrowser({
     activeSubcategoryFilter,
     accessFilter,
     collectionFilter,
+    recencyFilter,
     catalog.result?.updatedAt ?? ''
   ].join('\u001f')
   const renderedBlueprintCount =
@@ -201,6 +190,15 @@ export default function BlueprintBrowser({
   const ownershipRecord = selectedBlueprint
     ? getOwnershipRecord(selectedBlueprint, ownership.result)
     : null
+  const activeFilters = {
+    query,
+    category: activeCategoryFilter,
+    subcategory: activeSubcategoryFilter,
+    access: accessFilter,
+    collection: collectionFilter,
+    recency: recencyFilter
+  } satisfies Parameters<typeof getBlueprintEmptyState>[0]
+  const emptyState = getBlueprintEmptyState(activeFilters)
 
   const selectBlueprint = useCallback((blueprintId: string): void => {
     setPreviewBlueprintId(null)
@@ -238,6 +236,15 @@ export default function BlueprintBrowser({
   const startPreview = useCallback((): void => {
     if (selectedBlueprint) setPreviewBlueprintId(selectedBlueprint.id)
   }, [selectedBlueprint])
+
+  const clearFilters = (): void => {
+    setQuery(DEFAULT_BLUEPRINT_FILTERS.query)
+    setCategoryFilter(DEFAULT_BLUEPRINT_FILTERS.category)
+    setSubcategoryFilter(DEFAULT_BLUEPRINT_FILTERS.subcategory)
+    setAccessFilter(DEFAULT_BLUEPRINT_FILTERS.access)
+    setCollectionFilter(DEFAULT_BLUEPRINT_FILTERS.collection)
+    setRecencyFilter(DEFAULT_BLUEPRINT_FILTERS.recency)
+  }
 
   const retryCatalog = (refresh = false): void => {
     document.getElementById('blueprint-catalog-title')?.focus()
@@ -411,6 +418,7 @@ export default function BlueprintBrowser({
                   setSubcategoryFilter('')
                   setCollectionFilter('all')
                   setAccessFilter('all')
+                  setRecencyFilter('all')
                 }}
               >
                 {ownership.error ? 'Retry' : 'Review'}
@@ -514,6 +522,22 @@ export default function BlueprintBrowser({
               ))}
             </div>
           </fieldset>
+          <fieldset className="blueprint-filter-group">
+            <legend>Added</legend>
+            <div className="filter-strip" aria-label="Filter blueprints by when they were added">
+              {RECENCY_FILTERS.map((filter) => (
+                <button
+                  key={filter.value}
+                  type="button"
+                  className={recencyFilter === filter.value ? 'is-active' : ''}
+                  aria-pressed={recencyFilter === filter.value}
+                  onClick={() => setRecencyFilter(filter.value)}
+                >
+                  {filter.label}
+                </button>
+              ))}
+            </div>
+          </fieldset>
         </div>
 
         <div className="blueprint-list" aria-busy={catalog.loading && !catalog.result}>
@@ -554,8 +578,13 @@ export default function BlueprintBrowser({
             {catalog.result && visibleBlueprints.length === 0 && (
               <div className="blueprint-empty">
                 <Search size={22} />
-                <strong>No matching blueprints</strong>
-                <span>Try another output, material, category, access, or collection filter.</span>
+                <strong>{emptyState.title}</strong>
+                <span>{emptyState.description}</span>
+                {emptyState.canClear && (
+                  <button type="button" onClick={clearFilters}>
+                    Clear filters
+                  </button>
+                )}
               </div>
             )}
           </div>
@@ -676,7 +705,10 @@ const BlueprintRow = memo(function BlueprintRow({
       onKeyDown={(event) => onKeyDown(event, index)}
     >
       <span className="blueprint-row__identity">
-        <strong>{blueprint.outputName}</strong>
+        <span className="blueprint-row__title">
+          <strong>{blueprint.outputName}</strong>
+          <BlueprintNewBadge isNew={blueprint.isNew} />
+        </span>
         <small className="blueprint-row__meta">
           <span>{blueprint.outputTypeLabel}</span>
           <span aria-hidden="true">·</span>
@@ -842,6 +874,7 @@ function BlueprintDetailPane({
             {summary.outputTypeLabel}
             {summary.outputGrade ? ` · Grade ${summary.outputGrade}` : ''}
           </span>
+          <BlueprintNewBadge isNew={summary.isNew} className="blueprint-new-badge--detail" />
           <h2 id="blueprint-detail-title" tabIndex={-1}>
             {summary.outputName}
           </h2>

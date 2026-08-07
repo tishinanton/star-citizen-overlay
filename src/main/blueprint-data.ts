@@ -278,6 +278,7 @@ export function parseGameBlueprint(value: unknown): BlueprintDetail | null {
   return {
     id,
     key,
+    isNew: value.isNew === true,
     outputName,
     outputClass,
     outputType,

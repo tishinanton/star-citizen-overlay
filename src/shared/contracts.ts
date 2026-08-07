@@ -164,6 +164,7 @@ export interface BlueprintIngredient {
 export interface BlueprintSummary {
   id: string
   key: string
+  isNew?: boolean
   outputName: string
   outputClass: string
   outputType: string

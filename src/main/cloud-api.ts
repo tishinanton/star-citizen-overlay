@@ -1005,7 +1005,10 @@ function parseCloudBlueprintMarkers(value: unknown): CloudBlueprintMarker[] {
     seenIds.add(id)
     return {
       id,
-      isNew: readBoolean(record.isNew, 'Static-data blueprint new state')
+      isNew:
+        record.isNew === undefined
+          ? false
+          : readBoolean(record.isNew, 'Static-data blueprint new state')
     }
   })
 }

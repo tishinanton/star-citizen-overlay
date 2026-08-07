@@ -265,6 +265,11 @@ test('validates static-data capability and current-release contracts', async () 
     )
     assert.equal(blueprintAuthorization, 'Bearer access-token')
     blueprintResource = [{ id: 'missing-marker' }]
+    assert.deepEqual(
+      await client.getStaticDataBlueprintMarkers(current.resources.blueprints, 'access-token'),
+      [{ id: 'missing-marker', isNew: false }]
+    )
+    blueprintResource = [{ id: 'invalid-marker', isNew: 'yes' }]
     await assert.rejects(
       client.getStaticDataBlueprintMarkers(current.resources.blueprints, 'access-token'),
       /new state must be a boolean/

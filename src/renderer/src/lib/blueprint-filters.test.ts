@@ -3,7 +3,13 @@ import test from 'node:test'
 import { createElement } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 
-import type { BlueprintOwnershipSnapshot, BlueprintSummary } from '../../../shared/contracts'
+import type { BlueprintDataResult } from '../../../main/blueprint-data'
+import { applyBlueprintNewMarkers } from '../../../main/blueprint-newness'
+import type {
+  BlueprintDetail,
+  BlueprintOwnershipSnapshot,
+  BlueprintSummary
+} from '../../../shared/contracts'
 import BlueprintNewBadge from '../components/BlueprintNewBadge'
 import {
   DEFAULT_BLUEPRINT_FILTERS,
@@ -88,6 +94,46 @@ test('describes empty new-blueprint results and keeps reset available', () => {
   assert.equal(getBlueprintEmptyState({ ...DEFAULT_BLUEPRINT_FILTERS }).canClear, false)
 })
 
+test('carries backend markers into the rendered and filterable catalog by exact ID', () => {
+  const localBlueprints = BLUEPRINTS.map((entry) => ({ ...entry, isNew: false }))
+  const localResult: BlueprintDataResult = {
+    catalog: {
+      blueprints: localBlueprints,
+      icons: {},
+      state: 'game',
+      message: 'Installed blueprints.',
+      updatedAt: '2026-08-07T00:00:00.000Z'
+    },
+    details: Object.fromEntries(localBlueprints.map((entry) => [entry.id, blueprintDetail(entry)])),
+    gameVersion: '4.9',
+    warnings: []
+  }
+
+  const marked = applyBlueprintNewMarkers(localResult, [
+    { id: 'new-mission', isNew: true },
+    { id: 'backend-only-id', isNew: true }
+  ])
+  const newBlueprints = filterBlueprints(
+    marked.catalog.blueprints,
+    OWNERSHIP,
+    filters({ recency: 'new' })
+  )
+
+  assert.deepEqual(
+    newBlueprints.map(({ id }) => id),
+    ['new-mission']
+  )
+  assert.equal(marked.catalog.blueprints.find(({ id }) => id === 'new-owned')?.isNew, false)
+  assert.equal(
+    marked.catalog.blueprints.some(({ id }) => id === 'backend-only-id'),
+    false
+  )
+  assert.match(
+    renderToStaticMarkup(createElement(BlueprintNewBadge, { isNew: newBlueprints[0].isNew })),
+    /aria-label="New blueprint"/
+  )
+})
+
 function filters(overrides: Partial<BlueprintFilterState>): BlueprintFilterState {
   return { ...DEFAULT_BLUEPRINT_FILTERS, ...overrides }
 }
@@ -118,5 +164,16 @@ function blueprint(
     imageKey: null,
     renderAsset: null,
     webUrl: null
+  }
+}
+
+function blueprintDetail(summary: BlueprintSummary): BlueprintDetail {
+  return {
+    ...summary,
+    outputDescription: null,
+    outputManufacturer: null,
+    outputStats: [],
+    requirementGroups: [],
+    unlockingMissions: []
   }
 }

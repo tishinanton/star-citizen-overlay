@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict'
+import { createHash } from 'node:crypto'
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http'
 import type { AddressInfo } from 'node:net'
 import test from 'node:test'
@@ -8,6 +9,7 @@ import {
   CloudApiClient,
   CloudApiError,
   CloudNetworkError,
+  type CloudStaticDataResource,
   type CloudManualSetOperation,
   type CloudReceiptUpsertOperation
 } from './cloud-api'
@@ -147,10 +149,18 @@ test('validates static-data capability and current-release contracts', async () 
   let useLegacyCapabilities = false
   let useOldResourceCaps = false
   let blueprintAuthorization: string | undefined
-  let blueprintResource: unknown = [
+  let manifestRequestCount = 0
+  let blueprintRequestCount = 0
+  const manifestEtag = `"${'a'.repeat(64)}"`
+  const blueprintResource = [
     { id: 'Case-Sensitive-ID', isNew: true },
     { id: 'case-sensitive-id', isNew: false }
   ]
+  const blueprintJson = JSON.stringify(blueprintResource)
+  const blueprintSha256 = sha256(blueprintJson)
+  const blueprintEtag = `"${blueprintSha256}"`
+  const legacyJson = JSON.stringify([{ id: 'missing-marker' }])
+  const invalidJson = JSON.stringify([{ id: 'invalid-marker', isNew: 'yes' }])
   const server = createServer((request, response) => {
     if (request.url === '/v1/static-data/capabilities') {
       if (useLegacyCapabilities) {
@@ -196,17 +206,50 @@ test('validates static-data capability and current-release contracts', async () 
       return
     }
     if (request.url === `/v1/static-data/releases/${RELEASE_ID}/resources/blueprints`) {
+      blueprintRequestCount += 1
       blueprintAuthorization = request.headers.authorization
-      const body = gzipSync(JSON.stringify(blueprintResource))
+      if (request.headers['if-none-match'] === blueprintEtag) {
+        response.writeHead(304, { ETag: blueprintEtag })
+        response.end()
+        return
+      }
+      const body = gzipSync(blueprintJson)
       response.writeHead(200, {
         'Content-Type': 'application/json',
         'Content-Encoding': 'gzip',
+        ETag: blueprintEtag,
         'Content-Length': body.byteLength
       })
       response.end(body)
       return
     }
+    if (request.url === '/legacy-blueprints') {
+      response.writeHead(200, {
+        'Content-Type': 'application/json',
+        'Content-Encoding': 'gzip',
+        ETag: `"${sha256(legacyJson)}"`,
+        'Content-Length': Buffer.byteLength(legacyJson)
+      })
+      response.end(legacyJson)
+      return
+    }
+    if (request.url === '/invalid-blueprints') {
+      response.writeHead(200, {
+        'Content-Type': 'application/json',
+        ETag: `"${sha256(invalidJson)}"`,
+        'Content-Length': Buffer.byteLength(invalidJson)
+      })
+      response.end(invalidJson)
+      return
+    }
     if (request.url === '/v1/static-data/channels/LIVE/current') {
+      manifestRequestCount += 1
+      if (request.headers['if-none-match'] === manifestEtag) {
+        response.writeHead(304, { ETag: manifestEtag })
+        response.end()
+        return
+      }
+      response.setHeader('ETag', manifestEtag)
       writeJson(response, 200, {
         releaseId: RELEASE_ID,
         contractVersion: 1,
@@ -223,7 +266,7 @@ test('validates static-data capability and current-release contracts', async () 
         },
         resources: [
           resource('signatures', 38),
-          resource('blueprints', 1_591),
+          resource('blueprints', 1_591, blueprintSha256),
           resource('faction-reputation', 38)
         ],
         assets: [
@@ -263,16 +306,43 @@ test('validates static-data capability and current-release contracts', async () 
         { id: 'case-sensitive-id', isNew: false }
       ]
     )
-    assert.equal(blueprintAuthorization, 'Bearer access-token')
-    blueprintResource = [{ id: 'missing-marker' }]
+    assert.equal(await client.getCurrentStaticDataRelease('LIVE', 'access-token'), current)
     assert.deepEqual(
       await client.getStaticDataBlueprintMarkers(current.resources.blueprints, 'access-token'),
-      [{ id: 'missing-marker', isNew: false }]
+      [
+        { id: 'Case-Sensitive-ID', isNew: true },
+        { id: 'case-sensitive-id', isNew: false }
+      ]
     )
-    blueprintResource = [{ id: 'invalid-marker', isNew: 'yes' }]
+    assert.equal(manifestRequestCount, 2)
+    assert.equal(blueprintRequestCount, 2)
+    assert.equal(blueprintAuthorization, 'Bearer access-token')
+    const legacyResource: CloudStaticDataResource = {
+      ...current.resources.blueprints,
+      sha256: sha256(legacyJson),
+      compressedBytes: Buffer.byteLength(legacyJson),
+      uncompressedBytes: Buffer.byteLength(legacyJson),
+      recordCount: 1,
+      url: '/legacy-blueprints'
+    }
+    assert.deepEqual(await client.getStaticDataBlueprintMarkers(legacyResource, 'access-token'), [
+      { id: 'missing-marker', isNew: false }
+    ])
+    const invalidResource: CloudStaticDataResource = {
+      ...legacyResource,
+      sha256: sha256(invalidJson),
+      url: '/invalid-blueprints'
+    }
     await assert.rejects(
-      client.getStaticDataBlueprintMarkers(current.resources.blueprints, 'access-token'),
+      client.getStaticDataBlueprintMarkers(invalidResource, 'access-token'),
       /new state must be a boolean/
+    )
+    await assert.rejects(
+      client.getStaticDataBlueprintMarkers(
+        { ...legacyResource, sha256: 'f'.repeat(64) },
+        'access-token'
+      ),
+      /did not match its manifest hash/
     )
     useOldResourceCaps = true
     await assert.rejects(
@@ -557,18 +627,26 @@ function ownershipSnapshot(): Record<string, unknown> {
   }
 }
 
-function resource(name: string, recordCount: number): Record<string, unknown> {
+function resource(
+  name: string,
+  recordCount: number,
+  resourceSha256 = 'b'.repeat(64)
+): Record<string, unknown> {
   return {
     name,
     schemaVersion: 1,
     mediaType: 'application/json',
     contentEncoding: 'gzip',
-    sha256: 'b'.repeat(64),
+    sha256: resourceSha256,
     compressedBytes: 1,
     uncompressedBytes: 1,
     recordCount,
     url: `/v1/static-data/releases/${RELEASE_ID}/resources/${name}`
   }
+}
+
+function sha256(value: string): string {
+  return createHash('sha256').update(value).digest('hex')
 }
 
 async function readBody(request: IncomingMessage): Promise<unknown> {

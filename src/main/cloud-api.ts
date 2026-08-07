@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto'
 import { request as requestHttp } from 'node:http'
 import { request as requestHttps } from 'node:https'
 import { gunzipSync } from 'node:zlib'
@@ -223,6 +224,7 @@ export interface CloudStaticDataResource {
   name: CloudStaticDataResourceName
   schemaVersion: 1
   contentEncoding: 'gzip'
+  sha256: string
   compressedBytes: number
   uncompressedBytes: number
   recordCount: number
@@ -272,6 +274,16 @@ interface CloudRequestOptions {
   timeoutMs?: number
   onUploadProgress?: (sentBytes: number, totalBytes: number) => void
   gzipJsonMaxBytes?: number
+  conditional?: {
+    etag: string | null
+    expectedSha256?: string
+  }
+}
+
+interface CloudConditionalJsonResponse {
+  notModified: boolean
+  etag: string | null
+  value: unknown
 }
 
 interface CloudApiClientOptions {
@@ -281,6 +293,14 @@ interface CloudApiClientOptions {
 export class CloudApiClient {
   readonly baseUrl: string
   private readonly timeoutMs: number
+  private readonly staticDataReleaseCache = new Map<
+    string,
+    { etag: string; value: CloudStaticDataCurrentRelease }
+  >()
+  private readonly blueprintMarkerCache = new Map<
+    string,
+    { etag: string; value: CloudBlueprintMarker[] }
+  >()
 
   constructor(baseUrl: string, options: CloudApiClientOptions = {}) {
     this.baseUrl = normalizeCloudApiUrl(baseUrl)
@@ -426,16 +446,32 @@ export class CloudApiClient {
     signal?: AbortSignal
   ): Promise<CloudStaticDataCurrentRelease> {
     const normalizedChannel = readChannel(channel, 'Static-data channel')
-    return parseCurrentStaticDataRelease(
-      await this.request(
-        `/v1/static-data/channels/${encodeURIComponent(normalizedChannel)}/current`,
-        {
-          method: 'GET',
-          accessToken,
-          signal
-        }
-      )
+    const cached = this.staticDataReleaseCache.get(normalizedChannel)
+    const response = await this.request(
+      `/v1/static-data/channels/${encodeURIComponent(normalizedChannel)}/current`,
+      {
+        method: 'GET',
+        accessToken,
+        signal,
+        conditional: { etag: cached?.etag ?? null }
+      }
     )
+    if (response.notModified) {
+      if (!cached) {
+        throw new CloudApiError('The cloud manifest cache is unavailable.', {
+          status: 304,
+          code: 'invalid_response'
+        })
+      }
+      return cached.value
+    }
+
+    const current = parseCurrentStaticDataRelease(response.value)
+    this.staticDataReleaseCache.set(normalizedChannel, {
+      etag: response.etag ?? current.contentSetSha256,
+      value: current
+    })
+    return current
   }
 
   async getStaticDataBlueprintMarkers(
@@ -453,15 +489,34 @@ export class CloudApiClient {
     ) {
       throw new RangeError('The blueprint resource manifest exceeds the supported limits.')
     }
-    return parseCloudBlueprintMarkers(
-      await this.request(resource.url, {
-        method: 'GET',
-        accessToken,
-        signal,
-        maxResponseBytes: STATIC_DATA_RESOURCE_BYTE_LIMITS.blueprints.compressedBytes,
-        gzipJsonMaxBytes: STATIC_DATA_RESOURCE_BYTE_LIMITS.blueprints.uncompressedBytes
-      })
-    )
+    const cached = this.blueprintMarkerCache.get(resource.sha256)
+    const response = await this.request(resource.url, {
+      method: 'GET',
+      accessToken,
+      signal,
+      maxResponseBytes: STATIC_DATA_RESOURCE_BYTE_LIMITS.blueprints.uncompressedBytes,
+      gzipJsonMaxBytes: STATIC_DATA_RESOURCE_BYTE_LIMITS.blueprints.uncompressedBytes,
+      conditional: {
+        etag: cached?.etag ?? null,
+        expectedSha256: resource.sha256
+      }
+    })
+    if (response.notModified) {
+      if (!cached) {
+        throw new CloudApiError('The cloud blueprint cache is unavailable.', {
+          status: 304,
+          code: 'invalid_response'
+        })
+      }
+      return cached.value
+    }
+
+    const markers = parseCloudBlueprintMarkers(response.value)
+    this.blueprintMarkerCache.set(resource.sha256, {
+      etag: response.etag ?? resource.sha256,
+      value: markers
+    })
+    return markers
   }
 
   async publishStaticDataRelease(
@@ -486,6 +541,11 @@ export class CloudApiClient {
     )
   }
 
+  private request(
+    path: string,
+    options: CloudRequestOptions & { conditional: NonNullable<CloudRequestOptions['conditional']> }
+  ): Promise<CloudConditionalJsonResponse>
+  private request(path: string, options: CloudRequestOptions): Promise<unknown>
   private async request(path: string, options: CloudRequestOptions): Promise<unknown> {
     const url = new URL(path, this.baseUrl)
     if (options.body !== undefined && options.rawBody !== undefined) {
@@ -504,6 +564,9 @@ export class CloudApiClient {
     if (options.accessToken) {
       headers.Authorization = `Bearer ${options.accessToken}`
     }
+
+    if (options.conditional?.etag) headers['If-None-Match'] = options.conditional.etag
+    if (options.gzipJsonMaxBytes !== undefined) headers['Accept-Encoding'] = 'gzip'
 
     return new Promise<unknown>((resolve, reject) => {
       const maxResponseBytes = options.maxResponseBytes ?? MAX_RESPONSE_BYTES
@@ -560,12 +623,43 @@ export class CloudApiClient {
           response.on('end', () => {
             ended = true
             const status = response.statusCode ?? 0
+            const etag = readHeader(response.headers.etag)
+            if (status === 304 && options.conditional) {
+              finish(() =>
+                resolve({
+                  notModified: true,
+                  etag,
+                  value: null
+                } satisfies CloudConditionalJsonResponse)
+              )
+              return
+            }
             let responseBuffer = Buffer.concat(chunks)
             if (status >= 200 && status < 300 && options.gzipJsonMaxBytes !== undefined) {
-              if (response.headers['content-encoding'] !== 'gzip') {
+              if (
+                responseBuffer.byteLength >= 2 &&
+                responseBuffer[0] === 0x1f &&
+                responseBuffer[1] === 0x8b
+              ) {
+                try {
+                  responseBuffer = gunzipSync(responseBuffer, {
+                    maxOutputLength: options.gzipJsonMaxBytes
+                  })
+                } catch {
+                  finish(() =>
+                    reject(
+                      new CloudApiError('The cloud service returned invalid compressed JSON.', {
+                        status,
+                        code: 'invalid_response'
+                      })
+                    )
+                  )
+                  return
+                }
+              } else if (responseBuffer.byteLength > options.gzipJsonMaxBytes) {
                 finish(() =>
                   reject(
-                    new CloudApiError('The cloud service returned an uncompressed resource.', {
+                    new CloudApiError('The decoded cloud resource exceeded the supported size.', {
                       status,
                       code: 'invalid_response'
                     })
@@ -573,14 +667,14 @@ export class CloudApiClient {
                 )
                 return
               }
-              try {
-                responseBuffer = gunzipSync(responseBuffer, {
-                  maxOutputLength: options.gzipJsonMaxBytes
-                })
-              } catch {
+              const expectedSha256 = options.conditional?.expectedSha256
+              if (
+                expectedSha256 &&
+                createHash('sha256').update(responseBuffer).digest('hex') !== expectedSha256
+              ) {
                 finish(() =>
                   reject(
-                    new CloudApiError('The cloud service returned invalid compressed JSON.', {
+                    new CloudApiError('The cloud resource did not match its manifest hash.', {
                       status,
                       code: 'invalid_response'
                     })
@@ -624,7 +718,17 @@ export class CloudApiClient {
               )
               return
             }
-            finish(() => resolve(value))
+            finish(() =>
+              resolve(
+                options.conditional
+                  ? ({
+                      notModified: false,
+                      etag,
+                      value
+                    } satisfies CloudConditionalJsonResponse)
+                  : value
+              )
+            )
           })
         }
       )
@@ -903,7 +1007,7 @@ function parseCurrentStaticDataRelease(value: unknown): CloudStaticDataCurrentRe
     readNonNegativeInteger(resourceRecord.recordCount, 'Resource record count')
     readPositiveInteger(resourceRecord.compressedBytes, 'Compressed resource bytes')
     readPositiveInteger(resourceRecord.uncompressedBytes, 'Uncompressed resource bytes')
-    readSha256(resourceRecord.sha256, 'Resource hash')
+    const sha256 = readSha256(resourceRecord.sha256, 'Resource hash')
     const name = readNonEmptyString(resourceRecord.name, 'Resource name', 100)
     if (seenResources.has(name)) {
       throw new TypeError('Current static-data release contains a duplicate resource.')
@@ -920,6 +1024,7 @@ function parseCurrentStaticDataRelease(value: unknown): CloudStaticDataCurrentRe
       name,
       schemaVersion: 1,
       contentEncoding: 'gzip',
+      sha256,
       compressedBytes: readPositiveInteger(
         resourceRecord.compressedBytes,
         'Compressed resource bytes'
@@ -1219,6 +1324,10 @@ function parseProblemDetails(value: unknown): {
     detail: typeof value.detail === 'string' ? value.detail : null,
     code: typeof value.code === 'string' ? value.code : null
   }
+}
+
+function readHeader(value: string | string[] | undefined): string | null {
+  return (Array.isArray(value) ? value[0] : value) ?? null
 }
 
 function parseRetryAfter(value: string | string[] | undefined): number | null {

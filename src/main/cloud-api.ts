@@ -1,8 +1,12 @@
 import { request as requestHttp } from 'node:http'
 import { request as requestHttps } from 'node:https'
+import { gunzipSync } from 'node:zlib'
 
 import { isLoopbackCloudUrl, normalizeCloudApiUrl } from './cloud-url'
-import { STATIC_DATA_RESOURCE_RECORD_LIMITS } from './static-data-publication'
+import {
+  STATIC_DATA_RESOURCE_BYTE_LIMITS,
+  STATIC_DATA_RESOURCE_RECORD_LIMITS
+} from './static-data-publication'
 
 const DEFAULT_REQUEST_TIMEOUT_MS = 15_000
 const MAX_RESPONSE_BYTES = 8 * 1024 * 1024
@@ -206,10 +210,28 @@ export interface CloudStaticDataCurrentRelease {
   contentSetSha256: string
   publishedAt: string
   manifestUrl: string
+  resources: Record<CloudStaticDataResourceName, CloudStaticDataResource>
   source: {
     dataP4kBytes: number
     dataP4kLastWriteAt: string
   }
+}
+
+export type CloudStaticDataResourceName = 'blueprints' | 'faction-reputation' | 'signatures'
+
+export interface CloudStaticDataResource {
+  name: CloudStaticDataResourceName
+  schemaVersion: 1
+  contentEncoding: 'gzip'
+  compressedBytes: number
+  uncompressedBytes: number
+  recordCount: number
+  url: string
+}
+
+export interface CloudBlueprintMarker {
+  id: string
+  isNew: boolean
 }
 
 export class CloudApiError extends Error {
@@ -249,6 +271,7 @@ interface CloudRequestOptions {
   maxResponseBytes?: number
   timeoutMs?: number
   onUploadProgress?: (sentBytes: number, totalBytes: number) => void
+  gzipJsonMaxBytes?: number
 }
 
 interface CloudApiClientOptions {
@@ -415,6 +438,32 @@ export class CloudApiClient {
     )
   }
 
+  async getStaticDataBlueprintMarkers(
+    resource: CloudStaticDataResource,
+    accessToken: string,
+    signal?: AbortSignal
+  ): Promise<CloudBlueprintMarker[]> {
+    if (resource.name !== 'blueprints') {
+      throw new TypeError('The requested static-data resource is not the blueprint catalog.')
+    }
+    if (
+      resource.recordCount > STATIC_DATA_RESOURCE_RECORD_LIMITS.blueprints ||
+      resource.compressedBytes > STATIC_DATA_RESOURCE_BYTE_LIMITS.blueprints.compressedBytes ||
+      resource.uncompressedBytes > STATIC_DATA_RESOURCE_BYTE_LIMITS.blueprints.uncompressedBytes
+    ) {
+      throw new RangeError('The blueprint resource manifest exceeds the supported limits.')
+    }
+    return parseCloudBlueprintMarkers(
+      await this.request(resource.url, {
+        method: 'GET',
+        accessToken,
+        signal,
+        maxResponseBytes: STATIC_DATA_RESOURCE_BYTE_LIMITS.blueprints.compressedBytes,
+        gzipJsonMaxBytes: STATIC_DATA_RESOURCE_BYTE_LIMITS.blueprints.uncompressedBytes
+      })
+    )
+  }
+
   async publishStaticDataRelease(
     accessToken: string,
     archive: Buffer,
@@ -511,7 +560,36 @@ export class CloudApiClient {
           response.on('end', () => {
             ended = true
             const status = response.statusCode ?? 0
-            const text = Buffer.concat(chunks).toString('utf8')
+            let responseBuffer = Buffer.concat(chunks)
+            if (status >= 200 && status < 300 && options.gzipJsonMaxBytes !== undefined) {
+              if (response.headers['content-encoding'] !== 'gzip') {
+                finish(() =>
+                  reject(
+                    new CloudApiError('The cloud service returned an uncompressed resource.', {
+                      status,
+                      code: 'invalid_response'
+                    })
+                  )
+                )
+                return
+              }
+              try {
+                responseBuffer = gunzipSync(responseBuffer, {
+                  maxOutputLength: options.gzipJsonMaxBytes
+                })
+              } catch {
+                finish(() =>
+                  reject(
+                    new CloudApiError('The cloud service returned invalid compressed JSON.', {
+                      status,
+                      code: 'invalid_response'
+                    })
+                  )
+                )
+                return
+              }
+            }
+            const text = responseBuffer.toString('utf8')
             let value: unknown = null
             if (text.trim().length > 0) {
               try {
@@ -792,7 +870,7 @@ function parseCurrentStaticDataRelease(value: unknown): CloudStaticDataCurrentRe
   readNonEmptyString(record.sourceAppVersion, 'Current source app version', 100)
   const resources = readArray(record.resources, 'Current static-data resources')
   const seenResources = new Set<string>()
-  const resourceNames = resources.map((resource) => {
+  const parsedResources = resources.map((resource): CloudStaticDataResource => {
     const resourceRecord = readRecord(resource, 'Current static-data resource')
     assertExactKeys(
       resourceRecord,
@@ -835,8 +913,26 @@ function parseCurrentStaticDataRelease(value: unknown): CloudStaticDataCurrentRe
     if (url !== `/v1/static-data/releases/${releaseId}/resources/${name}`) {
       throw new TypeError('Current static-data resource URL does not match its release and name.')
     }
-    return name
+    if (name !== 'blueprints' && name !== 'faction-reputation' && name !== 'signatures') {
+      throw new TypeError('Current static-data release contains an unknown resource.')
+    }
+    return {
+      name,
+      schemaVersion: 1,
+      contentEncoding: 'gzip',
+      compressedBytes: readPositiveInteger(
+        resourceRecord.compressedBytes,
+        'Compressed resource bytes'
+      ),
+      uncompressedBytes: readPositiveInteger(
+        resourceRecord.uncompressedBytes,
+        'Uncompressed resource bytes'
+      ),
+      recordCount: readNonNegativeInteger(resourceRecord.recordCount, 'Resource record count'),
+      url
+    }
   })
+  const resourceNames = parsedResources.map(({ name }) => name)
   const expectedNames = ['blueprints', 'faction-reputation', 'signatures']
   if (
     resourceNames.length !== expectedNames.length ||
@@ -881,6 +977,9 @@ function parseCurrentStaticDataRelease(value: unknown): CloudStaticDataCurrentRe
     contentSetSha256: readSha256(record.contentSetSha256, 'Current content-set hash'),
     publishedAt: readTimestamp(record.publishedAt, 'Current publication time'),
     manifestUrl: `/v1/static-data/releases/${releaseId}`,
+    resources: Object.fromEntries(
+      parsedResources.map((resource) => [resource.name, resource])
+    ) as Record<CloudStaticDataResourceName, CloudStaticDataResource>,
     source: {
       dataP4kBytes: readPositiveInteger(source.dataP4kBytes, 'Current source archive bytes'),
       dataP4kLastWriteAt: readTimestamp(
@@ -889,6 +988,26 @@ function parseCurrentStaticDataRelease(value: unknown): CloudStaticDataCurrentRe
       )
     }
   }
+}
+
+function parseCloudBlueprintMarkers(value: unknown): CloudBlueprintMarker[] {
+  const records = readArray(value, 'Static-data blueprint resource')
+  if (records.length > STATIC_DATA_RESOURCE_RECORD_LIMITS.blueprints) {
+    throw new RangeError('Static-data blueprint resource exceeds the supported record count.')
+  }
+  const seenIds = new Set<string>()
+  return records.map((value) => {
+    const record = readRecord(value, 'Static-data blueprint')
+    const id = readNonEmptyString(record.id, 'Static-data blueprint ID', 200)
+    if (seenIds.has(id)) {
+      throw new TypeError('Static-data blueprint resource contains a duplicate blueprint ID.')
+    }
+    seenIds.add(id)
+    return {
+      id,
+      isNew: readBoolean(record.isNew, 'Static-data blueprint new state')
+    }
+  })
 }
 
 function parseOwnershipSnapshot(value: unknown): CloudOwnershipSnapshot {

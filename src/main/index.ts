@@ -65,6 +65,7 @@ import {
 } from '../shared/overlay-layout'
 import { AppUpdaterController, createUpdaterClient } from './app-updater'
 import { prepareBlueprintDataLoad, type BlueprintDataResult } from './blueprint-data'
+import { applyBlueprintNewMarkers } from './blueprint-newness'
 import { BlueprintOwnershipService } from './blueprint-ownership'
 import { BlueprintThumbnailService, validateBlueprintRequestId } from './blueprint-thumbnail'
 import { CloudSyncController } from './cloud-sync'
@@ -270,6 +271,8 @@ let pendingBlueprintData: {
   visible: Promise<BlueprintDataResult>
   request: Promise<BlueprintDataResult>
 } | null = null
+let blueprintNewMarkerRefresh: Promise<void> | null = null
+let blueprintNewMarkersAppliedTo: BlueprintDataResult | null = null
 let factionDataResult: FactionCatalogResult | null = null
 let factionDataGeneration = 0
 let pendingFactionData: {
@@ -556,7 +559,9 @@ async function applySettingsPatch(patch: OverlaySettingsPatch): Promise<AppSnaps
   if (favoriteMiningLocationsChanged) refreshPreferredMiningLocationStates()
   warning = null
   if (cloudApiChanged && cloudSyncController) {
+    blueprintNewMarkersAppliedTo = null
     cloudSync = await cloudSyncController.changeApiUrl(next.cloudApiUrl)
+    queueBlueprintNewMarkerRefresh()
   }
   if (shortcutsChanged && !shortcutCaptureActive) {
     shortcutStatuses = registerShortcuts()
@@ -1018,6 +1023,8 @@ async function runStaticDataPublication(): Promise<StaticDataSyncState> {
         progress: null
       }
       broadcastSnapshot()
+      blueprintNewMarkersAppliedTo = null
+      queueBlueprintNewMarkerRefresh()
       return staticData
     }
 
@@ -1068,6 +1075,8 @@ async function runStaticDataPublication(): Promise<StaticDataSyncState> {
       currentRelease
     }
     broadcastSnapshot()
+    blueprintNewMarkersAppliedTo = null
+    queueBlueprintNewMarkerRefresh()
     return staticData
   } catch (error) {
     staticData = {
@@ -1411,7 +1420,10 @@ async function getBlueprintCatalog(refresh: unknown = false): Promise<BlueprintC
     throw new Error('Blueprint data cannot be refreshed during static-data publication.')
   }
   const generation = blueprintDataGeneration
-  if (!refresh && blueprintDataResult) return blueprintDataResult.catalog
+  if (!refresh && blueprintDataResult) {
+    queueBlueprintNewMarkerRefresh()
+    return blueprintDataResult.catalog
+  }
   if (pendingBlueprintData?.generation === generation) {
     return (await (refresh ? pendingBlueprintData.request : pendingBlueprintData.visible)).catalog
   }
@@ -1430,6 +1442,7 @@ async function getBlueprintCatalog(refresh: unknown = false): Promise<BlueprintC
       if (generation === blueprintDataGeneration) {
         blueprintDataResult = result
         broadcastBlueprintCatalog()
+        queueBlueprintNewMarkerRefresh()
         broadcastBlueprintOwnership()
         if (cloudSyncController) {
           runInBackground(
@@ -1444,6 +1457,7 @@ async function getBlueprintCatalog(refresh: unknown = false): Promise<BlueprintC
     if (!refresh && cached) {
       if (generation === blueprintDataGeneration) {
         blueprintDataResult = cached
+        queueBlueprintNewMarkerRefresh()
         broadcastBlueprintOwnership()
       }
       return cached
@@ -1457,6 +1471,48 @@ async function getBlueprintCatalog(refresh: unknown = false): Promise<BlueprintC
   }
   void request.then(clearPending, clearPending)
   return (await visible).catalog
+}
+
+function queueBlueprintNewMarkerRefresh(): void {
+  if (
+    blueprintNewMarkerRefresh ||
+    !blueprintDataResult ||
+    blueprintNewMarkersAppliedTo === blueprintDataResult ||
+    !gameDataArchive ||
+    !cloudSyncController ||
+    !cloudSync.user
+  ) {
+    return
+  }
+
+  const sourceResult = blueprintDataResult
+  const generation = blueprintDataGeneration
+  const channel = gameDataArchive.channel
+  const controller = cloudSyncController
+  let applied = false
+  const request = (async (): Promise<void> => {
+    try {
+      const { release, markers } = await controller.getBlueprintNewMarkers(channel)
+      if (release.gameBuild !== sourceResult.gameVersion) {
+        return
+      }
+
+      if (blueprintDataResult !== sourceResult || blueprintDataGeneration !== generation) return
+
+      blueprintDataResult = applyBlueprintNewMarkers(sourceResult, markers)
+      blueprintNewMarkersAppliedTo = blueprintDataResult
+      applied = true
+      broadcastBlueprintCatalog()
+    } catch (error) {
+      console.warn(`New blueprint markers could not be refreshed: ${getErrorMessage(error)}`)
+    }
+  })()
+  blueprintNewMarkerRefresh = request
+  void request.finally(() => {
+    if (blueprintNewMarkerRefresh !== request) return
+    blueprintNewMarkerRefresh = null
+    if (!applied && blueprintDataResult !== sourceResult) queueBlueprintNewMarkerRefresh()
+  })
 }
 
 async function getFactionCatalog(refresh: unknown = false): Promise<FactionCatalogResult> {
@@ -2219,6 +2275,7 @@ if (!hasSingleInstanceLock) {
             refreshStaticDataAvailability()
           )
         }
+        if (state.user) queueBlueprintNewMarkerRefresh()
         broadcastSnapshot([controlWindow])
       },
       onOwnershipChange: broadcastBlueprintOwnership

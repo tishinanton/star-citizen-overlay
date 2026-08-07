@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http'
 import type { AddressInfo } from 'node:net'
 import test from 'node:test'
+import { gzipSync } from 'node:zlib'
 
 import {
   CloudApiClient,
@@ -145,6 +146,11 @@ test('validates every Rockfall Cloud client method', async () => {
 test('validates static-data capability and current-release contracts', async () => {
   let useLegacyCapabilities = false
   let useOldResourceCaps = false
+  let blueprintAuthorization: string | undefined
+  let blueprintResource: unknown = [
+    { id: 'Case-Sensitive-ID', isNew: true },
+    { id: 'case-sensitive-id', isNew: false }
+  ]
   const server = createServer((request, response) => {
     if (request.url === '/v1/static-data/capabilities') {
       if (useLegacyCapabilities) {
@@ -187,6 +193,17 @@ test('validates static-data capability and current-release contracts', async () 
         ],
         supportedAssetMediaTypes: ['image/png']
       })
+      return
+    }
+    if (request.url === `/v1/static-data/releases/${RELEASE_ID}/resources/blueprints`) {
+      blueprintAuthorization = request.headers.authorization
+      const body = gzipSync(JSON.stringify(blueprintResource))
+      response.writeHead(200, {
+        'Content-Type': 'application/json',
+        'Content-Encoding': 'gzip',
+        'Content-Length': body.byteLength
+      })
+      response.end(body)
       return
     }
     if (request.url === '/v1/static-data/channels/LIVE/current') {
@@ -235,6 +252,23 @@ test('validates static-data capability and current-release contracts', async () 
     const current = await client.getCurrentStaticDataRelease('LIVE', 'access-token')
     assert.equal(current.releaseId, RELEASE_ID)
     assert.equal(current.manifestUrl, `/v1/static-data/releases/${RELEASE_ID}`)
+    assert.equal(
+      current.resources.blueprints.url,
+      `/v1/static-data/releases/${RELEASE_ID}/resources/blueprints`
+    )
+    assert.deepEqual(
+      await client.getStaticDataBlueprintMarkers(current.resources.blueprints, 'access-token'),
+      [
+        { id: 'Case-Sensitive-ID', isNew: true },
+        { id: 'case-sensitive-id', isNew: false }
+      ]
+    )
+    assert.equal(blueprintAuthorization, 'Bearer access-token')
+    blueprintResource = [{ id: 'missing-marker' }]
+    await assert.rejects(
+      client.getStaticDataBlueprintMarkers(current.resources.blueprints, 'access-token'),
+      /new state must be a boolean/
+    )
     useOldResourceCaps = true
     await assert.rejects(
       client.getStaticDataCapabilities('access-token'),

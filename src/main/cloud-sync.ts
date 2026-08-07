@@ -10,6 +10,7 @@ import {
   CloudApiError,
   CloudNetworkError,
   type CloudAuthenticatedUser,
+  type CloudBlueprintMarker,
   type CloudStaticDataCurrentRelease,
   type CloudStaticDataPublishResult,
   type CloudSyncOperation,
@@ -55,6 +56,7 @@ type CloudClient = Pick<
   | 'syncOwnership'
   | 'getStaticDataCapabilities'
   | 'getCurrentStaticDataRelease'
+  | 'getStaticDataBlueprintMarkers'
   | 'publishStaticDataRelease'
 >
 
@@ -404,6 +406,21 @@ export class CloudSyncController {
         }
         throw error
       }
+    })
+  }
+
+  getBlueprintNewMarkers(
+    channel: string
+  ): Promise<{ release: CloudStaticDataCurrentRelease; markers: CloudBlueprintMarker[] }> {
+    return this.enqueue(async () => {
+      if (!this.state.session) throw new Error('Sign in before loading blueprint markers.')
+      const release = await this.withAuthenticatedRetry((accessToken, signal) =>
+        this.api.getCurrentStaticDataRelease(channel, accessToken, signal)
+      )
+      const markers = await this.withAuthenticatedRetry((accessToken, signal) =>
+        this.api.getStaticDataBlueprintMarkers(release.resources.blueprints, accessToken, signal)
+      )
+      return { release, markers }
     })
   }
 

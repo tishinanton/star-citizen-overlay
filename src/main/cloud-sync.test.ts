@@ -497,6 +497,10 @@ class FakeCloudApi {
       code: 'static_data_not_published'
     })
   }
+
+  async getStaticDataBlueprintMarkers(): Promise<[]> {
+    return []
+  }
 }
 
 function tokenPair(role: 'user' | 'admin' = 'admin'): CloudTokenPair {

@@ -1,6 +1,6 @@
 {
   "name": "rockfall",
-  "version": "0.11.0",
+  "version": "0.11.1",
   "description": "A Star Citizen mining, blueprint, and faction field console for Windows",
   "main": "./out/main/index.js",
   "author": "Rockfall contributors",

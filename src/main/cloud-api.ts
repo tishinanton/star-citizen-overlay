@@ -1096,7 +1096,9 @@ function parseCurrentStaticDataRelease(value: unknown): CloudStaticDataCurrentRe
 }
 
 function parseCloudBlueprintMarkers(value: unknown): CloudBlueprintMarker[] {
-  const records = readArray(value, 'Static-data blueprint resource')
+  const records = Array.isArray(value)
+    ? value
+    : readCloudBlueprintResourceEnvelope(value).blueprints
   if (records.length > STATIC_DATA_RESOURCE_RECORD_LIMITS.blueprints) {
     throw new RangeError('Static-data blueprint resource exceeds the supported record count.')
   }
@@ -1116,6 +1118,22 @@ function parseCloudBlueprintMarkers(value: unknown): CloudBlueprintMarker[] {
           : readBoolean(record.isNew, 'Static-data blueprint new state')
     }
   })
+}
+
+function readCloudBlueprintResourceEnvelope(value: unknown): { blueprints: unknown[] } {
+  const record = readRecord(value, 'Static-data blueprint resource')
+  assertExactKeys(
+    record,
+    ['schemaVersion', 'gameVersion', 'blueprints'],
+    'Static-data blueprint resource'
+  )
+  if (record.schemaVersion !== 1) {
+    throw new TypeError('Static-data blueprint resource schema version must be 1.')
+  }
+  readNonEmptyString(record.gameVersion, 'Static-data blueprint game version', 200)
+  return {
+    blueprints: readArray(record.blueprints, 'Static-data blueprints')
+  }
 }
 
 function parseOwnershipSnapshot(value: unknown): CloudOwnershipSnapshot {

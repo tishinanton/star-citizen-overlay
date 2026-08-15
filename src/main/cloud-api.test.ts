@@ -152,10 +152,14 @@ test('validates static-data capability and current-release contracts', async () 
   let manifestRequestCount = 0
   let blueprintRequestCount = 0
   const manifestEtag = `"${'a'.repeat(64)}"`
-  const blueprintResource = [
-    { id: 'Case-Sensitive-ID', isNew: true },
-    { id: 'case-sensitive-id', isNew: false }
-  ]
+  const blueprintResource = {
+    schemaVersion: 1,
+    gameVersion: '4.9.187.47267-LIVE',
+    blueprints: [
+      { id: 'Case-Sensitive-ID', isNew: true },
+      { id: 'case-sensitive-id', isNew: false }
+    ]
+  }
   const blueprintJson = JSON.stringify(blueprintResource)
   const blueprintSha256 = sha256(blueprintJson)
   const blueprintEtag = `"${blueprintSha256}"`
